@@ -57,13 +57,18 @@ def _collect_api(settings: Settings, db: Database, run_id: int, mapper: AlertTyp
         now = now_local(settings.timezone)
         try:
             time.sleep(random.uniform(settings.min_delay, settings.max_delay) / 3)  # API 는 가볍게 간격만
-            db.upsert_farm(farm.farm_id, farm.name, now, ov.get("herd_size"))
             try:
-                n_sensor = db.upsert_animals(farm.farm_id, api.list_animals(farm.farm_id), now)
+                animals = api.list_animals(farm.farm_id)
+                if not animals:  # 개인 조직 등 빈 목장 → 건너뜀(리포트에도 안 나옴)
+                    log.info("목장 %s: 등록 개체 없음 → 건너뜀", farm.name)
+                    continue
+                db.upsert_farm(farm.farm_id, farm.name, now, ov.get("herd_size"))
+                n_sensor = db.upsert_animals(farm.farm_id, animals, now)
                 if not ov.get("herd_size") and n_sensor:
                     db.conn.execute("UPDATE farms SET herd_size=? WHERE farm_id=?", (n_sensor, farm.farm_id))
             except ApiError as e:  # 개체목록은 부가정보 → 실패해도 알림 수집은 진행
                 log.warning("목장 %s 개체목록 실패: %s", farm.name, e)
+                db.upsert_farm(farm.farm_id, farm.name, now, ov.get("herd_size"))
             back = (timedelta(days=settings.api_backfill_days) if not db.farm_has_alerts(farm.farm_id)
                     else timedelta(hours=settings.api_lookback_hours))
             events = api.list_events(farm.farm_id, now - back)

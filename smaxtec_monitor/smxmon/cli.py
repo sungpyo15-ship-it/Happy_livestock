@@ -91,7 +91,13 @@ def cmd_api_test(s, args) -> int:
         m = api.org_meta.get(f.farm_id, {})
         print(f"  {f.farm_id}  {f.name}  (권한: {m.get('role', '-')}, 시간대: {m.get('timezone', '-')})")
     now = now_local(s.timezone)
-    for f in farms[: args.limit]:
+    shown = 0
+    for f in farms:
+        if shown >= args.limit:
+            break
+        if not api.list_animals(f.farm_id):
+            continue  # 빈 조직(개인 계정 등)은 건너뜀
+        shown += 1
         ev = api.list_events(f.farm_id, now - timedelta(hours=args.hours))
         c = Counter(ev.event_type for ev in ev)
         print(f"\n[{f.name}] 최근 {args.hours}시간 이벤트 {len(ev)}건")

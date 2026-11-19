@@ -46,11 +46,12 @@ class ApiEvent:
 
 
 def to_local_naive(ts: str, tz: str) -> datetime:
-    """'2020-03-23T16:54:21+00:00' / '2020-02-01 21:00:00'(=UTC) → 설정 시간대의 naive datetime."""
+    """'2026-11-19 01:50:00+09:00' → 설정 시간대 naive datetime.
+    시간대 표기가 없으면 목장 현지시간으로 간주(tz_mode 없이 조회 시 API 가 현지시간을 돌려줌, 2026-11 실측)."""
     s = ts.strip().replace("Z", "+00:00")
     dt = datetime.fromisoformat(s)
     if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=timezone.utc)
+        return dt.replace(microsecond=0)
     return dt.astimezone(ZoneInfo(tz)).replace(tzinfo=None, microsecond=0)
 
 
