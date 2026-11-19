@@ -1,0 +1,149 @@
+<title>smaXtec 모니터 팀원 설치 안내</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;700&display=swap">
+<style>
+/* 레이아웃: 단일 컬럼 안내서. 번호 = 실제 설치 순서. 파일 이름은 코드 서체, 주의사항은 경고 띠 */
+:root{
+  --bg:#f5f7f6; --paper:#ffffff; --ink:#1d2a26; --sub:#5b6a65; --line:#dde4e1;
+  --accent:#1f5f4c; --accent-soft:#e3efea; --warn:#9a4a12; --warn-soft:#fbefe4; --code:#eef2f0;
+  --font:"IBM Plex Sans KR","Apple SD Gothic Neo","Malgun Gothic",system-ui,sans-serif;
+  --mono:ui-monospace,"Cascadia Mono",Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#121816; --paper:#19211e; --ink:#e4ece9; --sub:#9aaaa4; --line:#2a3531;
+  --accent:#7cc3a8; --accent-soft:#1f2f29; --warn:#f0a56a; --warn-soft:#33251a; --code:#222c28; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#121816; --paper:#19211e; --ink:#e4ece9; --sub:#9aaaa4; --line:#2a3531;
+  --accent:#7cc3a8; --accent-soft:#1f2f29; --warn:#f0a56a; --warn-soft:#33251a; --code:#222c28; color-scheme:dark}
+body{background:var(--bg);color:var(--ink);font:16px/1.7 var(--font);word-break:keep-all;overflow-wrap:anywhere;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:32px 56px}
+main{max-width:720px;margin:0 auto;display:grid;gap:28px}
+header{display:grid;gap:8px}
+.eyebrow{font-size:13px;letter-spacing:.08em;color:var(--accent);font-weight:700}
+h1{font-size:28px;line-height:1.3;margin:0;text-wrap:balance}
+h2{font-size:19px;margin:0 0 10px;text-wrap:balance}
+p{margin:0}
+.lead{color:var(--sub)}
+code,.file{font-family:var(--mono);font-size:.92em;background:var(--code);padding:1px 6px;border-radius:4px;white-space:nowrap}
+.panel{background:var(--paper);border:1px solid var(--line);border-radius:10px;padding:18px 20px;display:grid;gap:10px}
+.need{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;list-style:none;padding:0;margin:0}
+.need li{background:var(--accent-soft);border-radius:8px;padding:10px 12px;font-size:15px}
+.need b{display:block;color:var(--accent)}
+ol.steps{list-style:none;padding:0;margin:0;display:grid;gap:14px;counter-reset:s}
+ol.steps>li{counter-increment:s;display:grid;grid-template-columns:36px minmax(0,1fr);gap:12px;
+  background:var(--paper);border:1px solid var(--line);border-radius:10px;padding:16px 18px}
+ol.steps>li::before{content:counter(s);width:32px;height:32px;border-radius:50%;background:var(--accent);color:var(--paper);
+  display:grid;place-items:center;font-weight:700;font-variant-numeric:tabular-nums}
+.step{display:grid;gap:6px;min-width:0}
+.step h3{margin:0;font-size:17px}
+.step ul{margin:0;padding-left:18px}
+.step li{margin:2px 0}
+.note{font-size:14px;color:var(--sub)}
+.warn{background:var(--warn-soft);border-left:4px solid var(--warn);border-radius:0 8px 8px 0;padding:12px 16px;display:grid;gap:4px}
+.warn b{color:var(--warn)}
+.two{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px}
+.two .panel h3{margin:0;font-size:16px}
+table{border-collapse:collapse;width:100%;font-size:15px}
+.tw{overflow-x:auto}
+th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+th{color:var(--sub);font-weight:500;font-size:13px}
+td:first-child{white-space:nowrap}
+footer{font-size:13px;color:var(--sub)}
+</style>
+
+<main>
+  <header>
+    <div class="eyebrow">smaXtec 목장 모니터 · Windows</div>
+    <h1>팀원 설치 안내</h1>
+    <p class="lead">본인 smaXtec 계정으로 설치하면 <b>본인 담당 목장만</b> 보입니다. 다른 사람의 아이디·비밀번호는 쓰지 않습니다. 설치는 30분 정도 걸립니다.</p>
+  </header>
+
+  <section class="panel" aria-labelledby="need">
+    <h2 id="need">준비물</h2>
+    <ul class="need">
+      <li><b>Windows PC</b>매일 06:00에 켜져 있거나 절전 상태인 PC (노트북은 충전기 연결)</li>
+      <li><b>본인 smaXtec 계정</b>web.smaxtec.com 에 로그인되는지 먼저 확인</li>
+      <li><b>프로그램 ZIP</b>담당자에게 받은 <span class="file">smaxtec_monitor_latest.zip</span></li>
+      <li><b>(휴대폰 앱) Tailscale 계정</b>구글 계정으로 가입 가능 · 개인 사용 무료</li>
+    </ul>
+  </section>
+
+  <section aria-labelledby="install">
+    <h2 id="install">PC 설치</h2>
+    <ol class="steps">
+      <li><div class="step"><h3>Python 설치 (처음 한 번)</h3>
+        <ul><li>python.org/downloads 에서 최신 버전 내려받기 → 설치</li>
+        <li>설치 첫 화면 아래 <b>"Add python.exe to PATH" 를 꼭 체크</b></li></ul></div></li>
+      <li><div class="step"><h3>압축 풀기</h3>
+        <ul><li>ZIP 을 오른쪽 클릭 → <b>모두 압축 풀기</b></li>
+        <li>안에 있는 <span class="file">smaxtec_monitor</span> 폴더를 찾기 쉬운 곳(예: 문서)으로 옮기기</li></ul></div></li>
+      <li><div class="step"><h3><span class="file">1_INSTALL.bat</span> 더블클릭</h3>
+        <ul><li>"Windows의 PC 보호" 창이 뜨면 <b>추가 정보 → 실행</b></li>
+        <li>메모장이 열리면 <code>SMX_USERNAME=</code> 뒤에 <b>본인</b> 아이디, <code>SMX_PASSWORD=</code> 뒤에 비밀번호 → Ctrl+S 저장 → 메모장 닫기</li>
+        <li>창에 <b>"로그인 성공"</b>과 본인 목장 목록이 나오면 완료</li></ul></div></li>
+      <li><div class="step"><h3><span class="file">2_RUN_REPORT.bat</span> 더블클릭</h3>
+        <ul><li>첫 실행은 과거 150일 기록을 받느라 <b>10분 정도</b> 걸립니다 (한 번만)</li>
+        <li>끝나면 <span class="file">reports</span> 폴더가 열리고 일일 리포트·방문요약·앱 파일이 생깁니다</li></ul></div></li>
+      <li><div class="step"><h3><span class="file">3_AUTO_6AM.bat</span> 더블클릭</h3>
+        <ul><li>매일 <b>06:00</b> 자동 수집·리포트, 낮 동안 2시간마다 수집</li>
+        <li>PC 를 끄지 말고 절전으로 두세요. 노트북은 밤에 충전기를 꽂아 두세요</li></ul></div></li>
+      <li><div class="step"><h3><span class="file">5_OPEN_APP.bat</span> 으로 PC 에서 앱 열기</h3>
+        <p class="note">요약표 · 목장별 · 7일추세 · 전환기 · 투입비교 · 그룹행동 · 집단신호</p></div></li>
+    </ol>
+  </section>
+
+  <section aria-labelledby="phone">
+    <h2 id="phone">휴대폰 앱 (선택)</h2>
+    <ol class="steps">
+      <li><div class="step"><h3>PC 에 Tailscale 설치·로그인</h3>
+        <p>tailscale.com/download 에서 Windows 용 설치 → <b>본인</b> 구글 계정 등으로 로그인</p></div></li>
+      <li><div class="step"><h3><span class="file">7_IPHONE_SETUP.bat</span> 더블클릭</h3>
+        <ul><li>앱 서버 자동 시작이 등록되고 <code>https://○○○.ts.net</code> 주소가 나옵니다 → 메모</li>
+        <li>"HTTPS 허용" 링크가 나오면 열어서 <b>Enable HTTPS</b> 누른 뒤 다시 실행</li></ul></div></li>
+      <li><div class="step"><h3>휴대폰에 Tailscale 설치</h3>
+        <p>App Store / Play 스토어에서 <b>Tailscale</b> 설치 → <b>PC 와 같은 계정</b>으로 로그인 → 연결 켜기</p></div></li>
+      <li><div class="step"><h3>주소 열고 홈 화면에 추가</h3>
+        <div class="two">
+          <div class="panel"><h3>아이폰</h3><p><b>Safari</b> 로 주소 열기 → 아래 공유 버튼 → <b>홈 화면에 추가</b></p></div>
+          <div class="panel"><h3>안드로이드</h3><p><b>Chrome</b> 으로 주소 열기 → 오른쪽 위 ⋮ → <b>홈 화면에 추가</b> (또는 앱 설치)</p></div>
+        </div>
+        <p class="note">주소가 길면 카카오톡 '나와의 채팅'으로 보내 복사해 붙여넣으세요.</p></div></li>
+    </ol>
+  </section>
+
+  <section class="panel" aria-labelledby="files">
+    <h2 id="files">자주 쓰는 파일</h2>
+    <div class="tw"><table>
+      <tr><th>파일</th><th>언제</th></tr>
+      <tr><td><span class="file">5_OPEN_APP.bat</span></td><td>PC 에서 앱 보기</td></tr>
+      <tr><td><span class="file">9_TRIALS.bat</span></td><td>사료·첨가제 투입 기록 입력 → 다음 리포트부터 '투입비교'</td></tr>
+      <tr><td><span class="file">4_SETTINGS.bat</span></td><td>비밀번호를 바꿨을 때</td></tr>
+      <tr><td><span class="file">10_AUTO_CHECK.bat</span></td><td>06:00 자동 실행이 안 될 때 (점검·자동 복구·시험 실행)</td></tr>
+      <tr><td><span class="file">8_IPHONE_CHECK.bat</span></td><td>휴대폰에서 앱이 안 열릴 때</td></tr>
+    </table></div>
+  </section>
+
+  <section class="panel" aria-labelledby="update">
+    <h2 id="update">새 버전 받았을 때</h2>
+    <ul class="need">
+      <li><b>1. 압축 풀기</b>새 ZIP 을 새 폴더에 풀기</li>
+      <li><b>2. 내 파일 옮기기</b>기존 폴더의 <span class="file">.env</span> 와 <span class="file">투입기록.xlsx</span> 를 새 폴더로 복사 (.env 가 안 보이면 탐색기 보기 → 숨긴 항목)</li>
+      <li><b>3. 다시 등록</b><span class="file">3_AUTO_6AM.bat</span>, 휴대폰 앱을 쓰면 <span class="file">7_IPHONE_SETUP.bat</span></li>
+    </ul>
+  </section>
+
+  <section class="warn" aria-labelledby="rules">
+    <b id="rules">꼭 지켜 주세요</b>
+    <p>· 아이디·비밀번호는 <b>본인 것만</b>, 본인 PC 의 <span class="file">.env</span> 에만 저장. .env 파일은 다른 사람에게 보내지 마세요.</p>
+    <p>· 리포트·앱의 목장 데이터는 <b>농장주 소유</b>입니다. 다른 목장·외부 업체·SNS 에 공유하지 마세요.</p>
+    <p>· 판정(집단신호·전환기·투입비교)은 센서 알림 기반 <b>선별 자료</b>이며 진단이 아닙니다.</p>
+  </section>
+
+  <section class="panel" aria-labelledby="know">
+    <h2 id="know">알아두면 좋은 점</h2>
+    <p>· "담당 목장 중앙값" 같은 비교 기준은 <b>본인 담당 목장 안에서</b> 계산됩니다. 담당 목장이 적으면(전환기는 분만 8두 이상 목장 3곳 미만) 일부 비교가 표시되지 않습니다.</p>
+    <p>· 오류가 나면 검은 창 화면을 캡처해 담당자에게 보내 주세요. 비밀번호가 보이면 가려 주세요.</p>
+  </section>
+
+  <footer>smaXtec 목장 모니터 · 설치·사용 문의는 프로그램을 전달한 담당자에게</footer>
+</main>

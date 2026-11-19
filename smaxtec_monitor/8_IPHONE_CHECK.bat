@@ -52,12 +52,12 @@ if ($mdns -eq "true") { OK "MagicDNS 켜짐" } elseif ($mdns -eq "false") {
 if (-not $name) { NG "PC 주소(이름)를 읽지 못함"; TIP "PowerShell 에서 'tailscale status' 결과를 캡처해 보내주세요" }
 
 # 4. 아이폰 (기기 목록 텍스트에서 iOS 기기 확인)
-Write-Host "[4] 아이폰"
-$ios = @((& $ts status 2>$null) | Where-Object { $_ -match "\sios\s" })
-if ($ios.Count -eq 0) { NG "이 계정($acct)에 아이폰이 없음"; TIP "아이폰 Tailscale 앱에서 PC 와 같은 계정($acct, 구글)으로 로그인" }
+Write-Host "[4] 휴대폰 (아이폰·안드로이드)"
+$ios = @((& $ts status 2>$null) | Where-Object { $_ -match "\s(ios|android)\s" })
+if ($ios.Count -eq 0) { NG "이 계정($acct)에 휴대폰이 없음"; TIP "휴대폰 Tailscale 앱에서 PC 와 같은 계정($acct)으로 로그인" }
 foreach ($line in $ios) {
   $hn = ($line -split "\s+")[1]
-  if ($line -match "offline") { NG "아이폰($hn) 꺼짐"; TIP "아이폰 Tailscale 앱을 열고 맨 위 스위치를 켜서 Connected 로" } else { OK "아이폰 연결됨: $hn" }
+  if ($line -match "offline") { NG "휴대폰($hn) 꺼짐"; TIP "휴대폰 Tailscale 앱을 열고 연결 스위치를 켜기" } else { OK "휴대폰 연결됨: $hn" }
 }
 
 # 5. 아이폰용 주소(HTTPS)
