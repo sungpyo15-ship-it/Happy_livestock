@@ -5,14 +5,17 @@
 #  - URL 의 {farm_id} 는 목장 ID 로 치환됨
 # ─────────────────────────────────────────────────────────────
 
+# ※ web 모드(.env SMX_MODE=web)에서만 사용. 기본 api 모드는 이 파일의 [login]~[alert_list] 를 쓰지 않음
 [login]
-username_input = "TODO_username_input"      # 예: input[type=email]
-password_input = "TODO_password_input"      # 예: input[type=password]
-submit_button  = "TODO_submit_button"       # 예: button[type=submit]
+# web.smaxtec.com 첫 화면의 '로그인 하기' 버튼 → sso.smaxtec.com(Keycloak) 로그인 폼 (2026-11 확인)
+start_button   = "button:has-text('로그인'), button:has-text('Login'), button:has-text('Log in')"
+username_input = "#username"
+password_input = "#password"
+submit_button  = "#kc-login"
 # 로그인 성공 후에만 보이는 요소(메뉴, 로그아웃 버튼 등)
 logged_in_indicator = "TODO_logged_in_indicator"
 # (선택) 로그인 실패 메시지 요소
-error_message = ""
+error_message = "#input-error, .pf-c-alert__title, .alert-error"
 
 [farm_list]
 # 목장 목록 페이지 URL. 비우면 로그인 직후 화면에서 찾음

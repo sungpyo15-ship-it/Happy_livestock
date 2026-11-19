@@ -47,10 +47,12 @@ CREATE TABLE IF NOT EXISTS alerts (
     last_seen_at   TEXT NOT NULL,              -- 마지막으로 목록에 있던 시각
     resolved_at    TEXT,                       -- 해제 시각
     resolved_source TEXT,                      -- site(화면표기) / inferred(목록에서 사라짐)
-    status         TEXT NOT NULL DEFAULT 'active',  -- active / resolved
+    status         TEXT NOT NULL DEFAULT 'active',  -- active / resolved / event(API 시점 이벤트)
     reopen_count   INTEGER NOT NULL DEFAULT 0,
     time_is_relative INTEGER NOT NULL DEFAULT 0,
     detail         TEXT,
+    value          REAL,                       -- API 이벤트 수치(있으면)
+    ext_id         TEXT,                       -- API 이벤트 고유 ID
     UNIQUE (farm_id, animal_id, alert_type, occurred_at)
 );
 CREATE INDEX IF NOT EXISTS ix_alerts_farm_time ON alerts(farm_id, occurred_at);
@@ -61,6 +63,19 @@ CREATE TABLE IF NOT EXISTS alert_observations (
     run_id   INTEGER NOT NULL REFERENCES collection_runs(run_id),
     alert_id INTEGER NOT NULL REFERENCES alerts(alert_id),
     PRIMARY KEY (run_id, alert_id)
+);
+
+-- 개체 정보(API): 내부ID → 관리번호/이표, 비유상태, 센서 장착
+CREATE TABLE IF NOT EXISTS animals (
+    farm_id          TEXT NOT NULL,
+    animal_id        TEXT NOT NULL,     -- smaXtec 내부 ID
+    official_id      TEXT,              -- 이표(이력번호)
+    label            TEXT,              -- 리포트 표시명(관리번호 등)
+    group_name       TEXT,
+    lactation_status TEXT,
+    has_sensor       INTEGER,
+    updated_at       TEXT NOT NULL,
+    PRIMARY KEY (farm_id, animal_id)
 );
 
 -- (확장용) 개체 지표 시계열: 체온·반추·음수·활동·pH
@@ -81,13 +96,18 @@ CREATE TABLE IF NOT EXISTS notifications (
     summary     TEXT
 );
 
--- 지속시간(시간): 해제됐으면 해제시각, 아니면 마지막 확인시각까지
-CREATE VIEW IF NOT EXISTS v_alerts AS
+-- 지속시간(시간): 해제됐으면 해제시각, 아니면 마지막 확인시각까지 (API 시점이벤트는 계산 안 함)
+DROP VIEW IF EXISTS v_alerts;
+CREATE VIEW v_alerts AS
 SELECT a.*,
        f.name AS farm_name,
+       COALESCE(an.label, an.official_id, a.animal_id) AS animal_label,
+       an.lactation_status AS lactation_status,
+       CASE WHEN a.status = 'event' THEN NULL ELSE
        ROUND((julianday(COALESCE(a.resolved_at, a.last_seen_at)) - julianday(a.occurred_at)) * 24, 1)
-           AS duration_hours
-FROM alerts a JOIN farms f USING (farm_id);
+       END AS duration_hours
+FROM alerts a JOIN farms f USING (farm_id)
+LEFT JOIN animals an ON an.farm_id = a.farm_id AND an.animal_id = a.animal_id;
 """
 
 
@@ -107,7 +127,13 @@ class Database:
         self.init_schema()
 
     def init_schema(self) -> None:
+        # 구버전 DB 호환: 새 컬럼 추가
+        cols = {r[1] for r in self.conn.execute("PRAGMA table_info(alerts)")}
+        if cols and "ext_id" not in cols:
+            self.conn.execute("ALTER TABLE alerts ADD COLUMN value REAL")
+            self.conn.execute("ALTER TABLE alerts ADD COLUMN ext_id TEXT")
         self.conn.executescript(SCHEMA)
+        self.conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS ux_alerts_ext ON alerts(ext_id) WHERE ext_id IS NOT NULL")
         self.conn.commit()
 
     def close(self) -> None:
@@ -154,20 +180,41 @@ class Database:
     def upsert_alert(self, *, run_id: int, now: datetime, farm_id: str, animal_id: str, alert_type: str,
                      occurred_at: datetime, alert_type_raw: str | None = None,
                      resolved_at: datetime | None = None, detail: str | None = None,
-                     time_is_relative: bool = False, tolerance_minutes: int = 0) -> UpsertResult:
+                     time_is_relative: bool = False, tolerance_minutes: int = 0,
+                     ext_id: str | None = None, point_event: bool = False,
+                     value: float | None = None) -> UpsertResult:
         """중복 제거 저장.
 
         1) 키(목장+개체+종류+발생시각) 정확히 일치 → 같은 알림
         2) 없으면, 같은 목장·개체·종류의 '진행중' 알림 중 발생시각이 허용오차 이내 → 같은 알림
            (사이트가 '3시간 전' 같은 상대시각을 쓰거나 분 단위 반올림이 달라지는 경우 대비)
         3) 둘 다 없으면 신규
+        API 이벤트(point_event)는 ext_id(이벤트 고유ID)로 먼저 찾고, 상태는 'event'(해제 개념 없음).
         """
         t_now, t_occ = to_db_time(now), to_db_time(occurred_at)
         t_res = to_db_time(resolved_at) if resolved_at else None
-        row = self.conn.execute(
-            "SELECT alert_id, status FROM alerts WHERE farm_id=? AND animal_id=? AND alert_type=? AND occurred_at=?",
-            (farm_id, animal_id, alert_type, t_occ),
-        ).fetchone()
+        row = None
+        if ext_id:
+            row = self.conn.execute("SELECT alert_id, status FROM alerts WHERE ext_id=?", (ext_id,)).fetchone()
+        if row is None:
+            row = self.conn.execute(
+                "SELECT alert_id, status FROM alerts WHERE farm_id=? AND animal_id=? AND alert_type=? AND occurred_at=?",
+                (farm_id, animal_id, alert_type, t_occ),
+            ).fetchone()
+        if point_event:
+            if row is None:
+                cur = self.conn.execute(
+                    """INSERT INTO alerts(farm_id, animal_id, alert_type, alert_type_raw, occurred_at,
+                           first_seen_at, last_seen_at, status, detail, value, ext_id)
+                       VALUES (?,?,?,?,?,?,?,'event',?,?,?)""",
+                    (farm_id, animal_id, alert_type, alert_type_raw, t_occ, t_now, t_now, detail, value, ext_id))
+                res = UpsertResult(int(cur.lastrowid), "new")
+            else:
+                self.conn.execute("UPDATE alerts SET last_seen_at=? WHERE alert_id=?", (t_now, row["alert_id"]))
+                res = UpsertResult(int(row["alert_id"]), "seen")
+            self.conn.execute("INSERT OR IGNORE INTO alert_observations(run_id, alert_id) VALUES (?,?)",
+                              (run_id, res.alert_id))
+            return res
         if row is None and tolerance_minutes > 0:
             row = self.conn.execute(
                 """SELECT alert_id, status FROM alerts
@@ -234,6 +281,26 @@ class Database:
             [(t, a) for a in to_close],
         )
         return len(to_close)
+
+    def upsert_animals(self, farm_id: str, animals: list[dict], now: datetime) -> int:
+        """API 개체목록 저장. 반환: 센서 장착 두수(=모니터링 두수)."""
+        t, n_sensor = to_db_time(now), 0
+        for a in animals:
+            has = 1 if (a.get("current_device_id") or a.get("sensor")) and not a.get("archived") else 0
+            n_sensor += has
+            label = a.get("display_name") or a.get("mark") or a.get("name") or a.get("official_id")
+            self.conn.execute(
+                """INSERT INTO animals VALUES (?,?,?,?,?,?,?,?)
+                   ON CONFLICT(farm_id, animal_id) DO UPDATE SET official_id=excluded.official_id,
+                     label=excluded.label, group_name=excluded.group_name,
+                     lactation_status=excluded.lactation_status, has_sensor=excluded.has_sensor,
+                     updated_at=excluded.updated_at""",
+                (farm_id, str(a.get("_id")), a.get("official_id"), label, a.get("group_name"),
+                 a.get("lactation_status"), has, t))
+        return n_sensor
+
+    def farm_has_alerts(self, farm_id: str) -> bool:
+        return self.conn.execute("SELECT 1 FROM alerts WHERE farm_id=? LIMIT 1", (farm_id,)).fetchone() is not None
 
     def upsert_metric(self, farm_id: str, animal_id: str, metric: str, measured_at: datetime,
                       value: float | None, now: datetime) -> None:

@@ -41,7 +41,7 @@ def _selectors(base):
 
 def test_full_collect(server, tmp_path, monkeypatch):
     s = dataclasses.replace(load_settings(env_file=tmp_path / "none.env"),
-                            username="tester@example.com", password="pw-1234",
+                            username="tester@example.com", password="pw-1234", mode="web",
                             login_url=f"{server}/login.html", min_delay=0, max_delay=0, max_retries=1,
                             page_timeout_ms=8000, db_path=tmp_path / "t.db", log_dir=tmp_path / "logs")
     real = collector.load_toml
@@ -63,7 +63,7 @@ def test_full_collect(server, tmp_path, monkeypatch):
 
 def test_wrong_password(server, tmp_path, monkeypatch):
     s = dataclasses.replace(load_settings(env_file=tmp_path / "none.env"), username="tester@example.com",
-                            password="wrong", login_url=f"{server}/login.html", min_delay=0, max_delay=0,
+                            password="wrong", mode="web", login_url=f"{server}/login.html", min_delay=0, max_delay=0,
                             max_retries=3, page_timeout_ms=3000, db_path=tmp_path / "t.db",
                             log_dir=tmp_path / "logs")
     monkeypatch.setattr(collector, "load_toml",

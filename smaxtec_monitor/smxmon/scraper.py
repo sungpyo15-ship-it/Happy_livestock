@@ -167,6 +167,12 @@ class SmaxtecScraper:
         lg = self.sel["login"]
         log.info("로그인 시도")
         self.page.goto(self.s.login_url, wait_until="domcontentloaded")
+        if not _is_todo(lg.get("start_button")):  # SSO 로 넘어가는 첫 버튼
+            try:
+                self.page.wait_for_selector(lg["username_input"], timeout=3000)
+            except PWTimeout:
+                self.page.locator(lg["start_button"]).first.click()
+                self.page.wait_for_selector(lg["username_input"], timeout=self.s.page_timeout_ms)
         self.page.fill(lg["username_input"], self.s.username)
         self.page.fill(lg["password_input"], self.s.password)
         self.page.click(lg["submit_button"])

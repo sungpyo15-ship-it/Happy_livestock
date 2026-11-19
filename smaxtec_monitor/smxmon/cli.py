@@ -1,5 +1,6 @@
 """명령행 진입점:  python -m smxmon <명령>
 
+  api-test  공식 API 로그인·목장목록·이벤트 점검 (저장 안 함)
   init      폴더·DB 생성, 설정 점검
   inspect   화면 HTML/스크린샷/API 응답 저장 (선택자 채우기용)
   collect   1회 수집 (스케줄러가 1~2시간마다 실행)
@@ -70,6 +71,34 @@ def cmd_inspect(s, args) -> int:
           " 필요한 부분(목록 1~2행)만 잘라서 주세요.")
     for f in files:
         print("  -", f.name)
+    return 0
+
+
+def cmd_api_test(s, args) -> int:
+    """API 접속 점검: 로그인 → 목장 목록 → 최근 24시간 이벤트 종류별 건수. DB 에 저장하지 않음."""
+    from collections import Counter
+
+    from .api_client import SmaxtecAPI
+    from .collector import now_local
+    from .normalize import AlertTypeMapper
+    s.require_credentials()
+    mapper = AlertTypeMapper(load_toml("alert_types.toml"))
+    api = SmaxtecAPI(s)
+    print(f"API: {api.base}  인증방식: {'API 토큰' if s.api_token else '아이디/비밀번호'}")
+    farms = api.list_farms()
+    print(f"\n✔ 로그인 성공 / 접근 가능한 목장 {len(farms)}곳")
+    for f in farms:
+        m = api.org_meta.get(f.farm_id, {})
+        print(f"  {f.farm_id}  {f.name}  (권한: {m.get('role', '-')}, 시간대: {m.get('timezone', '-')})")
+    now = now_local(s.timezone)
+    for f in farms[: args.limit]:
+        ev = api.list_events(f.farm_id, now - timedelta(hours=args.hours))
+        c = Counter(ev.event_type for ev in ev)
+        print(f"\n[{f.name}] 최근 {args.hours}시간 이벤트 {len(ev)}건")
+        for code, n in c.most_common():
+            std = mapper.map_event(code)
+            print(f"  {code:<24} {n:>4}건  → {mapper.label(std) if std else '❓ 미분류'}")
+    print(f"\nAPI 호출 {api.calls}회. 이 결과(목장명 포함)를 그대로 보내주시면 됩니다.")
     return 0
 
 
@@ -161,6 +190,9 @@ def main(argv: list[str] | None = None) -> int:
     pi = sub.add_parser("inspect")
     pi.add_argument("urls", nargs="*", help="저장할 페이지 URL(여러 개 가능)")
     pi.add_argument("--manual", action="store_true", help="브라우저 창에서 직접 로그인 (선택자 입력 전)")
+    pa = sub.add_parser("api-test", help="공식 API 접속 점검(저장 안 함)")
+    pa.add_argument("--hours", type=int, default=24)
+    pa.add_argument("--limit", type=int, default=3, help="이벤트를 조회할 목장 수")
     pc = sub.add_parser("collect")
     pc.add_argument("--farm", nargs="*", help="특정 목장 ID/이름만 수집(테스트용)")
     pc.add_argument("--notify", action="store_true", help="집단신호 발생 시 즉시 메일")
@@ -176,7 +208,7 @@ def main(argv: list[str] | None = None) -> int:
 
     s = load_settings()
     setup_logging(s.log_dir, s.secrets(), args.verbose)
-    handler = {"init": cmd_init, "inspect": cmd_inspect, "collect": cmd_collect, "report": cmd_report,
+    handler = {"api-test": cmd_api_test, "init": cmd_init, "inspect": cmd_inspect, "collect": cmd_collect, "report": cmd_report,
                "status": cmd_status, "demo": cmd_demo}[args.cmd]
     try:
         return handler(s, args)

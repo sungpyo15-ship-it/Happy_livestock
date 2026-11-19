@@ -218,7 +218,7 @@ def analyze(conn: sqlite3.Connection, as_of: datetime, mapper: AlertTypeMapper, 
                 s.surge, s.surge_reason = True, f"7일평균 {s.health_7d_avg}→{s.health_d0}"
 
         # 집단 신호
-        c_ev = [(t, r["animal_id"], r["alert_type"]) for t, r in ev if r["alert_type"] in cl_types]
+        c_ev = [(t, r["animal_label"], r["alert_type"]) for t, r in ev if r["alert_type"] in cl_types]
         ph_ev = [(t, r["animal_id"]) for t, r in ev if r["alert_type"] == "PH_LOW"]
         baseline = None
         if avail > 0:  # 직전 avail일 동안 W시간당 평균 알림 건수(개체 중복 포함 → 보수적 기준)
@@ -228,6 +228,10 @@ def analyze(conn: sqlite3.Connection, as_of: datetime, mapper: AlertTypeMapper, 
                                    window_end_from=as_of - H24, window_end_to=as_of, rules=rules,
                                    ph_events=ph_ev, baseline=baseline)
         if s.cluster:
+            hs = sum(1 for t, r in ev if r["alert_type"] == "HEAT_STRESS"
+                     and s.cluster.window_start - W <= t <= s.cluster.window_end)
+            if hs and s.cluster.animals_by_type.get("TEMP_HIGH", 0):
+                s.cluster.interpretation = f"[고온스트레스 경보 {hs}건 동반 → 환기·음수·차광 우선 점검] " + s.cluster.interpretation
             clusters.append(s.cluster)
 
         # 장기 미해제 / 평균 지속시간
@@ -248,6 +252,8 @@ def analyze(conn: sqlite3.Connection, as_of: datetime, mapper: AlertTypeMapper, 
         s.score = round(
             pr["w_health_alert"] * s.health_d0 + pr["w_ph_low"] * ph
             + (pr["w_surge"] if s.surge else 0) + (pr["w_cluster"] if s.cluster else 0)
+            + pr.get("w_group_alarm", 15.0) * min(1, s.counts_d0.get("GROUP_TEMP", 0) + s.counts_d0.get("GROUP_RUMINATION", 0))
+            + pr.get("w_ketosis", 2.0) * s.counts_d0.get("KETOSIS", 0)
             + pr["w_long_active"] * s.long_active + pr["w_calving"] * s.counts_d0.get("CALVING", 0), 1)
         s.grade = ("긴급" if s.score >= pr["urgent"] else "우선" if s.score >= pr["high"]
                    else "관찰" if s.score >= pr["watch"] else "정상")
@@ -257,7 +263,12 @@ def analyze(conn: sqlite3.Connection, as_of: datetime, mapper: AlertTypeMapper, 
         if s.surge:
             s.reasons.append(f"급증({s.surge_reason})")
         if ph:
-            s.reasons.append(f"pH저하 {ph}건")
+            s.reasons.append(f"pH저하/산독증위험 {ph}건")
+        grp = s.counts_d0.get("GROUP_TEMP", 0) + s.counts_d0.get("GROUP_RUMINATION", 0)
+        if grp:
+            s.reasons.append(f"그룹경보(체온/반추) {grp}건")
+        if s.counts_d0.get("KETOSIS", 0):
+            s.reasons.append(f"케토시스 의심 {s.counts_d0['KETOSIS']}건")
         if s.long_active:
             s.reasons.append(f"장기미해제 {s.long_active}건")
         if s.stale:

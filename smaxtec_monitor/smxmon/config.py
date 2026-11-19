@@ -44,6 +44,11 @@ class Settings:
     username: str = field(repr=False)
     password: str = field(repr=False)
     login_url: str
+    mode: str                 # api(권장) / web(화면 수집)
+    api_base: str
+    api_token: str = field(repr=False)
+    api_lookback_hours: int
+    api_backfill_days: int
     headless: bool
     min_delay: float
     max_delay: float
@@ -76,9 +81,13 @@ class Settings:
 
     def secrets(self) -> list[str]:
         """로그 마스킹 대상 문자열."""
-        return [s for s in (self.username, self.password, self.smtp_user, self.smtp_password) if s]
+        return [s for s in (self.username, self.password, self.api_token, self.smtp_user, self.smtp_password) if s]
 
     def require_credentials(self) -> None:
+        if self.mode == "api":
+            if not self.api_token and not (self.username and self.password):
+                raise ConfigError(".env 에 SMX_API_TOKEN 또는 SMX_USERNAME/SMX_PASSWORD 를 입력하세요.")
+            return
         missing = [n for n, v in (("SMX_USERNAME", self.username), ("SMX_PASSWORD", self.password)) if not v]
         if missing:
             raise ConfigError(f".env 에 {', '.join(missing)} 값이 없습니다. (.env.example 참고)")
@@ -91,7 +100,12 @@ def load_settings(env_file: Path | None = None) -> Settings:
     return Settings(
         username=os.getenv("SMX_USERNAME", "").strip(),
         password=os.getenv("SMX_PASSWORD", ""),
-        login_url=os.getenv("SMX_LOGIN_URL", "").strip(),
+        login_url=os.getenv("SMX_LOGIN_URL", "").strip() or "https://web.smaxtec.com",
+        mode=(os.getenv("SMX_MODE", "api").strip().lower() or "api"),
+        api_base=os.getenv("SMX_API_BASE", "").strip() or "https://api.smaxtec.com/integration/v2",
+        api_token=os.getenv("SMX_API_TOKEN", "").strip(),
+        api_lookback_hours=_int("SMX_API_LOOKBACK_HOURS", 72),
+        api_backfill_days=_int("SMX_API_BACKFILL_DAYS", 10),
         headless=_bool(os.getenv("SMX_HEADLESS"), True),
         min_delay=_float("SMX_MIN_DELAY_SEC", 3.0),
         max_delay=_float("SMX_MAX_DELAY_SEC", 8.0),

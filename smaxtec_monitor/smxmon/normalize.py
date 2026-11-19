@@ -46,6 +46,11 @@ class AlertTypeMapper:
             )
         if "OTHER" not in self.types:
             self.types["OTHER"] = AlertType("OTHER", "기타", "other", ())
+        self.event_codes: dict[str, str] = {k.lower(): v for k, v in cfg.get("event_codes", {}).items()}
+
+    def map_event(self, code: str) -> str | None:
+        """API 이벤트 코드 → 표준코드. 표에 없으면 None."""
+        return self.event_codes.get((code or "").strip().lower())
 
     def map(self, raw: str) -> str:
         text = " ".join((raw or "").lower().split())

@@ -65,7 +65,7 @@ def build_excel(an: Analysis, mapper: AlertTypeMapper, rules: dict[str, Any], ou
     ws.title = "요약"
     _title(ws, f"smaXtec 목장 모니터링 일일 요약 — {an.as_of:%Y-%m-%d %H:%M} 기준", period +
            f"  |  수집이력 {an.history_days}일" + ("  (7일 비교는 이력 8일 이상부터 정확)" if an.history_days < 8 else ""))
-    hdr = (["순위", "등급", "목장", "두수"] + [mapper.label(c) for c in cols] +
+    hdr = (["순위", "등급", "목장", "센서\n두수"] + [mapper.label(c) for c in cols] +
            ["건강알림\n(24h)", "100두당", "전일", "7일평균", "급증", "집단신호", "장기\n미해제",
             "평균지속\n(h, 7일)", "점수", "방문 사유", "마지막 정상수집"])
     widths = [5, 6, 18, 6] + [8] * len(cols) + [9, 7, 6, 7, 6, 8, 7, 9, 6, 58, 14]
@@ -136,14 +136,16 @@ def build_excel(an: Analysis, mapper: AlertTypeMapper, rules: dict[str, Any], ou
     # ───── 4. 최근 24h 알림 상세 ─────
     wd = wb.create_sheet("알림상세(24h)")
     _title(wd, "최근 24시간 발생 알림", "지속시간 = 해제시각(없으면 마지막 확인시각) − 발생시각. 해제구분 inferred = 목록에서 사라진 시점으로 추정")
-    _header(wd, 4, ["목장", "개체", "알림", "화면표기", "발생", "해제", "해제구분", "상태", "지속(h)", "상세"],
-            [18, 10, 10, 18, 15, 15, 9, 8, 8, 30])
+    _header(wd, 4, ["목장", "개체", "알림", "원본코드/표기", "발생", "해제", "해제구분", "상태", "지속(h)", "상세", "비유상태"],
+            [18, 12, 12, 18, 15, 15, 9, 8, 8, 30, 12])
     for i, a in enumerate(an.recent_alerts, 1):
-        _row(wd, 4 + i, [a["farm_name"], a["animal_id"], mapper.label(a["alert_type"]), a["alert_type_raw"],
+        st = {"active": "진행중", "resolved": "해제", "event": "이벤트"}.get(a["status"], a["status"])
+        _row(wd, 4 + i, [a["farm_name"], a["animal_label"], mapper.label(a["alert_type"]), a["alert_type_raw"],
                          a["occurred_at"][5:16], (a["resolved_at"] or "")[5:16], a["resolved_source"] or "",
-                         "진행중" if a["status"] == "active" else "해제", a["duration_hours"], a["detail"] or ""])
+                         st, a["duration_hours"] if a["duration_hours"] is not None else "-", a["detail"] or "",
+                         a["lactation_status"] or ""])
     if an.recent_alerts:
-        wd.auto_filter.ref = f"A4:J{4 + len(an.recent_alerts)}"
+        wd.auto_filter.ref = f"A4:K{4 + len(an.recent_alerts)}"
     wd.freeze_panes = "A5"
 
     # ───── 5. 장기 미해제 ─────
@@ -151,7 +153,7 @@ def build_excel(an: Analysis, mapper: AlertTypeMapper, rules: dict[str, Any], ou
     _title(wl, f"{rules['long_active']['hours']}시간 이상 해제되지 않은 건강알림", "만성 문제(케토시스·제4위전위·족부 등) 또는 센서/표시 문제 확인")
     _header(wl, 4, ["목장", "개체", "알림", "발생", "경과(h)", "마지막확인"], [18, 10, 10, 16, 8, 16])
     for i, a in enumerate(an.long_active_alerts, 1):
-        _row(wl, 4 + i, [a["farm_name"], a["animal_id"], mapper.label(a["alert_type"]), a["occurred_at"][:16],
+        _row(wl, 4 + i, [a["farm_name"], a["animal_label"], mapper.label(a["alert_type"]), a["occurred_at"][:16],
                          a["open_hours"], a["last_seen_at"][:16]])
 
     # ───── 6. 수집현황 ─────
@@ -176,6 +178,8 @@ def build_excel(an: Analysis, mapper: AlertTypeMapper, rules: dict[str, Any], ou
                   "반추감소+pH저하 동반 시 SARA 의심 문구."),
         ("점수", f"건강알림×{pr['w_health_alert']} + pH저하×{pr['w_ph_low']} + 급증 {pr['w_surge']} + 집단 {pr['w_cluster']} "
                f"+ 장기미해제×{pr['w_long_active']} + 분만임박×{pr['w_calving']}  → 긴급≥{pr['urgent']}, 우선≥{pr['high']}, 관찰≥{pr['watch']}"),
+        ("API 모드", "공식 API 이벤트는 '발생 시점' 기록이라 해제·지속시간이 없음(상태=이벤트). "
+                    "장기미해제·평균지속은 web 모드 또는 향후 attentions 연동 시 계산."),
         ("해제시각", "사이트에 해제시각이 없으면 '목록에서 사라진 수집 시각'으로 추정(inferred) → 정밀도는 수집 간격(예: 2시간)."),
         ("한계", "센서 알림 기반 선별 도구이며 진단 아님. 발정·분만 알림은 번식 관리용이며 건강점수에 반영하지 않음(분만은 소폭 가중)."),
         ("보안", "목장 데이터는 농장주 소유. 이 파일을 외부(타 목장·타사·SNS)에 공유하지 말 것."),

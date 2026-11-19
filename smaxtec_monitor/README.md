@@ -3,8 +3,9 @@
 담당 목장들의 smaXtec 알림(체온·반추·음수·pH·발정·분만)을 주기적으로 수집해 SQLite에 누적하고,
 매일 아침 **목장별 이슈 건수 / 7일 추세 / 급증 / 집단신호 / 방문 우선순위** 엑셀 리포트를 만든다.
 
-> 현재 상태: **뼈대 완성 + 가상데이터·가짜사이트 테스트 통과.**
-> 실제 사이트 URL·화면 선택자는 아직 비어 있음(`config/selectors.toml` 의 `TODO_*`). 화면 HTML을 받으면 채운다.
+> 현재 상태: **수집 방식 2가지 구현 + 가짜 서버 테스트 통과. 실제 계정으로는 아직 미검증.**
+> - **api 모드(기본, 권장)**: smaXtec 공식 Integration API (`https://api.smaxtec.com/integration/v2`)
+> - web 모드(대안): web.smaxtec.com 화면 자동조작. 로그인(SSO) 선택자는 확인 완료, 목록 화면 선택자는 미확정
 
 ---
 
@@ -51,23 +52,36 @@ python -m smxmon demo       # 가상데이터로 리포트 미리보기 → repo
 
 Python 3.11 이상 필요(`tomllib`).
 
-## 3. 선택자 채우기 절차 (다음 작업)
+## 3. 첫 연결 확인 (api 모드)
 
-1. `.env` 에 `SMX_LOGIN_URL`, 아이디·비번 입력
-2. `python -m smxmon inspect --manual`
-   → 브라우저 창이 뜸 → **직접 로그인** → 목장 목록 화면에서 Enter
-   → `data/inspect/날짜/` 에 HTML·스크린샷·`api_calls.json` 저장
-3. 같은 방식으로 **알림 목록 화면**, **개체 상세 화면** 저장 (URL 을 인자로 추가 가능)
-4. 저장 파일 중 필요한 부분(목록 1~2행)을 **목장명·개체번호 가린 뒤** 전달 → `selectors.toml` 채움
-5. `python -m smxmon collect --farm <목장ID 1개>` 로 시험 수집 → `python -m smxmon status`
+```
+python -m smxmon api-test
+```
+- 성공하면: 접근 가능한 목장 목록 + 목장별 최근 24시간 이벤트 종류·건수가 나옴 → 결과를 그대로 전달
+- `API 로그인 실패` 가 나오면: 일반 web 계정에 API 권한이 없을 가능성이 높음
+  → 리얼팜(또는 smaXtec integrations-dev@smaxtec.com)에 **"컨설팅용 조회 API 토큰"** 발급 요청
+  → 받은 토큰을 `.env` 의 `SMX_API_TOKEN=` 에 입력하면 아이디/비번 대신 사용
+- 그래도 안 되면 `.env` 에서 `SMX_MODE=web` 로 바꾸고 화면 수집 방식 사용
+  (`python -m smxmon inspect --manual` 로 목록 화면 HTML 저장 → 선택자 채움)
 
-> 💡 `api_calls.json` 확인이 중요: smaXtec 웹은 화면 뒤에서 JSON API를 호출하는 구조일 가능성이 높다(추정).
-> 그렇다면 화면 글자 대신 JSON을 읽는 방식이 화면 개편에 훨씬 강하다. 토큰류 값은 자동으로 `***` 처리됨.
+### api 모드에서 가져오는 것
+| API | 용도 |
+|---|---|
+| `GET /organisations` | 내 계정이 볼 수 있는 목장 전체 |
+| `GET /organisations/{id}/animals` | 관리번호·이표·비유상태, **센서 장착 두수 자동 산출** |
+| `GET /organisations/{id}/events` | 알림 이벤트 (최근 72시간 재조회, 첫 수집 시 10일치) |
+
+이벤트 코드 → 표준 분류는 `config/alert_types.toml [event_codes]` (예: `health_104` 체온상승,
+`health_301~318` 반추감소(건유·분만전후·신선·착유 구분), `feeding_202` 산독증 위험, `clinical_condition_403` 케토시스 의심,
+`health_108`/`feeding_316` smaXtec 자체 그룹경보, `health_601~606` THI 고온스트레스).
+
+⚠ API 이벤트는 '발생 시점' 기록이라 **해제시각·지속시간이 없음** → 장기미해제·평균지속은 web 모드 또는 추후 attentions 연동 과제.
 
 ## 4. 명령
 
 | 명령 | 용도 |
 |---|---|
+| `python -m smxmon api-test [--hours 24] [--limit 3]` | API 접속 점검(저장 안 함) |
 | `python -m smxmon collect [--notify] [--farm ID ...]` | 1회 수집. `--notify` = 집단신호 즉시 메일 |
 | `python -m smxmon report [--email] [--as-of "2026-11-19 07:00"]` | 일일 요약 엑셀 (+메일) |
 | `python -m smxmon status` | 목장 ID 목록, 최근 수집 성공/실패 |
@@ -128,8 +142,9 @@ Python 3.11 이상 필요(`tomllib`).
 
 ## 9. 확인 필요 목록
 
-- [ ] 리얼팜: 자동 수집 허용 여부 / **엑셀 내보내기·알림메일·API 제공 여부** (있으면 그 경로가 우선)
-- [ ] 로그인 URL, 목장 목록·알림 목록 화면 HTML
+- [x] 로그인 URL: web.smaxtec.com → sso.smaxtec.com (Keycloak)
+- [ ] `api-test` 결과: 일반 계정으로 API 로그인 가능한지
+- [ ] 리얼팜/smaXtec: 컨설턴트 계정의 API 사용 허용 여부·토큰 발급 (이용약관 문제도 이걸로 정리됨)
 - [ ] 실제 알림 명칭(한글/영문) → `alert_types.toml` 보강
 - [ ] 알림 목록이 '진행중'만 보이는지, 해제된 이력도 보이는지 (해제 판정 방식이 달라짐)
 - [ ] 실행 PC (Windows/Mac), 리포트 수신 방식(엑셀/메일/메신저)

@@ -51,7 +51,109 @@ label = "분만 임박"
 category = "reproduction"
 keywords = ["분만 임박", "분만임박", "분만", "calving", "birth", "abkalbung", "kalbung"]
 
+[types.KETOSIS]
+label = "케토시스 의심"
+category = "health"
+keywords = ["케토시스", "ketosis"]
+
+[types.MASTITIS]
+label = "유방염 의심"
+category = "health"
+keywords = ["유방염", "mastitis"]
+
+[types.MILK_FEVER]
+label = "유열 위험"
+category = "health"
+keywords = ["유열", "저칼슘", "milk fever"]
+
+[types.GROUP_TEMP]
+label = "그룹 체온 상승"
+category = "health"
+keywords = ["그룹 체온", "group temperature"]
+
+[types.GROUP_RUMINATION]
+label = "그룹 반추 감소"
+category = "health"
+keywords = ["그룹 반추", "group rumination"]
+
+[types.HEAT_STRESS]
+label = "고온 스트레스(THI)"
+category = "environment"
+keywords = ["고온 스트레스", "열 스트레스", "heat stress", "heatstress", "thi"]
+
+[types.MANAGEMENT]
+label = "관리 기록"
+category = "management"
+keywords = []
+
 [types.OTHER]
 label = "기타"
 category = "other"
 keywords = []
+
+# ─────────────────────────────────────────────────────────────
+# smaXtec API 이벤트 코드 → 표준코드 (출처: api.smaxtec.com Integration API 문서, Events)
+# 정확히 일치하는 코드가 우선. 표에 없는 코드는 OTHER 로 저장되고 로그에 표시됨
+# ─────────────────────────────────────────────────────────────
+[event_codes]
+health_101 = "DRINKING_ABNORMAL"   # Insufficient water intake (음수량 부족)
+health_102 = "DRINKING_ABNORMAL"   # Increase in drinking cycles
+health_103 = "DRINKING_ABNORMAL"   # Reduced drinking cycles
+health_104 = "TEMP_HIGH"           # Temperature increase
+health_109 = "TEMP_HIGH"           # High temperature increase
+health_106 = "TEMP_LOW"            # Temperature drop
+health_108 = "GROUP_TEMP"          # Group temperature increase
+health_301 = "RUMINATION_DROP"     # Rumination decrease, dry cow
+health_302 = "RUMINATION_DROP"     # ... close up
+health_303 = "RUMINATION_DROP"     # ... around calving
+health_304 = "RUMINATION_DROP"     # ... fresh cow
+health_305 = "RUMINATION_DROP"     # ... lactating
+health_306 = "RUMINATION_DROP"     # Lower limit rumination dry cow
+health_307 = "RUMINATION_DROP"
+health_308 = "RUMINATION_DROP"
+health_309 = "RUMINATION_DROP"
+health_310 = "RUMINATION_DROP"
+health_317 = "RUMINATION_DROP"     # heifer
+health_318 = "RUMINATION_DROP"
+feeding_311 = "RUMINATION_DROP"    # Lower upper rumination (dry~lactating)
+feeding_312 = "RUMINATION_DROP"
+feeding_313 = "RUMINATION_DROP"
+feeding_314 = "RUMINATION_DROP"
+feeding_315 = "RUMINATION_DROP"
+feeding_316 = "GROUP_RUMINATION"   # Group rumination decrease
+feeding_202 = "PH_LOW"             # Risk of acidosis (프리미엄 볼루스)
+feeding_204 = "PH_LOW"             # Drop in average pH
+feeding_203 = "OTHER"              # Increase in average pH
+feeding_201 = "OTHER"              # Feed efficiency
+clinical_condition_401 = "MASTITIS"
+clinical_condition_402 = "MILK_FEVER"
+clinical_condition_403 = "KETOSIS"
+health_601 = "HEAT_STRESS"         # THI >= 72
+health_602 = "HEAT_STRESS"         # THI >= 78
+health_603 = "HEAT_STRESS"         # THI >= 82
+health_604 = "HEAT_STRESS"
+health_605 = "HEAT_STRESS"
+health_606 = "HEAT_STRESS"
+health_607 = "MANAGEMENT"          # group heat stress over (종료 알림)
+health_608 = "MANAGEMENT"
+health_609 = "MANAGEMENT"
+health_701 = "HEAT"
+health_705 = "HEAT"                # HeatDNB
+heat = "HEAT"
+heat_dnb = "HEAT"
+health_703 = "ACTIVITY_DROP"
+actincrease_704 = "OTHER"
+fertility_105 = "CALVING"          # Indication of imminent calving
+calving_detection = "CALVING"
+waiting_for_calving = "CALVING"
+insemination = "MANAGEMENT"
+no_insemination = "MANAGEMENT"
+pregnancy_result = "MANAGEMENT"
+dry_off = "MANAGEMENT"
+calving_confirmation = "MANAGEMENT"
+abort = "MANAGEMENT"
+diagnosis = "MANAGEMENT"
+information_update = "MANAGEMENT"
+management_904 = "MANAGEMENT"
+delete = "MANAGEMENT"
+false_positive = "MANAGEMENT"
