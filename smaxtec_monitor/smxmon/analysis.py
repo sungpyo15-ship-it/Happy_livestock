@@ -47,6 +47,7 @@ class FarmSummary:
     last_ok_at: datetime | None
     counts_d0: dict[str, int] = field(default_factory=dict)
     health_d0: int = 0
+    health_animals_d0: int = 0
     health_d1: int = 0
     health_7d_avg: float | None = None
     surge: bool = False
@@ -159,6 +160,40 @@ def interpret_cluster(counts: dict[str, int], ph_n: int, min_animals: int, rules
     return "체온·반추 알림 개체 다발 → 원인 확인 필요(분만 몰림·환경 변화 포함)"
 
 
+# smaXtec 반추감소 이벤트 코드 → 사양 단계 (API 문서 Events 표 기준)
+RUMI_STAGE = {
+    "health_301": "건유", "health_306": "건유", "feeding_311": "건유",
+    "health_302": "분만전", "health_307": "분만전", "feeding_312": "분만전",
+    "health_303": "분만전후", "health_308": "분만전후", "feeding_313": "분만전후",
+    "health_304": "신선우", "health_309": "신선우", "feeding_314": "신선우",
+    "health_305": "착유", "health_310": "착유", "feeding_315": "착유",
+    "health_317": "육성우", "health_318": "육성우",
+}
+STAGE_ADVICE = {
+    "육성우": "육성우 그룹 우선 확인(우사 이동·합사, 육성우 사료/조사료 변경, 급이·음수)",
+    "신선우": "분만 후 전환기 문제 의심(케토시스·제4위전위·저칼슘, 비유초기 농후사료 증량 속도)",
+    "분만전후": "분만 전후 관리 확인(전환기 사료, 저칼슘·난산·후산정체)",
+    "분만전": "건유후기(close-up) 사료·DCAD·사조 환경 확인",
+    "건유": "건유우 사료(조사료 품질·섭취량) 확인",
+    "착유": "착유우 TMR(배합 변경·입자도·수분·선별채식)·급이 관리 확인",
+}
+
+
+def _rumination_stage_note(ev, cluster: ClusterSignal, W: timedelta) -> str:
+    """집단신호 창 안 반추감소 개체를 사양 단계별로 집계해 원인 범위를 좁힘."""
+    by: dict[str, set[str]] = defaultdict(set)
+    for t, r in ev:
+        if r["alert_type"] == "RUMINATION_DROP" and cluster.window_start <= t <= cluster.window_end:
+            by[RUMI_STAGE.get((r["alert_type_raw"] or "").lower(), "미상")].add(r["animal_label"])
+    if not by:
+        return ""
+    parts = ", ".join(f"{k} {len(v)}두" for k, v in sorted(by.items(), key=lambda x: -len(x[1])))
+    top, n = max(by.items(), key=lambda x: len(x[1]))
+    total = sum(len(v) for v in by.values())
+    advice = f" → {STAGE_ADVICE[top]}" if top in STAGE_ADVICE and len(n) / total >= 0.6 else ""
+    return f"[반추감소 단계: {parts}]{advice}"
+
+
 def analyze(conn: sqlite3.Connection, as_of: datetime, mapper: AlertTypeMapper, rules: dict[str, Any],
             overrides: dict[str, dict[str, Any]] | None = None) -> Analysis:
     overrides = overrides or {}
@@ -199,6 +234,7 @@ def analyze(conn: sqlite3.Connection, as_of: datetime, mapper: AlertTypeMapper, 
             s.counts_d0[r["alert_type"]] += 1
         avail = min(7, max(0, hist - 1))
         s.health_d0 = sum(1 for r in d0 if r["alert_type"] in health)
+        s.health_animals_d0 = len({r["animal_id"] for r in d0 if r["alert_type"] in health})
         s.health_d1 = sum(1 for t, r in ev if as_of - 2 * H24 < t <= as_of - H24 and r["alert_type"] in health)
         if avail > 0:
             prev = sum(1 for t, r in ev if as_of - (1 + avail) * H24 < t <= as_of - H24 and r["alert_type"] in health)
@@ -228,6 +264,9 @@ def analyze(conn: sqlite3.Connection, as_of: datetime, mapper: AlertTypeMapper, 
                                    window_end_from=as_of - H24, window_end_to=as_of, rules=rules,
                                    ph_events=ph_ev, baseline=baseline)
         if s.cluster:
+            stage_note = _rumination_stage_note(ev, s.cluster, W)
+            if stage_note:
+                s.cluster.interpretation += " " + stage_note
             hs = sum(1 for t, r in ev if r["alert_type"] == "HEAT_STRESS"
                      and s.cluster.window_start - W <= t <= s.cluster.window_end)
             if hs and s.cluster.animals_by_type.get("TEMP_HIGH", 0):

@@ -66,14 +66,14 @@ def build_excel(an: Analysis, mapper: AlertTypeMapper, rules: dict[str, Any], ou
     _title(ws, f"smaXtec 목장 모니터링 일일 요약 — {an.as_of:%Y-%m-%d %H:%M} 기준", period +
            f"  |  수집이력 {an.history_days}일" + ("  (7일 비교는 이력 8일 이상부터 정확)" if an.history_days < 8 else ""))
     hdr = (["순위", "등급", "목장", "센서\n두수"] + [mapper.label(c) for c in cols] +
-           ["건강알림\n(24h)", "100두당", "전일", "7일평균", "급증", "집단신호", "장기\n미해제",
+           ["건강알림\n(24h)", "알림\n두수", "100두당", "전일", "7일평균", "급증", "집단신호", "장기\n미해제",
             "평균지속\n(h, 7일)", "점수", "방문 사유", "마지막 정상수집"])
-    widths = [5, 6, 18, 6] + [8] * len(cols) + [9, 7, 6, 7, 6, 8, 7, 9, 6, 58, 14]
+    widths = [5, 6, 18, 6] + [8] * len(cols) + [9, 6, 7, 6, 7, 6, 8, 7, 9, 6, 58, 14]
     _header(ws, 4, hdr, widths)
     for i, s in enumerate(an.farms, 1):
         r = 4 + i
         vals = ([i, s.grade, s.name, s.herd_size or "-"] + [s.counts_d0.get(c, 0) for c in cols] +
-                [s.health_d0, s.per100 if s.per100 is not None else "-", s.health_d1,
+                [s.health_d0, s.health_animals_d0, s.per100 if s.per100 is not None else "-", s.health_d1,
                  s.health_7d_avg if s.health_7d_avg is not None else "-",
                  "▲" if s.surge else "", f"{s.cluster.n_animals}두" if s.cluster else "",
                  s.long_active or "", s.avg_duration_h if s.avg_duration_h is not None else "-",
@@ -82,7 +82,7 @@ def build_excel(an: Analysis, mapper: AlertTypeMapper, rules: dict[str, Any], ou
         ws.cell(row=r, column=2).fill = GRADE_FILL[s.grade]
         ws.cell(row=r, column=3).alignment = Alignment(horizontal="left", vertical="center")
         base = 4 + len(cols)
-        for off in (5, 6):  # 급증 / 집단신호 강조
+        for off in (6, 7):  # 급증 / 집단신호 강조
             if ws.cell(row=r, column=base + off).value:
                 ws.cell(row=r, column=base + off).font = FLAG_FONT
     ws.freeze_panes = "D5"
@@ -207,7 +207,7 @@ def build_text_summary(an: Analysis, top_n: int = 10) -> str:
     lines.append(f"방문 우선 목장 {len(urgent)}곳 / 전체 {len(an.farms)}곳, 집단신호 {len(an.clusters)}건")
     lines.append("")
     for i, s in enumerate(an.farms[:top_n], 1):
-        lines.append(f"{i:>2}. [{s.grade}] {s.name}  건강알림 {s.health_d0}건(전일 {s.health_d1})  "
+        lines.append(f"{i:>2}. [{s.grade}] {s.name}  건강알림 {s.health_d0}건/{s.health_animals_d0}두(전일 {s.health_d1}건)  "
                      f"{', '.join(s.reasons) or '-'}")
     for c in an.clusters:
         lines += ["", f"■ 집단신호: {c.farm_name} {c.n_animals}두 ({c.window_start:%m/%d %H:%M}~{c.window_end:%H:%M})",
