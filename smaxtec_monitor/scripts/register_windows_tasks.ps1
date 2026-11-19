@@ -1,4 +1,4 @@
-# Windows 작업 스케줄러 등록
+﻿# Windows 작업 스케줄러 등록
 #   실행: PowerShell 에서  powershell -ExecutionPolicy Bypass -File scripts\register_windows_tasks.ps1
 # - smxmon_daily_report : 매일 06:00  수집 → 리포트·방문요약·모바일 대시보드 (→ 공유폴더/메일)
 # - smxmon_collect      : 08:10 부터 2시간 간격 수집 (낮 동안 긴급 집단신호 메일, --notify)
@@ -12,5 +12,9 @@ $opt = New-ScheduledTaskSettingsSet -StartWhenAvailable -WakeToRun -DontStopIfGo
        -AllowStartIfOnBatteries -ExecutionTimeLimit (New-TimeSpan -Minutes 50)
 Register-ScheduledTask -TaskName "smxmon_daily_report" -Action $report -Trigger $tReport -Settings $opt -Force
 Register-ScheduledTask -TaskName "smxmon_collect" -Action $collect -Trigger $tCollect -Settings $opt -Force
-Write-Host "등록 완료: 작업 스케줄러 > 작업 스케줄러 라이브러리 > smxmon_* 확인"
+# 아이폰 앱 서버가 등록돼 있으면 같은 폴더 기준으로 갱신
+if (Get-ScheduledTask -TaskName "smxmon_app_server" -ErrorAction SilentlyContinue) {
+  & "$PSScriptRoot\register_app_server.ps1"
+}
+Write-Host "등록 완료: 작업 스케줄러 > 작업 스케줄러 라이브러리 > smxmon_* 확인 (폴더: $root)"
 Write-Host "지금 시험 실행: Start-ScheduledTask -TaskName smxmon_daily_report"
