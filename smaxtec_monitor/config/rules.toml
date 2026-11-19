@@ -1,0 +1,51 @@
+# ─────────────────────────────────────────────────────────────
+# 이슈 판정 규칙 (현장 경험에 맞춰 조정)
+# 집계 기준: 리포트 시각(as_of) 기준 최근 24시간(D0) / 그 이전 24시간(D-1) / 그 이전 7개 24시간 평균
+# ─────────────────────────────────────────────────────────────
+
+[report]
+# 리포트 표에 나란히 표시할 알림 종류(순서대로)
+columns = ["TEMP_HIGH", "RUMINATION_DROP", "DRINKING_ABNORMAL", "PH_LOW", "HEAT", "CALVING"]
+trend_days = 7
+
+[surge]
+# 급증 판정: 건강알림(D0) ≥ min_count 이고
+#   (D0 ≥ D-1 × ratio_vs_prev_day 이고 D0 − D-1 ≥ min_increase)  또는
+#   (D0 ≥ 7일평균 × ratio_vs_7d_avg 이고 D0 − 7일평균 ≥ min_increase)
+min_count = 3
+min_increase = 2
+ratio_vs_prev_day = 2.0
+ratio_vs_7d_avg = 2.0
+
+[cluster]
+# 단시간 다두수 알림: window_hours 안에 서로 다른 개체 min_animals 두 이상
+window_hours = 12
+min_animals = 4
+# 평소(직전 7일) 같은 길이 창의 평균 알림 건수 × 이 배수 이상일 때만 인정 (큰 목장 오탐 방지)
+min_ratio_vs_baseline = 2.0
+# 사육두수(config/farms.toml)를 알면 비율 조건도 함께 적용(이상). 모르면 두수 조건만.
+min_herd_pct = 4.0
+types = ["TEMP_HIGH", "RUMINATION_DROP"]
+# pH 저하가 같은 창에서 이 개수 이상이면 '산독증(SARA) 의심' 문구 부여
+ph_low_for_sara = 1
+
+[long_active]
+# 이 시간 이상 해제되지 않은 건강알림 = 장기 미해제
+hours = 48
+
+[priority]
+# 방문 우선순위 점수 = Σ(가중치 × 값)
+w_health_alert = 1.0        # 건강알림 1건당
+w_ph_low = 2.0              # pH 저하는 사료·배합과 직결 → 추가 가중
+w_surge = 15.0              # 급증 목장
+w_cluster = 30.0            # 집단 신호
+w_long_active = 3.0         # 장기 미해제 1건당
+w_calving = 0.5             # 분만 임박 1건당(방문 필요성 낮게)
+# 점수 구간 → 등급
+urgent = 40
+high = 20
+watch = 8
+
+[freshness]
+# 마지막 정상 수집이 이 시간보다 오래되면 '데이터 지연' 표시
+stale_hours = 6

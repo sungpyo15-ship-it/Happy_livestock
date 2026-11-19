@@ -1,0 +1,5 @@
+playwright>=1.45
+openpyxl>=3.1
+python-dotenv>=1.0
+tzdata>=2024.1      # Windows에서 Asia/Seoul 시간대 사용에 필요
+pytest>=8.0         # 테스트용(선택)

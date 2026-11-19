@@ -1,0 +1,57 @@
+# ─────────────────────────────────────────────────────────────
+# 알림 종류 표준화 표
+#  - 화면에 표시되는 알림명(한/영/독)을 표준 코드로 바꿈
+#  - keywords 는 "포함" 검사(대소문자 무시). 여러 개 걸리면 가장 긴 키워드 우선
+#  - [확인필요] 아래 키워드는 추정치. 실제 화면 문구를 받으면 보강할 것
+#  - category: health(건강) / reproduction(번식) / other
+# ─────────────────────────────────────────────────────────────
+
+[types.TEMP_HIGH]
+label = "체온 상승"
+category = "health"
+keywords = ["체온 상승", "체온상승", "고체온", "발열", "temperature increase", "temperature rise",
+            "temp. increase", "temp increase", "high temperature", "fever", "temperaturanstieg"]
+
+[types.TEMP_LOW]
+label = "체온 하강"
+category = "health"
+keywords = ["체온 하강", "체온하강", "저체온", "temperature decrease", "temperature drop",
+            "temp. decrease", "low temperature", "temperaturabfall"]
+
+[types.RUMINATION_DROP]
+label = "반추 감소"
+category = "health"
+keywords = ["반추 감소", "반추감소", "반추 저하", "반추저하", "rumination decrease", "rumination drop",
+            "rumination index decrease", "low rumination", "wiederkauabfall", "wiederkauen"]
+
+[types.DRINKING_ABNORMAL]
+label = "음수 이상"
+category = "health"
+keywords = ["음수 이상", "음수이상", "음수 감소", "음수감소", "음수", "drinking", "water intake",
+            "drink cycles", "tränke", "wasseraufnahme"]
+
+[types.PH_LOW]
+label = "pH 저하"
+category = "health"
+keywords = ["ph 저하", "ph저하", "ph 감소", "ph감소", "낮은 ph", "산독", "ph decrease", "ph drop",
+            "low ph", "sara", "acidosis", "ph-abfall", "azidose"]
+
+[types.ACTIVITY_DROP]
+label = "활동량 감소"
+category = "health"
+keywords = ["활동량 감소", "활동 감소", "activity decrease", "low activity", "aktivitätsabfall"]
+
+[types.HEAT]
+label = "발정"
+category = "reproduction"
+keywords = ["발정", "heat", "oestrus", "estrus", "brunst"]
+
+[types.CALVING]
+label = "분만 임박"
+category = "reproduction"
+keywords = ["분만 임박", "분만임박", "분만", "calving", "birth", "abkalbung", "kalbung"]
+
+[types.OTHER]
+label = "기타"
+category = "other"
+keywords = []

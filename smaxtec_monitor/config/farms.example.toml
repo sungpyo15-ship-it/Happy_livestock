@@ -1,0 +1,18 @@
+# 목장별 보조정보 (선택). 복사해서 config/farms.toml 로 저장 (git 제외 대상)
+# 키 = 사이트에서 수집되는 목장 ID (첫 수집 후 `python -m smxmon status` 로 확인)
+#
+# herd_size : 볼루스 장착 두수 → 100두당 알림, 집단 비율 판정에 사용
+# alias     : 리포트에 표시할 이름
+# exclude   : true 면 리포트에서 제외
+# species   : dairy(낙농) / hanwoo_cow(한우번식) / hanwoo_fattening(비육) 등 메모용
+
+[farms."12345"]
+alias = "OO목장(홍길동)"
+herd_size = 120
+species = "dairy"
+
+[farms."67890"]
+alias = "△△한우"
+herd_size = 60
+species = "hanwoo_cow"
+exclude = false

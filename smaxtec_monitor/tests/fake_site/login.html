@@ -1,0 +1,10 @@
+<!doctype html><html><head><meta charset="utf-8"></head><body>
+<form id="f"><input name="email" type="email"><input name="pw" type="password">
+<button type="submit">로그인</button></form><div class="err" style="display:none">잘못된 계정</div>
+<script>
+document.getElementById('f').onsubmit = e => { e.preventDefault();
+  const ok = document.querySelector('[name=email]').value === 'tester@example.com' &&
+             document.querySelector('[name=pw]').value === 'pw-1234';
+  if (ok) { document.cookie = 'sess=1; path=/'; location.href = '/farms.html'; }
+  else document.querySelector('.err').style.display = 'block'; };
+</script></body></html>

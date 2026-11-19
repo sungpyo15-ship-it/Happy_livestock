@@ -1,0 +1,10 @@
+# 비밀정보 / 세션
+.env
+data/
+logs/
+reports/
+config/farms.toml
+*.lock
+__pycache__/
+.pytest_cache/
+.venv/
