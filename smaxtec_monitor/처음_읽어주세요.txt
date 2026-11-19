@@ -5,6 +5,7 @@
  1_INSTALL.bat      처음 한 번: 설치 + 아이디/비밀번호 입력 + 접속 확인
  2_RUN_REPORT.bat   지금 바로 수집하고 리포트 만들기 (끝나면 reports 폴더가 열림)
  3_AUTO_6AM.bat     매일 아침 06:00 자동 실행 등록 (한 번만)
+ 5_OPEN_APP.bat     목장 모니터 앱 열기 (요약표·목장별 요약·7일추세·그룹행동·집단신호)
  4_SETTINGS.bat     설정(.env) 수정 - 비밀번호 변경, 휴대폰용 공유폴더(SMX_PUBLISH_DIR) 등
 
 ※ "Windows의 PC 보호" 파란 창이 뜨면: [추가 정보] → [실행] 을 누르세요.

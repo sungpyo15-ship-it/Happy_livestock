@@ -93,30 +93,70 @@ def build_excel(an: Analysis, mapper: AlertTypeMapper, rules: dict[str, Any], ou
             "집단신호는 사료·대사·질병 '의심 신호'이며 진단이 아님 → 현장 확인 및 수의사 판단 필요.").font = \
         Font(name=FONT, size=9, italic=True, color="595959")
 
-    # ───── 2. 7일 추세 ─────
+    # ───── 2. 7일 추세 (종류별 두수) ─────
     wt = wb.create_sheet("7일추세")
-    dates = sorted(next(iter(an.farms)).trend) if an.farms else []
-    _title(wt, "목장별 건강알림 7일 추세 (발생일 기준, 오늘은 현재시각까지)", "건강알림 = 체온·반추·음수·pH·활동 등 category=health")
-    _header(wt, 4, ["목장"] + [f"{d:%m/%d}" for d in dates] + ["합계"], [18] + [8] * len(dates) + [8])
-    for i, s in enumerate(an.farms, 1):
-        vals = [s.name] + [s.trend[d] for d in dates]
-        _row(wt, 4 + i, vals + [sum(vals[1:])])
-        wt.cell(row=4 + i, column=1).alignment = Alignment(horizontal="left")
-    if an.farms and dates:
-        last = 4 + len(an.farms)
-        rng = f"B5:{get_column_letter(1 + len(dates))}{last}"
-        wt.conditional_formatting.add(rng, ColorScaleRule(start_type="min", start_color="FFFFFF",
+    f0 = next(iter(an.farms), None)
+    dates = sorted(f0.trend) if f0 else []
+    cats = list(f0.trend_types) if f0 else []          # 마지막 = "건강 전체"
+    _title(wt, "목장별 건강알림 7일 추세 — 종류별 두수 (발생일 기준, 오늘은 현재시각까지)",
+           "두수 = 그날 해당 알림이 1번 이상 발생한 개체 수(같은 개체 중복 제외). "
+           "7일 두수 = 7일 동안 1번 이상 해당된 개체 수. 질병 의심 = 케토시스·유방염·유열")
+    # A. 목장별 요약: 종류별 7일 두수 + 일별 건강 전체 두수
+    wt.cell(row=4, column=1, value="A. 목장별 7일 요약 (두수)").font = Font(name=FONT, bold=True, size=11, color="1F4E78")
+    hdr_a = ["목장", "센서\n두수"] + [f"{c}\n(7일)" for c in cats] + [f"건강전체\n{d:%m/%d}" for d in dates]
+    _header(wt, 5, hdr_a, [18, 10] + [8] * len(cats) + [7] * len(dates))   # B열은 아래 '구분'과 공용
+    for i, s_ in enumerate(an.farms, 1):
+        vals = ([s_.name, s_.herd_size or "-"] + [s_.trend_types_total[c] for c in cats]
+                + [s_.trend_types["건강 전체"][d] for d in dates])
+        _row(wt, 5 + i, vals)
+        wt.cell(row=5 + i, column=1).alignment = Alignment(horizontal="left")
+        wt.cell(row=5 + i, column=2 + len(cats)).font = Font(name=FONT, size=10, bold=True)
+    end_a = 5 + len(an.farms)
+    if an.farms:
+        wt.auto_filter.ref = f"A5:{get_column_letter(len(hdr_a))}{end_a}"
+        for k in range(len(cats)):   # 종류별 열마다 색 농도
+            col = get_column_letter(3 + k)
+            wt.conditional_formatting.add(f"{col}6:{col}{end_a}", ColorScaleRule(
+                start_type="num", start_value=0, start_color="FFFFFF", end_type="max", end_color="F8696B"))
+        rng = f"{get_column_letter(3 + len(cats))}6:{get_column_letter(len(hdr_a))}{end_a}"
+        wt.conditional_formatting.add(rng, ColorScaleRule(start_type="num", start_value=0, start_color="FFFFFF",
                                                           end_type="max", end_color="F8696B"))
-        top = min(len(an.farms), 8)  # 우선순위 상위 목장만 그래프
+        # 그래프: 우선순위 상위 8곳 건강 전체 두수 추이 (표 오른쪽)
+        top = min(len(an.farms), 8)
         ch = LineChart()
-        ch.title, ch.y_axis.title, ch.x_axis.title = "상위 목장 건강알림 추세", "건수", "날짜"
-        ch.height, ch.width = 9, 22
-        data = Reference(wt, min_col=1, max_col=1 + len(dates), min_row=5, max_row=4 + top)
-        ch.add_data(data, from_rows=True, titles_from_data=True)
-        ch.set_categories(Reference(wt, min_col=2, max_col=1 + len(dates), min_row=4))
-        for ser in ch.series:  # 건수 데이터 → 곡선 보간 금지
+        ch.title, ch.y_axis.title = "상위 목장 건강알림 두수 추이", "두수"
+        ch.height, ch.width = 9, 18
+        c1 = 3 + len(cats)
+        ch.add_data(Reference(wt, min_col=c1, max_col=len(hdr_a), min_row=6, max_row=5 + top), from_rows=True)
+        ch.set_categories(Reference(wt, min_col=c1, max_col=len(hdr_a), min_row=5))
+        for k, ser in enumerate(ch.series):
+            from openpyxl.chart.series import SeriesLabel
+            ser.tx = SeriesLabel(v=an.farms[k].name)
             ser.smooth = False
-        wt.add_chart(ch, f"A{last + 3}")
+        wt.add_chart(ch, f"{get_column_letter(len(hdr_a) + 2)}5")
+
+    # B. 상세: 목장 × 종류 × 일자 (두수)
+    r0 = end_a + 3
+    wt.cell(row=r0, column=1, value="B. 종류별 일자 상세 (두수)").font = Font(name=FONT, bold=True, size=11, color="1F4E78")
+    hdr_b = ["목장", "구분"] + [f"{d:%m/%d}" for d in dates] + ["7일 두수"]
+    _header(wt, r0 + 1, hdr_b)
+    r = r0 + 2
+    for s_ in an.farms:
+        start = r
+        for c in cats:
+            vals = [s_.name, c] + [s_.trend_types[c][d] for d in dates] + [s_.trend_types_total[c]]
+            _row(wt, r, vals)
+            if c == "건강 전체":
+                for col in range(2, len(hdr_b) + 1):
+                    wt.cell(row=r, column=col).font = Font(name=FONT, size=10, bold=True)
+                    wt.cell(row=r, column=col).fill = PatternFill("solid", fgColor="F2F2F2")
+            r += 1
+        wt.merge_cells(start_row=start, start_column=1, end_row=r - 1, end_column=1)
+        wt.cell(row=start, column=1).alignment = Alignment(horizontal="left", vertical="top", wrap_text=True)
+    if an.farms:
+        wt.conditional_formatting.add(f"C{r0 + 2}:{get_column_letter(2 + len(dates))}{r - 1}", ColorScaleRule(
+            start_type="num", start_value=0, start_color="FFFFFF", end_type="percentile", end_value=98, end_color="F8696B"))
+    wt.freeze_panes = "B6"
 
     # ───── 3. 집단신호 ─────
     wc = wb.create_sheet("집단신호")

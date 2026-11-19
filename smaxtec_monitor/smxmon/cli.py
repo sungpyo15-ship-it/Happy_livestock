@@ -167,7 +167,7 @@ def cmd_report(s, args) -> int:
     print(f"\n엑셀 저장: {out}")
     if targets:
         print(f"방문요약({len(targets)}곳): {visit_out}")
-    print(f"모바일 대시보드: {dash}")
+    print(f"목장 모니터 앱: {dash.parent / 'smaxtec_app.html'}  (5_OPEN_APP.bat 로 열기)")
     files = [out] + ([visit_out] if targets else []) + [dash]
     _publish(s, files)
     if args.email:
@@ -178,7 +178,7 @@ def cmd_report(s, args) -> int:
 
 def _publish(s, files) -> None:
     """SMX_PUBLISH_DIR(예: OneDrive/Google Drive 동기화 폴더)로 복사 → 휴대폰 앱에서 열람.
-    대시보드는 항상 같은 이름(smaxtec_dashboard.html)으로도 덮어써 즐겨찾기 1개로 최신본 확인."""
+    앱(대시보드)은 항상 같은 이름(smaxtec_app.html)으로도 덮어써 즐겨찾기 1개로 최신본 확인."""
     import shutil
     if not s.publish_dir:
         return
@@ -186,7 +186,7 @@ def _publish(s, files) -> None:
     for f in files:
         shutil.copy2(f, s.publish_dir / f.name)
         if f.suffix == ".html":
-            shutil.copy2(f, s.publish_dir / "smaxtec_dashboard.html")
+            shutil.copy2(f, s.publish_dir / "smaxtec_app.html")
     log.info("공유폴더로 복사: %s (%d개)", s.publish_dir, len(files))
 
 

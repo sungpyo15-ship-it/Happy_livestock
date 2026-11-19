@@ -109,6 +109,14 @@ def farm_payload(s: FarmSummary, an: Analysis, mapper: AlertTypeMapper, bench: d
         "animals": [{"label": a["label"], "status": a["status"], "n": a["n"], "types": a["types"],
                      "last": f"{a['last']:%m/%d %H:%M}"} for a in s.top_animals],
         "checklist": [{"topic": t, "text": x} for t, x in checklist(s)],
+        "row": {"surge": s.surge, "cluster_n": s.cluster.n_animals if s.cluster else 0, "long": s.long_active,
+                "per100": s.per100, "c": {c: s.counts_d0.get(c, 0) for c in KPI_TYPES}},
+        "trend_types": {k: [v[d] for d in sorted(v)] for k, v in s.trend_types.items()},
+        "trend_total": s.trend_types_total,
+        "alerts24": [{"t": a["occurred_at"][5:16], "animal": a["animal_label"], "type": mapper.label(a["alert_type"]),
+                      "raw": a["alert_type_raw"], "status": _status(a.get("lactation_status") or "")}
+                     for a in an.recent_alerts if a["farm_id"] == s.farm_id
+                     and mapper.category(a["alert_type"]) in ("health", "reproduction")][:60],
     }
 
 

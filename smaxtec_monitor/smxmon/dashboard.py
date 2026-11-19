@@ -1,8 +1,9 @@
-"""모바일 대시보드: HTML 1개 파일(외부 연결 없음, 오프라인 동작).
+"""smaXtec 목장 모니터 '앱' — HTML 1개 파일(외부 연결 없음, 오프라인 동작).
 
-매일 아침 report 실행 시 생성 → OneDrive/Google Drive 동기화 폴더(SMX_PUBLISH_DIR)로 복사하면
-휴대폰에서 앱처럼 열람. 홈 화면에 바로가기를 추가해 쓰면 됨.
-화면: 방문 우선순위 목록(등급 필터·검색) → 목장 상세(방문 1장 요약과 같은 내용) / 그룹행동 탭.
+일일 리포트(엑셀)·방문요약(엑셀)의 내용을 모든 목장에 대해 한 화면에서 봄.
+- 탭: 요약표 · 목장별 · 7일추세 · 그룹행동 · 집단신호
+- PC(넓은 화면): 왼쪽 목장 목록 + 오른쪽 목장 요약 / 휴대폰: 목록 → 상세
+- reports/smaxtec_app.html 이 항상 최신본 (5_OPEN_APP.bat 로 열기)
 """
 from __future__ import annotations
 
@@ -11,20 +12,25 @@ from pathlib import Path
 
 from .analysis import Analysis
 from .normalize import AlertTypeMapper
-from .visit import benchmarks, farm_payload
+from .visit import KPI_TYPES, benchmarks, farm_payload
 
 
 def build_dashboard(an: Analysis, mapper: AlertTypeMapper, out_path: Path) -> Path:
     bench = benchmarks(an)
+    f0 = next(iter(an.farms), None)
     data = {
         "asOf": f"{an.as_of:%Y-%m-%d %H:%M}",
         "bench": {k: round(v, 1) for k, v in bench.items()} if bench else None,
+        "kpiLabels": {c: mapper.label(c) for c in KPI_TYPES},
+        "dates": [f"{d:%m/%d}" for d in sorted(f0.trend)] if f0 else [],
         "farms": [farm_payload(s, an, mapper, bench) for s in an.farms],
         "clusters": len(an.clusters),
     }
     blob = json.dumps(data, ensure_ascii=False, default=str).replace("</", "<\\/")
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    out_path.write_text(TEMPLATE.replace("__DATA__", blob).replace("__ASOF__", data["asOf"]), encoding="utf-8")
+    html = TEMPLATE.replace("__DATA__", blob).replace("__ASOF__", data["asOf"])
+    out_path.write_text(html, encoding="utf-8")
+    (out_path.parent / "smaxtec_app.html").write_text(html, encoding="utf-8")  # 항상 최신본
     return out_path
 
 
@@ -36,48 +42,64 @@ TEMPLATE = r"""<!doctype html>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <title>smaXtec 목장 모니터</title>
 <style>
-:root{--bg:#f4f6f9;--card:#fff;--ink:#1b2430;--sub:#5d6b7a;--line:#e3e8ee;--navy:#1f4e78;
---urgent:#c62828;--high:#d9631e;--watch:#2f75b5;--ok:#4f8a2f;--chip:#eef2f7;--warn-bg:#fff4e5}
-@media (prefers-color-scheme:dark){:root{--bg:#10151b;--card:#18212b;--ink:#e6edf3;--sub:#93a1b0;
---line:#2a3542;--navy:#7fb2e5;--chip:#223040;--warn-bg:#3a2a12}}
+:root{--bg:#f4f6f9;--card:#fff;--ink:#1b2430;--sub:#5d6b7a;--line:#e3e8ee;--navy:#1f4e78;--head:#1f4e78;
+--urgent:#c62828;--high:#d9631e;--watch:#2f75b5;--ok:#4f8a2f;--chip:#eef2f7;--warn-bg:#fff4e5;--sel:#e8f0fa;
+--heat:248,105,107}
+@media (prefers-color-scheme:dark){:root{--bg:#10151b;--card:#18212b;--ink:#e6edf3;--sub:#93a1b0;--line:#2a3542;
+--navy:#7fb2e5;--head:#13283d;--chip:#223040;--warn-bg:#3a2a12;--sel:#1d2e42;--heat:235,87,87}}
 *{box-sizing:border-box}html,body{margin:0;background:var(--bg);color:var(--ink);
 font:15px/1.45 -apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Malgun Gothic",sans-serif;
 word-break:keep-all;overflow-wrap:anywhere}
-header{position:sticky;top:0;z-index:5;background:var(--navy);color:#fff;padding:12px 16px 10px;
-padding-top:max(12px,env(safe-area-inset-top))}
-@media (prefers-color-scheme:dark){header{background:#13283d}}
+header{position:sticky;top:0;z-index:5;background:var(--head);color:#fff;padding:10px 16px 0;
+padding-top:max(10px,env(safe-area-inset-top))}
+header .top{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:baseline;gap:2px 10px;max-width:1280px;margin:0 auto}
+header h1{white-space:nowrap}
 header h1{font-size:17px;margin:0}header .asof{font-size:12px;opacity:.85}
-.tabs{display:flex;gap:6px;margin-top:8px}.tabs button{flex:1;border:0;border-radius:8px;padding:7px 0;
-background:rgba(255,255,255,.15);color:#fff;font-size:13px}.tabs button.on{background:#fff;color:#1f4e78;font-weight:700}
-main{padding:12px 16px 40px;max-width:760px;margin:0 auto}
+.tabs{display:flex;gap:4px;overflow-x:auto;margin:8px auto 0;max-width:1280px;scrollbar-width:none}
+.tabs::-webkit-scrollbar{display:none}
+.tabs button{flex:none;border:0;border-radius:8px 8px 0 0;padding:8px 14px;background:transparent;color:#fff;
+opacity:.75;font-size:14px;cursor:pointer}.tabs button.on{background:var(--bg);color:var(--ink);opacity:1;font-weight:700}
+main{padding:12px 16px 40px;max-width:1280px;margin:0 auto}
 .filters{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px}
 .filters button{border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:999px;
-padding:5px 11px;font-size:13px}.filters button.on{background:var(--ink);color:var(--bg)}
+padding:5px 11px;font-size:13px;cursor:pointer}.filters button.on{background:var(--ink);color:var(--bg)}
 input[type=search]{width:100%;padding:9px 12px;border:1px solid var(--line);border-radius:10px;
 background:var(--card);color:var(--ink);font-size:15px;margin-bottom:10px}
-.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin-bottom:10px;
-border-left:5px solid var(--g);cursor:pointer}
+.split{display:grid;grid-template-columns:340px minmax(0,1fr);gap:18px;align-items:start}
+.split aside{position:sticky;top:96px;max-height:calc(100vh - 110px);overflow:auto;padding-right:4px}
+@media (max-width:900px){.split{display:block}.split aside{position:static;max-height:none;overflow:visible}
+.split.has-detail aside{display:none}.split:not(.has-detail) section{display:none}}
+@media (min-width:901px){.back{display:none}}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:11px 13px;margin-bottom:8px;
+border-left:5px solid var(--g);cursor:pointer}.card.sel{background:var(--sel)}
 .row{display:flex;justify-content:space-between;align-items:center;gap:8px}
-.name{font-weight:700;font-size:16px}.badge{font-size:12px;font-weight:700;color:#fff;background:var(--g);
+.name{font-weight:700;font-size:15px}.badge{font-size:12px;font-weight:700;color:#fff;background:var(--g);
 border-radius:6px;padding:2px 7px;white-space:nowrap}
 .meta{color:var(--sub);font-size:13px;margin-top:2px}
-.chips{display:flex;flex-wrap:wrap;gap:5px;margin-top:7px}.chip{background:var(--chip);border-radius:6px;
+.chips{display:flex;flex-wrap:wrap;gap:5px;margin-top:6px}.chip{background:var(--chip);border-radius:6px;
 padding:2px 7px;font-size:12px}
-.spark{display:block;margin-top:6px}
 .g-긴급{--g:var(--urgent)}.g-우선{--g:var(--high)}.g-관찰{--g:var(--watch)}.g-정상{--g:var(--ok)}
-h2{font-size:15px;margin:18px 0 8px;color:var(--navy)}
-.back{border:0;background:none;color:var(--navy);font-size:15px;padding:4px 0;margin-bottom:6px}
-.big{font-size:20px;font-weight:800}.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
-.kpi{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:7px;text-align:center}
-.kpi b{display:block;font-size:18px}.kpi span{font-size:11px;color:var(--sub)}
-.kpi small{font-size:11px;color:var(--sub)}
+h2{font-size:15px;margin:20px 0 8px;color:var(--navy)}
+.back{border:0;background:none;color:var(--navy);font-size:15px;padding:4px 0;margin-bottom:6px;cursor:pointer}
+.big{font-size:21px;font-weight:800}
+.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+@media (min-width:700px){.kpis{grid-template-columns:repeat(8,1fr)}}
+.kpi{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:7px 4px;text-align:center}
+.kpi b{display:block;font-size:18px}.kpi span,.kpi small{font-size:11px;color:var(--sub)}
 .box{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px 12px}
 .warn{background:var(--warn-bg)}
 ul.hl{margin:0;padding-left:18px}ul.hl li{margin:3px 0}
-.tbl{width:100%;border-collapse:collapse;font-size:13px}.tbl th,.tbl td{padding:6px 4px;border-bottom:1px solid var(--line);
-text-align:center}.tbl th{color:var(--sub);font-weight:600;font-size:12px}.tbl td:first-child,.tbl th:first-child{text-align:left}
+.scroll{overflow-x:auto;background:var(--card);border:1px solid var(--line);border-radius:12px}
+.tbl{width:100%;border-collapse:collapse;font-size:13px}
+.tbl th,.tbl td{padding:6px 6px;border-bottom:1px solid var(--line);text-align:center;white-space:nowrap}
+.tbl th{color:var(--sub);font-weight:600;font-size:12px;background:var(--card);position:sticky;top:0}
+.tbl td.l,.tbl th.l{text-align:left}.tbl td.wrap{white-space:normal;text-align:left;min-width:180px}
+.tbl tr.click{cursor:pointer}.tbl tr.click:hover td{background:var(--sel)}
+.tbl th.sort{cursor:pointer}.tbl th.sort:after{content:" ↕";opacity:.4}
+.tbl .stick{position:sticky;left:0;background:var(--card);z-index:1}
+.tbl tr.tot td{font-weight:700;background:var(--chip)}
 .neg{color:var(--urgent);font-weight:700}.flag{color:var(--urgent);font-size:12px}
-.scroll{overflow-x:auto}
+.dot{display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--g);margin-right:5px}
 label.ck{display:flex;gap:9px;align-items:flex-start;padding:8px 0;border-bottom:1px solid var(--line)}
 label.ck input{width:20px;height:20px;margin-top:2px;flex:none}label.ck b{display:block;font-size:14px}
 label.ck span{font-size:13px;color:var(--sub)}
@@ -85,102 +107,178 @@ textarea{width:100%;min-height:80px;border:1px solid var(--line);border-radius:1
 background:var(--card);color:var(--ink);font-size:14px}
 .foot{color:var(--sub);font-size:11px;margin-top:22px;text-align:center}
 .empty{color:var(--sub);text-align:center;padding:30px 0}
+.placeholder{color:var(--sub);text-align:center;padding:80px 0}
+.note{color:var(--sub);font-size:12px;margin:6px 2px}
 </style></head>
 <body>
-<header><h1>smaXtec 목장 모니터</h1><div class="asof">기준 __ASOF__ · 최근 24시간</div>
-<div class="tabs"><button data-t="list" class="on">방문 우선순위</button><button data-t="beh">그룹행동</button></div></header>
+<header><div class="top"><h1>smaXtec 목장 모니터</h1><div class="asof">기준 __ASOF__ · 최근 24시간</div></div>
+<nav class="tabs" id="tabs"></nav></header>
 <main id="app"></main>
 <script>
 const D = __DATA__;
+const TABS = [["sum","요약표"],["farm","목장별"],["trend","7일추세"],["beh","그룹행동"],["clu","집단신호"]];
+const KPI = Object.keys(D.kpiLabels);
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-const st = { tab: "list", grade: "방문", q: "" };
+const sgn = v => v==null ? "-" : (v>0?"+":"")+v;
+const day = D.asOf.slice(0,10);
 const store = { get(k){ try { return JSON.parse(localStorage.getItem(k)); } catch(e){ return null; } },
                 set(k,v){ try { localStorage.setItem(k, JSON.stringify(v)); } catch(e){} } };
-const day = D.asOf.slice(0,10);
+const st = Object.assign({ tab:"sum", grade:"전체", q:"", cat:"건강 전체", sortK:null, sortD:1, behAll:false },
+                         store.get("ui") || {});
+st.q = "";
+const save = () => store.set("ui", {tab:st.tab, grade:st.grade, cat:st.cat, behAll:st.behAll});
+const heat = (v, mx) => v ? `background:rgba(var(--heat),${Math.min(.85, .12 + .73*v/Math.max(1,mx))})` : "";
+const go = id => { location.hash = "f=" + encodeURIComponent(id); };
 
-function spark(tr, w=120, h=26){
-  if(!tr.length) return "";
-  const mx = Math.max(1, ...tr.map(x=>x.n)), bw = w/tr.length;
-  return `<svg class="spark" width="${w}" height="${h}" role="img" aria-label="7일 추세">` + tr.map((x,i)=>{
-    const bh = Math.max(1, x.n/mx*(h-2)); return `<rect x="${i*bw+1}" y="${h-bh}" width="${bw-3}" height="${bh}" rx="1.5"
-    fill="${i==tr.length-1?'var(--g)':'var(--sub)'}" opacity="${i==tr.length-1?1:.45}"/>`; }).join("") + "</svg>";
-}
 function bars(tr){
+  if(!tr.length) return "";
   const w=320,h=90,mx=Math.max(1,...tr.map(x=>x.n)),bw=w/tr.length;
-  return `<svg viewBox="0 0 ${w} ${h+16}" width="100%" role="img" aria-label="건강알림 7일 추세">` + tr.map((x,i)=>{
-    const bh=x.n/mx*(h-14); return `<rect x="${i*bw+6}" y="${h-bh}" width="${bw-12}" height="${bh}" rx="3" fill="var(--navy)"
-    opacity="${i==tr.length-1?1:.55}"/><text x="${i*bw+bw/2}" y="${h-bh-3}" font-size="11" text-anchor="middle"
-    fill="currentColor">${x.n}</text><text x="${i*bw+bw/2}" y="${h+13}" font-size="10" text-anchor="middle"
-    fill="currentColor" opacity=".7">${x.d}</text>`; }).join("") + "</svg>";
+  return `<svg viewBox="0 0 ${w} ${h+16}" width="100%" style="max-width:440px;display:block" role="img" aria-label="건강알림 7일 추세">`+
+  tr.map((x,i)=>{ const bh=x.n/mx*(h-14); return `<rect x="${i*bw+6}" y="${h-bh}" width="${bw-12}" height="${bh}" rx="3"
+  fill="var(--navy)" opacity="${i==tr.length-1?1:.55}"/><text x="${i*bw+bw/2}" y="${h-bh-3}" font-size="11"
+  text-anchor="middle" fill="currentColor">${x.n}</text><text x="${i*bw+bw/2}" y="${h+13}" font-size="10"
+  text-anchor="middle" fill="currentColor" opacity=".7">${x.d}</text>`; }).join("")+"</svg>";
 }
-const sgn = v => v==null ? "-" : (v>0?"+":"")+v;
 
-function list(){
-  const counts = {}; D.farms.forEach(f => counts[f.grade] = (counts[f.grade]||0)+1);
-  const groups = [["방문", `방문(긴급·우선) ${(counts["긴급"]||0)+(counts["우선"]||0)}`],
-    ["긴급",`긴급 ${counts["긴급"]||0}`],["우선",`우선 ${counts["우선"]||0}`],["관찰",`관찰 ${counts["관찰"]||0}`],["전체",`전체 ${D.farms.length}`]];
+/* ───── 요약표 ───── */
+function sumTab(){
+  const cols = [["rank","순위"],["grade","등급"],["name","목장"],["herd","센서두수"],
+    ...KPI.map(k=>[k, D.kpiLabels[k]]),["h","건강알림"],["ha","알림두수"],["per100","100두당"],["d1","전일"],["d7","7일평균"],
+    ["surge","급증"],["clu","집단"],["score","점수"]];
+  let rows = D.farms.map((f,i)=>({f, rank:i+1, grade:f.grade, name:f.name, herd:f.herd??0, ...f.row.c, h:f.health_d0,
+    ha:f.health_animals, per100:f.row.per100??0, d1:f.health_d1, d7:f.health_7d??0, surge:f.surge?1:0,
+    clu:f.row.cluster_n, score:f.score}));
+  if(st.q) rows = rows.filter(r=>r.name.includes(st.q));
+  if(st.grade!=="전체") rows = rows.filter(r=>st.grade==="방문" ? ["긴급","우선"].includes(r.grade) : r.grade===st.grade);
+  if(st.sortK){ const k=st.sortK; rows.sort((a,b)=>(typeof a[k]=="string"?a[k].localeCompare(b[k]):a[k]-b[k])*st.sortD); }
+  const mx = {}; KPI.forEach(k=>mx[k]=Math.max(1,...D.farms.map(f=>f.row.c[k])));
+  return `${gradeFilter()}<input type="search" placeholder="목장 검색" value="${esc(st.q)}" oninput="st.q=this.value;render(true)">
+  <div class="scroll"><table class="tbl"><tr>${cols.map(([k,l])=>`<th class="sort ${k=='name'?'l stick':''}" onclick="sortBy('${k}')">${l}</th>`).join("")}</tr>
+  ${rows.map(r=>`<tr class="click g-${r.grade}" onclick="go('${r.f.id}')"><td>${r.rank}</td><td><span class="badge">${r.grade}</span></td>
+   <td class="l stick"><b>${esc(r.name)}</b></td><td>${r.f.herd??"-"}</td>
+   ${KPI.map(k=>`<td style="${heat(r[k],mx[k])}">${r[k]}</td>`).join("")}
+   <td><b>${r.h}</b></td><td>${r.ha}</td><td>${r.f.row.per100??"-"}</td><td>${r.d1}</td><td>${r.f.health_7d??"-"}</td>
+   <td>${r.surge?'<span class="neg">▲</span>':""}</td><td>${r.clu?`<span class="neg">${r.clu}두</span>`:""}</td><td><b>${r.score}</b></td></tr>`).join("")}
+  </table></div><div class="note">행을 누르면 목장 요약으로 이동 · 제목을 누르면 정렬</div>`;
+}
+function sortBy(k){ st.sortD = st.sortK===k ? -st.sortD : (["name","grade"].includes(k)?1:-1); st.sortK=k; render(); }
+function gradeFilter(){
+  const c={}; D.farms.forEach(f=>c[f.grade]=(c[f.grade]||0)+1);
+  const g=[["전체",`전체 ${D.farms.length}`],["방문",`방문(긴급·우선) ${(c["긴급"]||0)+(c["우선"]||0)}`],
+    ["긴급",`긴급 ${c["긴급"]||0}`],["우선",`우선 ${c["우선"]||0}`],["관찰",`관찰 ${c["관찰"]||0}`],["정상",`정상 ${c["정상"]||0}`]];
+  return `<div class="filters">${g.map(([k,l])=>`<button class="${st.grade==k?'on':''}" onclick="st.grade='${k}';save();render()">${l}</button>`).join("")}</div>`;
+}
+
+/* ───── 목장별 ───── */
+function farmList(selId){
   let fs = D.farms.filter(f => st.grade=="전체" || (st.grade=="방문" ? ["긴급","우선"].includes(f.grade) : f.grade==st.grade));
   if(st.q) fs = fs.filter(f => f.name.includes(st.q));
-  return `<input type="search" placeholder="목장 검색" value="${esc(st.q)}" oninput="st.q=this.value;render(true)">
-  <div class="filters">${groups.map(([k,l])=>`<button class="${st.grade==k?'on':''}" onclick="st.grade='${k}';render()">${l}</button>`).join("")}</div>
-  ${fs.length ? fs.map(f => `<div class="card g-${f.grade}" onclick="location.hash='f='+encodeURIComponent('${f.id}')">
+  return `<input type="search" placeholder="목장 검색" value="${esc(st.q)}" oninput="st.q=this.value;render(true)">${gradeFilter()}
+  ${fs.length ? fs.map(f => `<div class="card g-${f.grade} ${f.id==selId?'sel':''}" onclick="go('${f.id}')">
     <div class="row"><div class="name">${esc(f.name)}</div><span class="badge">${f.grade} ${f.score}</span></div>
-    <div class="row"><div class="meta">건강알림 <b>${f.health_d0}</b>건/${f.health_animals}두 · 전일 ${f.health_d1}건${f.herd?` · ${f.herd}두`:""}${f.stale?" · ⚠지연":""}</div>${spark(f.trend)}</div>
-    ${f.reasons.length?`<div class="chips">${f.reasons.map(r=>`<span class="chip">${esc(r)}</span>`).join("")}</div>`:""}
+    <div class="meta">건강알림 <b>${f.health_d0}</b>건/${f.health_animals}두 · 전일 ${f.health_d1}건${f.herd?` · ${f.herd}두`:""}${f.stale?" · ⚠지연":""}</div>
+    ${f.reasons.length?`<div class="chips">${f.reasons.slice(0,3).map(r=>`<span class="chip">${esc(r)}</span>`).join("")}</div>`:""}
   </div>`).join("") : `<div class="empty">해당 목장 없음</div>`}`;
 }
-
-function beh(){
-  const rows = []; D.farms.forEach(f => f.groups.forEach(g => rows.push({f, g})));
-  const flagged = rows.filter(r => r.g.flags.length && !r.g.flags.includes("데이터 불완전(판정 제외)"));
-  const b = D.bench;
-  return `${b?`<div class="box">담당 목장 착유그룹 기준값 (${b.n}개 그룹 중앙값)<br>
-    반추 <b>${Math.round(b.rum)}</b>분 · 횡와 <b>${b.lying_h}</b>h · 누워반추 <b>${Math.round(b.rum_lying_share)}</b>%</div>`:""}
-  <h2>이상 그룹 ${flagged.length}개</h2>
-  ${flagged.length ? `<div class="scroll"><table class="tbl"><tr><th>목장·그룹</th><th>반추</th><th>Δ</th><th>횡와h</th><th>판정</th></tr>
-  ${flagged.map(({f,g})=>`<tr onclick="location.hash='f='+encodeURIComponent('${f.id}')"><td>${esc(f.name)}<br><small>${esc(g.name)} ${g.n??""}두</small></td>
-  <td>${g.rum??"-"}</td><td class="${g.drum<0?'neg':''}">${sgn(g.drum)}</td><td>${g.lying_h??"-"}</td>
-  <td class="flag">${g.flags.map(esc).join("<br>")}</td></tr>`).join("")}</table></div>` : `<div class="empty">이상 그룹 없음</div>`}`;
+function farmTab(id){
+  return `<div class="split ${id?'has-detail':''}"><aside>${farmList(id)}</aside>
+  <section>${id ? detail(id) : `<div class="placeholder">왼쪽에서 목장을 선택하세요</div>`}</section></div>`;
 }
-
 function detail(id){
-  const f = D.farms.find(x => x.id == id); if(!f) return list();
+  const f = D.farms.find(x => x.id == id); if(!f) return `<div class="empty">목장을 찾을 수 없음</div>`;
   const ck = store.get(`ck:${f.id}:${day}`) || {}, memo = store.get(`memo:${f.id}`) || "";
-  return `<button class="back" onclick="history.back()">‹ 목록</button>
+  const cats = Object.keys(f.trend_types), mxT = Math.max(1,...cats.filter(c=>c!="건강 전체").flatMap(c=>f.trend_types[c]));
+  return `<button class="back" onclick="location.hash='';">‹ 목록</button>
   <div class="g-${f.grade}"><div class="row"><div class="big">${esc(f.name)}</div><span class="badge">${f.grade} ${f.score}점</span></div>
   <div class="meta">센서 ${f.herd??"-"}두 · 마지막 수집 ${f.last_ok??"없음"}${f.stale?" · ⚠데이터 지연":""}</div></div>
-  <h2>핵심 요약</h2><div class="box"><ul class="hl">${f.headline.map(h=>`<li>${esc(h)}</li>`).join("")}</ul></div>
-  <h2>알림 현황 (24h · 72h)</h2>
+  <h2>1. 핵심 요약</h2><div class="box"><ul class="hl">${f.headline.map(h=>`<li>${esc(h)}</li>`).join("")}</ul></div>
+  <h2>2. 알림 현황 (24시간 · 72시간)</h2>
   <div class="kpis">${f.counts.map(c=>`<div class="kpi"><span>${esc(c.label)}</span><b>${c.n24}</b><small>72h ${c.n72}</small></div>`).join("")}</div>
-  <h2>건강알림 7일 추세</h2><div class="box">${bars(f.trend)}<div class="meta">전일 ${f.health_d1}건 · 7일평균 ${f.health_7d??"-"}건${f.surge?" · <b class='neg'>급증</b>":""}</div></div>
+  <div class="note">건강알림 24h <b>${f.health_d0}건/${f.health_animals}두</b> · 전일 ${f.health_d1}건 · 7일평균 ${f.health_7d??"-"}건${f.surge?" · <b class='neg'>급증</b>":""}</div>
+  <h2>3. 7일 추세 — 종류별 두수</h2>
+  <div class="scroll"><table class="tbl"><tr><th class="l">구분</th>${D.dates.map(d=>`<th>${d}</th>`).join("")}<th>7일 두수</th></tr>
+  ${cats.map(c=>`<tr class="${c=='건강 전체'?'tot':''}"><td class="l">${esc(c)}</td>${f.trend_types[c].map(v=>`<td style="${c=='건강 전체'?'':heat(v,mxT)}">${v||""}</td>`).join("")}
+   <td><b>${f.trend_total[c]}</b></td></tr>`).join("")}</table></div>
+  <div class="box" style="margin-top:8px">${bars(f.trend)}<div class="note">막대 = 건강알림 건수(일별)</div></div>
   ${f.cluster?`<h2>집단신호 (의심 — 진단 아님)</h2><div class="box warn"><b>${f.cluster.n}두</b> · ${f.cluster.from} ~ ${f.cluster.to}<br>${esc(f.cluster.text)}
     <div class="meta">개체: ${f.cluster.animals.map(esc).join(", ")}</div></div>`:""}
-  <h2>그룹 행동</h2>${f.groups.length?`<div class="scroll"><table class="tbl"><tr><th>그룹</th><th>반추</th><th>Δ7일</th><th>횡와h</th><th>Δ횡와</th><th>누워반추%</th></tr>
-  ${f.groups.map(g=>`<tr><td>${esc(g.name)} <small>${g.n??""}</small>${g.flags.length?`<br><span class="flag">${g.flags.map(esc).join(", ")}</span>`:""}</td>
-  <td>${g.rum??"-"}</td><td class="${g.drum<0?'neg':''}">${sgn(g.drum)}</td><td>${g.lying_h??"-"}</td><td>${sgn(g.dlying)}</td><td>${g.share??"-"}</td></tr>`).join("")}
-  </table></div>${D.bench?`<div class="meta">기준(착유그룹 중앙값): 반추 ${Math.round(D.bench.rum)}분 · 횡와 ${D.bench.lying_h}h · 누워반추 ${Math.round(D.bench.rum_lying_share)}%</div>`:""}`
+  <h2>4. 그룹 행동</h2>${f.groups.length?`<div class="scroll"><table class="tbl"><tr><th class="l">그룹</th><th>두수</th><th>반추(분)</th><th>7일평균</th><th>Δ반추</th><th>횡와(h)</th><th>Δ횡와</th><th>누워반추%</th><th class="l">판정</th></tr>
+  ${f.groups.map(g=>`<tr><td class="l">${esc(g.name)}</td><td>${g.n??""}</td><td>${g.rum??"-"}</td><td>${g.rum7??"-"}</td>
+  <td class="${g.drum<0?'neg':''}">${sgn(g.drum)}</td><td>${g.lying_h??"-"}</td><td>${sgn(g.dlying)}</td><td>${g.share??"-"}</td>
+  <td class="wrap flag">${g.flags.map(esc).join(", ")}</td></tr>`).join("")}
+  </table></div>${D.bench?`<div class="note">비교 기준(담당목장 착유그룹 ${D.bench.n}개 중앙값): 반추 ${Math.round(D.bench.rum)}분 · 횡와 ${D.bench.lying_h}h · 누워반추 ${Math.round(D.bench.rum_lying_share)}%</div>`:""}`
   :`<div class="empty">행동 데이터 없음</div>`}
-  <h2>확인할 개체 (72시간)</h2>${f.animals.length?`<div class="scroll"><table class="tbl"><tr><th>개체</th><th>상태</th><th>알림</th><th>마지막</th></tr>
-  ${f.animals.map(a=>`<tr><td><b>${esc(a.label)}</b></td><td>${esc(a.status||"-")}</td><td style="text-align:left">${esc(a.types)}</td><td>${a.last}</td></tr>`).join("")}</table></div>`
+  <h2>5. 확인할 개체 (최근 72시간)</h2>${f.animals.length?`<div class="scroll"><table class="tbl"><tr><th class="l">개체</th><th>상태</th><th>알림수</th><th class="l">알림 종류</th><th>마지막</th></tr>
+  ${f.animals.map(a=>`<tr><td class="l"><b>${esc(a.label)}</b></td><td>${esc(a.status||"-")}</td><td>${a.n}</td><td class="wrap">${esc(a.types)}</td><td>${a.last}</td></tr>`).join("")}</table></div>`
   :`<div class="empty">해당 개체 없음</div>`}
-  <h2>현장 점검 체크리스트</h2><div class="box">${f.checklist.map((c,i)=>`<label class="ck"><input type="checkbox" ${ck[i]?"checked":""}
+  <h2>6. 최근 24시간 알림 (${f.alerts24.length}건)</h2>${f.alerts24.length?`<div class="scroll" style="max-height:320px;overflow:auto"><table class="tbl"><tr><th>발생</th><th class="l">개체</th><th class="l">알림</th><th>상태</th><th>코드</th></tr>
+  ${f.alerts24.map(a=>`<tr><td>${a.t}</td><td class="l"><b>${esc(a.animal)}</b></td><td class="l">${esc(a.type)}</td><td>${esc(a.status)}</td><td style="color:var(--sub)">${esc(a.raw)}</td></tr>`).join("")}</table></div>`
+  :`<div class="empty">없음</div>`}
+  <h2>7. 현장 점검 체크리스트</h2><div class="box">${f.checklist.map((c,i)=>`<label class="ck"><input type="checkbox" ${ck[i]?"checked":""}
    onchange="tick('${f.id}',${i},this.checked)"><div><b>${esc(c.topic)}</b><span>${esc(c.text)}</span></div></label>`).join("")}</div>
-  <h2>메모</h2><textarea placeholder="농장주 의견·조치·다음 방문 (이 휴대폰에만 저장)" oninput="store.set('memo:${f.id}',this.value)">${esc(memo)}</textarea>
+  <h2>메모</h2><textarea placeholder="농장주 의견·조치·다음 방문 (이 기기에만 저장)" oninput="store.set('memo:${f.id}',this.value)">${esc(memo)}</textarea>
   <div class="foot">센서 알림·행동지표 기반 선별 자료(진단 아님) · 목장 데이터 외부 공유 금지</div>`;
 }
 function tick(id,i,v){ const k=`ck:${id}:${day}`, o=store.get(k)||{}; o[i]=v; store.set(k,o); }
 
+/* ───── 7일추세 ───── */
+function trendTab(){
+  const cats = D.farms.length ? Object.keys(D.farms[0].trend_types) : [];
+  if(!cats.includes(st.cat)) st.cat = "건강 전체";
+  let fs = [...D.farms]; if(st.q) fs = fs.filter(f=>f.name.includes(st.q));
+  if(st.sortK==="t7") fs.sort((a,b)=>(a.trend_total[st.cat]-b.trend_total[st.cat])*st.sortD);
+  const mx = Math.max(1,...D.farms.flatMap(f=>f.trend_types[st.cat]));
+  return `<div class="filters">${cats.map(c=>`<button class="${st.cat==c?'on':''}" onclick="st.cat='${c}';save();render()">${esc(c)}</button>`).join("")}</div>
+  <input type="search" placeholder="목장 검색" value="${esc(st.q)}" oninput="st.q=this.value;render(true)">
+  <div class="scroll"><table class="tbl"><tr><th class="l stick">목장</th><th>센서두수</th>${D.dates.map(d=>`<th>${d}</th>`).join("")}
+  <th class="sort" onclick="sortBy('t7')">7일 두수</th><th>100두당</th></tr>
+  ${fs.map(f=>{ const t=f.trend_total[st.cat]; return `<tr class="click" onclick="go('${f.id}')"><td class="l stick g-${f.grade}"><span class="dot"></span>${esc(f.name)}</td>
+   <td>${f.herd??"-"}</td>${f.trend_types[st.cat].map(v=>`<td style="${heat(v,mx)}">${v||""}</td>`).join("")}
+   <td><b>${t}</b></td><td>${f.herd?(t/f.herd*100).toFixed(1):"-"}</td></tr>`; }).join("")}</table></div>
+  <div class="note">두수 = 그날 해당 알림이 1번 이상 나온 개체 수(중복 제외) · 7일 두수 = 7일 동안 1번 이상 해당된 개체 수</div>`;
+}
+
+/* ───── 그룹행동 ───── */
+function behTab(){
+  const rows=[]; D.farms.forEach(f=>f.groups.forEach(g=>rows.push({f,g})));
+  const ok = r => r.g.flags.length && !r.g.flags.includes("데이터 불완전(판정 제외)");
+  let show = st.behAll ? rows : rows.filter(ok);
+  if(st.q) show = show.filter(r=>r.f.name.includes(st.q));
+  const b = D.bench;
+  return `${b?`<div class="box">담당 목장 착유그룹 기준값 (${b.n}개 그룹 중앙값): 반추 <b>${Math.round(b.rum)}</b>분 · 횡와 <b>${b.lying_h}</b>h · 누워반추 <b>${Math.round(b.rum_lying_share)}</b>%</div>`:""}
+  <div class="filters" style="margin-top:10px"><button class="${!st.behAll?'on':''}" onclick="st.behAll=false;save();render()">이상 그룹 ${rows.filter(ok).length}</button>
+  <button class="${st.behAll?'on':''}" onclick="st.behAll=true;save();render()">전체 그룹 ${rows.length}</button></div>
+  <input type="search" placeholder="목장 검색" value="${esc(st.q)}" oninput="st.q=this.value;render(true)">
+  ${show.length?`<div class="scroll"><table class="tbl"><tr><th class="l stick">목장</th><th class="l">그룹</th><th>두수</th><th>반추</th><th>7일</th><th>Δ반추</th><th>횡와h</th><th>Δ횡와</th><th>누워반추%</th><th>동조%</th><th class="l">판정</th></tr>
+  ${show.map(({f,g})=>`<tr class="click" onclick="go('${f.id}')"><td class="l stick">${esc(f.name)}</td><td class="l">${esc(g.name)}</td><td>${g.n??""}</td>
+  <td>${g.rum??"-"}</td><td>${g.rum7??"-"}</td><td class="${g.drum<0?'neg':''}">${sgn(g.drum)}</td><td>${g.lying_h??"-"}</td><td>${sgn(g.dlying)}</td>
+  <td>${g.share??"-"}</td><td>${g.sync??"-"}</td><td class="wrap flag">${g.flags.map(esc).join(", ")}</td></tr>`).join("")}</table></div>`
+  : `<div class="empty">해당 그룹 없음</div>`}`;
+}
+
+/* ───── 집단신호 ───── */
+function cluTab(){
+  const fs = D.farms.filter(f=>f.cluster);
+  return fs.length ? fs.map(f=>`<div class="card g-${f.grade}" onclick="go('${f.id}')"><div class="row"><div class="name">${esc(f.name)}</div>
+   <span class="badge">${f.cluster.n}두</span></div><div class="meta">${f.cluster.from} ~ ${f.cluster.to}</div>
+   <div style="margin-top:6px;font-size:14px">${esc(f.cluster.text)}</div><div class="meta">개체: ${f.cluster.animals.map(esc).join(", ")}</div></div>`).join("")
+   + `<div class="note">단시간에 여러 개체가 체온·반추 알림 → 사료·급여·환경·전염성 질병 등 공통 원인 '의심' 신호(진단 아님)</div>`
+   : `<div class="empty">집단신호 없음</div>`;
+}
+
 function render(keepFocus){
   const m = location.hash.match(/f=([^&]+)/);
-  document.querySelectorAll(".tabs button").forEach(b => b.classList.toggle("on", !m && b.dataset.t==st.tab));
-  const html = m ? detail(decodeURIComponent(m[1])) : (st.tab=="beh" ? beh() : list());
+  if(m) st.tab = "farm";
+  $("#tabs").innerHTML = TABS.map(([k,l])=>`<button class="${st.tab==k?'on':''}" onclick="setTab('${k}')">${l}${k=='clu'&&D.clusters?` ${D.clusters}`:""}</button>`).join("");
   const pos = keepFocus ? document.activeElement?.selectionStart : null;
-  $("#app").innerHTML = html + (m?"":`<div class="foot">센서 알림·행동지표 기반 선별 자료(진단 아님) · 집단신호 ${D.clusters}건 · 외부 공유 금지</div>`);
-  if(keepFocus){ const i=$("input[type=search]"); i.focus(); i.setSelectionRange(pos,pos); }
-  if(m && !keepFocus) window.scrollTo(0,0);
+  const view = {sum:sumTab, trend:trendTab, beh:behTab, clu:cluTab}[st.tab];
+  $("#app").innerHTML = st.tab=="farm" ? farmTab(m ? decodeURIComponent(m[1]) : null)
+    : view() + `<div class="foot">센서 알림·행동지표 기반 선별 자료(진단 아님) · 외부 공유 금지</div>`;
+  if(keepFocus){ const i=$("input[type=search]"); if(i){ i.focus(); i.setSelectionRange(pos,pos); } }
+  else if(m && window.innerWidth<=900) window.scrollTo(0,0);
 }
-document.querySelectorAll(".tabs button").forEach(b => b.onclick = () => { st.tab=b.dataset.t; if(location.hash) location.hash=""; render(); });
+function setTab(k){ st.tab=k; st.sortK=null; save(); if(location.hash) history.replaceState(null,"",location.pathname); render(); }
 window.addEventListener("hashchange", () => render());
 render();
 </script></body></html>

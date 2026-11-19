@@ -93,6 +93,9 @@ class FarmSummary:
     reasons: list[str] = field(default_factory=list)
     behaviour: list[GroupBehaviour] = field(default_factory=list)
     top_animals: list[dict[str, Any]] = field(default_factory=list)   # 최근 72h 건강알림 다발 개체
+    # 7일 추세(두수): {구분: {날짜: 두수}}, {구분: 7일 합산 두수(중복 제외)}. 마지막 구분 = "건강 전체"
+    trend_types: dict[str, dict[date, int]] = field(default_factory=dict)
+    trend_types_total: dict[str, int] = field(default_factory=dict)
     counts_72h: dict[str, int] = field(default_factory=dict)
 
     @property
@@ -337,6 +340,13 @@ def analyze(conn: sqlite3.Connection, as_of: datetime, mapper: AlertTypeMapper, 
 
         for d in trend_dates:
             s.trend[d] = sum(1 for t, r in ev if t.date() == d and r["alert_type"] in health)
+        cats = [(c["label"], set(c["types"])) for c in rules.get("report", {}).get("trend_categories", [])]
+        cats.append(("건강 전체", health))
+        in_range = [(t, r) for t, r in ev if t.date() in s.trend]
+        for label, types in cats:
+            s.trend_types[label] = {d: len({r["animal_id"] for t, r in in_range if t.date() == d and r["alert_type"] in types})
+                                    for d in trend_dates}
+            s.trend_types_total[label] = len({r["animal_id"] for t, r in in_range if r["alert_type"] in types})
 
         # 급증
         sg = rules["surge"]
