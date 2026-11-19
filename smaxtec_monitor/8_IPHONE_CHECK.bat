@@ -37,21 +37,27 @@ Write-Host "[3] PC Tailscale"
 $ts = (Get-Command tailscale -ErrorAction SilentlyContinue).Source
 if (-not $ts -and (Test-Path "C:\Program Files\Tailscale\tailscale.exe")) { $ts = "C:\Program Files\Tailscale\tailscale.exe" }
 if (-not $ts) { NG "Tailscale 이 설치되어 있지 않음"; TIP "tailscale.com/download 에서 Windows 용 설치 후 로그인"; exit }
-$j = (& $ts status --json) | ConvertFrom-Json
-$acct = $j.User."$($j.Self.UserID)".LoginName
-if ($j.BackendState -eq "Running") { OK "연결됨 (계정: $acct)" } else { NG "연결 안 됨 (상태: $($j.BackendState))"; TIP "작업표시줄의 Tailscale 아이콘 -> 로그인/Connect"; exit }
-$name = "$($j.Self.DNSName)".TrimEnd(".")
-if ($j.CurrentTailnet.MagicDNSEnabled) { OK "MagicDNS 켜짐" } else {
+[Console]::OutputEncoding = [Text.Encoding]::UTF8   # 한글 이름이 깨져 JSON 해석이 실패하는 문제 방지
+$raw = (& $ts status --json 2>$null) -join "`n"
+function Pick($pat) { if ($raw -match $pat) { $Matches[1] } else { "" } }
+$state = Pick '"BackendState":\s*"([^"]*)"'
+$acct  = Pick '"LoginName":\s*"([^"]*)"'
+$name  = (Pick '"DNSName":\s*"([^"]*)"').TrimEnd(".")      # 첫 DNSName = 이 PC
+$mdns  = Pick '"MagicDNSEnabled":\s*(true|false)'
+if ($state -eq "Running") { OK "연결됨 (계정: $acct)" } else { NG "연결 안 됨 (상태: $state)"; TIP "작업표시줄의 Tailscale 아이콘 -> 로그인/Connect"; exit }
+if ($mdns -eq "true") { OK "MagicDNS 켜짐" } elseif ($mdns -eq "false") {
   NG "MagicDNS 꺼짐 -> 아이폰이 주소를 찾지 못함"
   TIP "https://login.tailscale.com/admin/dns 에서 [Enable MagicDNS] 와 [Enable HTTPS] 를 누른 뒤 이 파일을 다시 실행"
 }
+if (-not $name) { NG "PC 주소(이름)를 읽지 못함"; TIP "PowerShell 에서 'tailscale status' 결과를 캡처해 보내주세요" }
 
-# 4. 아이폰
+# 4. 아이폰 (기기 목록 텍스트에서 iOS 기기 확인)
 Write-Host "[4] 아이폰"
-$ios = @($j.Peer.PSObject.Properties.Value | Where-Object { $_.OS -eq "iOS" })
-if ($ios.Count -eq 0) { NG "이 계정($acct)에 아이폰이 없음"; TIP "아이폰 Tailscale 앱에서 로그아웃 후 PC 와 같은 계정($acct)으로 로그인" }
-foreach ($p in $ios) {
-  if ($p.Online) { OK "아이폰 연결됨: $($p.HostName)" } else { NG "아이폰($($p.HostName)) 꺼짐"; TIP "아이폰 Tailscale 앱을 열고 맨 위 스위치를 켜서 Connected 로" }
+$ios = @((& $ts status 2>$null) | Where-Object { $_ -match "\sios\s" })
+if ($ios.Count -eq 0) { NG "이 계정($acct)에 아이폰이 없음"; TIP "아이폰 Tailscale 앱에서 PC 와 같은 계정($acct, 구글)으로 로그인" }
+foreach ($line in $ios) {
+  $hn = ($line -split "\s+")[1]
+  if ($line -match "offline") { NG "아이폰($hn) 꺼짐"; TIP "아이폰 Tailscale 앱을 열고 맨 위 스위치를 켜서 Connected 로" } else { OK "아이폰 연결됨: $hn" }
 }
 
 # 5. 아이폰용 주소(HTTPS)
