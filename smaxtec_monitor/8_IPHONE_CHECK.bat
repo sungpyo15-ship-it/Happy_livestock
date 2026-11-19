@@ -5,6 +5,7 @@ pause
 exit /b
 REM ===== PowerShell =====
 Set-Location $env:SMX_DIR
+[Console]::OutputEncoding = [Text.Encoding]::UTF8   # 처음부터 UTF-8 (중간에 바꾸면 글자 겹침)
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 function OK($m){ Write-Host "  [정상] $m" -ForegroundColor Green }
 function NG($m){ Write-Host "  [문제] $m" -ForegroundColor Red; $script:bad++ }
@@ -37,7 +38,6 @@ Write-Host "[3] PC Tailscale"
 $ts = (Get-Command tailscale -ErrorAction SilentlyContinue).Source
 if (-not $ts -and (Test-Path "C:\Program Files\Tailscale\tailscale.exe")) { $ts = "C:\Program Files\Tailscale\tailscale.exe" }
 if (-not $ts) { NG "Tailscale 이 설치되어 있지 않음"; TIP "tailscale.com/download 에서 Windows 용 설치 후 로그인"; exit }
-[Console]::OutputEncoding = [Text.Encoding]::UTF8   # 한글 이름이 깨져 JSON 해석이 실패하는 문제 방지
 $raw = (& $ts status --json 2>$null) -join "`n"
 function Pick($pat) { if ($raw -match $pat) { $Matches[1] } else { "" } }
 $state = Pick '"BackendState":\s*"([^"]*)"'
