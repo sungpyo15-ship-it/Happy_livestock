@@ -115,7 +115,8 @@ powershell -ExecutionPolicy Bypass -File scripts\register_windows_tasks.ps1
 2. 매일 06:00 후 그 폴더에 `smaxtec_dashboard.html`(항상 최신본) 이 덮어써짐
 3. 휴대폰 OneDrive/Drive 앱에서 열기 → 브라우저로 열어 **홈 화면에 추가**
 - 체크리스트 체크·메모는 그 휴대폰에만 저장(서버로 전송 안 함)
-- 회사 계정·회사 업무라면 회사 OneDrive 사용 권장(개인 클라우드에 고객 데이터 보관 주의)
+- 공유폴더는 **본인만 접근하는 폴더**로(공유 링크 생성 금지). 목장 데이터는 농장주 소유
+- 휴대폰 분실 대비: 휴대폰 화면잠금, Drive/OneDrive 앱 잠금(PIN) 설정 권장
 
 ### Mac (cron)
 ```
