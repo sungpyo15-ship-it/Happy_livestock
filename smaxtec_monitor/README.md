@@ -124,6 +124,26 @@ powershell -ExecutionPolicy Bypass -File scripts\register_windows_tasks.ps1
 10 8-20/2 * * * /경로/smaxtec_monitor/scripts/run_collect.sh
 ```
 
+## 5-2. 전환기 성적
+- 분만(분만확인·센서 분만감지) 후 **21일** 동안의 케토시스·유열·유방염·체온↑·반추↓ 발생률, **무사통과율**, 분만 전 21일 반추감소
+- 최근 **90일 완료 분만우**(분만 후 21일 지난 소) 기준, 분만월별 추이, 초산/경산 구분, 현재 신선우·분만예정(건유 기록의 분만예정일 + 분만임박 알림)
+- 담당 목장 중앙값 대비 부진하면 방문 우선순위 점수 반영. 분만 8두 미만은 참고용
+- 처음 1회 과거 150일 이력 수집(`SMX_API_HISTORY_DAYS`). 기준은 `config/rules.toml [transition]`
+- ⚠ 센서 '의심' 알림 기준 → 문헌의 임상/준임상 발생률과 직접 비교 금지, 담당 목장 간 상대비교용
+
+## 5-3. 아이폰 앱 (홈 화면 앱, PWA)
+네이티브 앱(App Store)은 Mac·Xcode·Apple 개발자 등록이 필요해서, **같은 앱을 홈 화면 앱으로 설치**하는 방식.
+```
+[PC] reports/app/ (매일 06:00 갱신) → smxmon serve (127.0.0.1:8765, PC 내부 전용)
+[PC] tailscale serve --bg 8765 → https://<PC이름>.<tailnet>.ts.net (내 Tailscale 기기만, 종단간 암호화)
+[iPhone] Tailscale 앱 켜고 주소 열기 → 공유 → 홈 화면에 추가
+```
+1. PC·아이폰에 Tailscale 설치, **같은 계정**으로 로그인 (개인 사용 무료)
+2. `7_IPHONE_SETUP.bat` 더블클릭 → 서버 자동시작 등록 + 접속 주소 출력
+3. 아이폰 Safari 로 주소 열기 → 공유 → **홈 화면에 추가**
+- 데이터는 PC에만 있고 외부 서버에 저장되지 않음. PC가 꺼져 있으면 마지막으로 본 화면이 열림(오프라인 저장)
+- 목장 현장(LTE)에서도 접속 가능(PC가 켜져 있을 때 최신 데이터)
+
 ## 6. 데이터 설계 핵심
 
 | 테이블 | 내용 |
