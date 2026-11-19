@@ -83,24 +83,45 @@ python -m smxmon api-test
 |---|---|
 | `python -m smxmon api-test [--hours 24] [--limit 3]` | API 접속 점검(저장 안 함) |
 | `python -m smxmon collect [--notify] [--farm ID ...]` | 1회 수집. `--notify` = 집단신호 즉시 메일 |
-| `python -m smxmon report [--email] [--as-of "2026-11-19 07:00"]` | 일일 요약 엑셀 (+메일) |
+| `python -m smxmon report [--email] [--as-of "2026-11-19 07:00"]` | 일일 요약 엑셀 + 방문요약 + 모바일 대시보드 (+메일) |
+| `python -m smxmon visit 목장이름 ...` | 지정 목장 방문용 1장 요약 |
 | `python -m smxmon status` | 목장 ID 목록, 최근 수집 성공/실패 |
 | `python -m smxmon inspect [URL ...] [--manual]` | 화면 구조 저장 |
 | `python -m smxmon demo` | 가상데이터 리포트 |
 | `python -m pytest -q tests` | 테스트 |
 
-## 5. 주기 실행
+## 5. 매일 06:00 자동 실행 · 모바일 대시보드 · 방문요약
 
-- **Windows**: PowerShell 에서 `powershell -ExecutionPolicy Bypass -File scripts\register_windows_tasks.ps1`
-  → 수집 06:10부터 2시간 간격, 리포트 매일 06:50
-- **Mac**: `crontab -e`
-  ```
-  10 */2 * * * /경로/smaxtec_monitor/scripts/run_collect.sh
-  50 6 * * *   /경로/smaxtec_monitor/scripts/run_daily_report.sh
-  ```
-- PC가 꺼져 있으면 수집이 안 됨 → 리포트의 `마지막 정상수집`·`⚠데이터 지연`으로 확인.
-- 동시 실행 방지 잠금(`data/collect.lock`), 목장 사이 3~8초 무작위 대기, 실패 시 5→10→20초 재시도.
-  **로그인 실패는 재시도하지 않음**(계정 잠금 방지).
+### 자동 실행 (Windows)
+```
+powershell -ExecutionPolicy Bypass -File scripts\register_windows_tasks.ps1
+```
+- `smxmon_daily_report`: **매일 06:00** 수집 → 일일 리포트·방문요약·모바일 대시보드 생성 (→ 공유폴더 복사·메일)
+- `smxmon_collect`: 08:10부터 2시간 간격 수집 + 긴급 집단신호 메일(`--notify`)
+- 절전이면 깨워서 실행, 꺼져 있었으면 켜지는 즉시 실행. **PC 전원은 켜 두거나 절전 상태**여야 함
+- 시험 실행: `Start-ScheduledTask -TaskName smxmon_daily_report`
+
+### 매일 만들어지는 파일 (`reports/`)
+| 파일 | 용도 |
+|---|---|
+| `smaxtec_daily_날짜.xlsx` | 전체 목장 요약·추세·집단신호·그룹행동 등 7개 시트 |
+| `방문요약_날짜.xlsx` | 긴급·우선 목장(최대 10곳) **A4 1장씩** — 인쇄해서 방문 |
+| `dashboard_날짜.html` | **모바일 대시보드** (HTML 1개, 외부 연결 없음) |
+
+특정 목장만: `python -m smxmon visit 정진 학운` → `방문요약_정진목장_학운목장_날짜.xlsx`
+
+### 휴대폰에서 '앱처럼' 보기
+1. `.env` 에 `SMX_PUBLISH_DIR=C:\Users\내이름\OneDrive\smaXtec` (Google Drive 동기화 폴더도 가능)
+2. 매일 06:00 후 그 폴더에 `smaxtec_dashboard.html`(항상 최신본) 이 덮어써짐
+3. 휴대폰 OneDrive/Drive 앱에서 열기 → 브라우저로 열어 **홈 화면에 추가**
+- 체크리스트 체크·메모는 그 휴대폰에만 저장(서버로 전송 안 함)
+- 회사 계정·회사 업무라면 회사 OneDrive 사용 권장(개인 클라우드에 고객 데이터 보관 주의)
+
+### Mac (cron)
+```
+0 6 * * *    /경로/smaxtec_monitor/scripts/run_daily_report.sh
+10 8-20/2 * * * /경로/smaxtec_monitor/scripts/run_collect.sh
+```
 
 ## 6. 데이터 설계 핵심
 

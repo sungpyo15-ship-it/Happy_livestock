@@ -92,6 +92,8 @@ class FarmSummary:
     grade: str = "정상"
     reasons: list[str] = field(default_factory=list)
     behaviour: list[GroupBehaviour] = field(default_factory=list)
+    top_animals: list[dict[str, Any]] = field(default_factory=list)   # 최근 72h 건강알림 다발 개체
+    counts_72h: dict[str, int] = field(default_factory=dict)
 
     @property
     def per100(self) -> float | None:
@@ -405,6 +407,25 @@ def analyze(conn: sqlite3.Connection, as_of: datetime, mapper: AlertTypeMapper, 
             s.reasons.append(f"장기미해제 {s.long_active}건")
         if s.stale:
             s.reasons.append("⚠데이터 지연")
+        # 최근 72시간 개체별 건강알림 (방문 시 확인할 개체)
+        by_animal: dict[str, dict[str, Any]] = {}
+        s.counts_72h = defaultdict(int)
+        for t, r in ev:
+            if t <= as_of - 3 * H24 or t > as_of:
+                continue
+            s.counts_72h[r["alert_type"]] += 1
+            if r["alert_type"] not in health:
+                continue
+            a = by_animal.setdefault(r["animal_id"], {"label": r["animal_label"], "status": r["lactation_status"] or "",
+                                                     "n": 0, "types": defaultdict(int), "last": t})
+            a["n"] += 1
+            a["types"][mapper.label(r["alert_type"])] += 1
+            a["last"] = max(a["last"], t)
+        s.top_animals = sorted(by_animal.values(), key=lambda a: (-len(a["types"]), -a["n"], -a["last"].timestamp()))[:10]
+        for a in s.top_animals:
+            a["types"] = ", ".join(f"{k}{'×' + str(v) if v > 1 else ''}" for k, v in a["types"].items())
+        s.counts_72h = dict(s.counts_72h)
+
         # 그룹 행동(behaviour)
         bcfg = rules.get("behaviour", {})
         if bcfg.get("enabled", True):

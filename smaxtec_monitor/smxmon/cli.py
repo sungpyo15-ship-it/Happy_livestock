@@ -5,6 +5,7 @@
   inspect   화면 HTML/스크린샷/API 응답 저장 (선택자 채우기용)
   collect   1회 수집 (스케줄러가 1~2시간마다 실행)
   report    일일 요약 엑셀 생성 (+ --email 메일 발송)
+  visit     목장 방문용 1장 요약 (예: visit 정진 학운)
   status    목장 ID·최근 수집 상태 확인
   demo      가상 데이터로 리포트 미리보기
 """
@@ -154,12 +155,58 @@ def cmd_report(s, args) -> int:
         an = analyze(db.conn, as_of, mapper, rules, load_farm_overrides())
     out = (args.out or s.report_dir / f"smaxtec_daily_{as_of:%Y%m%d_%H%M}.xlsx")
     build_excel(an, mapper, rules, out)
+    from .visit import build_visit_workbook, visit_targets
+    targets = visit_targets(an)
+    visit_out = out.with_name(out.name.replace("smaxtec_daily_", "방문요약_"))
+    if targets:
+        build_visit_workbook(an, targets, mapper, visit_out)
+    from .dashboard import build_dashboard
+    dash = build_dashboard(an, mapper, out.with_name(out.name.replace("smaxtec_daily_", "dashboard_")).with_suffix(".html"))
     text = build_text_summary(an)
     print(text)
     print(f"\n엑셀 저장: {out}")
+    if targets:
+        print(f"방문요약({len(targets)}곳): {visit_out}")
+    print(f"모바일 대시보드: {dash}")
+    files = [out] + ([visit_out] if targets else []) + [dash]
+    _publish(s, files)
     if args.email:
         send_email(s, f"[smaXtec 일일요약] {as_of:%m/%d} 방문우선 "
-                      f"{sum(f.grade in ('긴급', '우선') for f in an.farms)}곳", text, [out])
+                      f"{sum(f.grade in ('긴급', '우선') for f in an.farms)}곳", text, files)
+    return 0
+
+
+def _publish(s, files) -> None:
+    """SMX_PUBLISH_DIR(예: OneDrive/Google Drive 동기화 폴더)로 복사 → 휴대폰 앱에서 열람.
+    대시보드는 항상 같은 이름(smaxtec_dashboard.html)으로도 덮어써 즐겨찾기 1개로 최신본 확인."""
+    import shutil
+    if not s.publish_dir:
+        return
+    s.publish_dir.mkdir(parents=True, exist_ok=True)
+    for f in files:
+        shutil.copy2(f, s.publish_dir / f.name)
+        if f.suffix == ".html":
+            shutil.copy2(f, s.publish_dir / "smaxtec_dashboard.html")
+    log.info("공유폴더로 복사: %s (%d개)", s.publish_dir, len(files))
+
+
+def cmd_visit(s, args) -> int:
+    """지정 목장(이름 일부·ID) 방문요약 1장 생성."""
+    from .analysis import analyze
+    from .db import Database
+    from .normalize import AlertTypeMapper
+    from .visit import build_visit_workbook
+    db_path = args.db or s.db_path
+    as_of = _parse_as_of(args.as_of, s.timezone)
+    rules, mapper = load_toml("rules.toml"), AlertTypeMapper(load_toml("alert_types.toml"))
+    with Database(db_path) as db:
+        an = analyze(db.conn, as_of, mapper, rules, load_farm_overrides())
+    picked = [f for f in an.farms if any(k == f.farm_id or k in f.name for k in args.farms)]
+    if not picked:
+        raise ConfigError(f"목장을 찾지 못함: {args.farms} (python -m smxmon status 로 이름 확인)")
+    out = s.report_dir / f"방문요약_{'_'.join(f.name.split('(')[0] for f in picked)[:40]}_{as_of:%Y%m%d}.xlsx"
+    build_visit_workbook(an, picked, mapper, out)
+    print(f"방문요약 {len(picked)}곳: {out}")
     return 0
 
 
@@ -207,6 +254,10 @@ def main(argv: list[str] | None = None) -> int:
     pr.add_argument("--email", action="store_true")
     pr.add_argument("--db", type=lambda x: __import__("pathlib").Path(x))
     pr.add_argument("--out", type=lambda x: __import__("pathlib").Path(x))
+    pv = sub.add_parser("visit", help="목장 방문용 1장 요약")
+    pv.add_argument("farms", nargs="+", help="목장 이름 일부 또는 ID (여러 개 가능)")
+    pv.add_argument("--as-of")
+    pv.add_argument("--db", type=lambda x: __import__("pathlib").Path(x))
     sub.add_parser("status")
     pd = sub.add_parser("demo")
     pd.set_defaults(db=None, out=None)
@@ -215,7 +266,7 @@ def main(argv: list[str] | None = None) -> int:
     s = load_settings()
     setup_logging(s.log_dir, s.secrets(), args.verbose)
     handler = {"api-test": cmd_api_test, "init": cmd_init, "inspect": cmd_inspect, "collect": cmd_collect, "report": cmd_report,
-               "status": cmd_status, "demo": cmd_demo}[args.cmd]
+               "status": cmd_status, "visit": cmd_visit, "demo": cmd_demo}[args.cmd]
     try:
         return handler(s, args)
     except ConfigError as e:

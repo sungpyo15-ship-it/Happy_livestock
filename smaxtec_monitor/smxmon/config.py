@@ -58,6 +58,7 @@ class Settings:
     db_path: Path
     report_dir: Path
     log_dir: Path
+    publish_dir: Path | None = None
     smtp_host: str = ""
     smtp_port: int = 587
     smtp_user: str = field(default="", repr=False)
@@ -115,6 +116,7 @@ def load_settings(env_file: Path | None = None) -> Settings:
         db_path=_path("SMX_DB_PATH", "data/smaxtec.db"),
         report_dir=_path("SMX_REPORT_DIR", "reports"),
         log_dir=_path("SMX_LOG_DIR", "logs"),
+        publish_dir=Path(os.getenv("SMX_PUBLISH_DIR").strip()) if os.getenv("SMX_PUBLISH_DIR", "").strip() else None,
         smtp_host=os.getenv("SMTP_HOST", "").strip(),
         smtp_port=_int("SMTP_PORT", 587),
         smtp_user=os.getenv("SMTP_USER", "").strip(),
