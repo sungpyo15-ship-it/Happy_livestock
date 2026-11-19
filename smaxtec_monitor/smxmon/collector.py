@@ -42,12 +42,15 @@ def run_lock(lock_path: Path, stale_seconds: int = 3 * 3600):
         lock_path.unlink(missing_ok=True)
 
 
-def _collect_behaviour(api: SmaxtecAPI, db: Database, farm, now: datetime, cfg: dict) -> None:
-    """그룹 행동 KPI: 일 단위 지표라 refresh_hours(기본 6h)마다 한 번만 조회. 실패해도 알림 수집에는 영향 없음."""
+def _collect_behaviour(api: SmaxtecAPI, db: Database, farm, now: datetime, cfg: dict, need_from=None) -> None:
+    """그룹 행동 KPI: 일 단위 지표라 refresh_hours(기본 6h)마다 한 번만 조회. 실패해도 알림 수집에는 영향 없음.
+    need_from: 투입비교에 필요한 가장 이른 날짜 → 아직 안 받았으면 그 날짜부터 한 번 길게 조회(모든 목장 = 대조군)."""
     if not cfg.get("enabled", True):
         return
     last = db.behaviour_last_collected(farm.farm_id)
-    if last and now - datetime.strptime(last, "%Y-%m-%d %H:%M:%S") < timedelta(hours=float(cfg.get("refresh_hours", 6))):
+    done_from = db.get_state(farm.farm_id, "beh_from")
+    force = need_from is not None and (done_from is None or done_from > str(need_from))
+    if not force and last and now - datetime.strptime(last, "%Y-%m-%d %H:%M:%S") < timedelta(hours=float(cfg.get("refresh_hours", 6))):
         return
     try:
         groups = api.list_groups(farm.farm_id)
@@ -56,9 +59,13 @@ def _collect_behaviour(api: SmaxtecAPI, db: Database, farm, now: datetime, cfg: 
         if not gids:
             return
         days = int(cfg.get("backfill_days", 14)) if not last else 3
-        series = api.group_behaviour(farm.farm_id, gids, (now - timedelta(days=days)).strftime("%Y-%m-%d"),
-                                     now.strftime("%Y-%m-%d"))
+        start = (now - timedelta(days=days)).strftime("%Y-%m-%d")
+        if force:
+            start = min(start, str(need_from))
+        series = api.group_behaviour(farm.farm_id, gids, start, now.strftime("%Y-%m-%d"))
         n = db.upsert_behaviour(farm.farm_id, series, now)
+        if force:
+            db.set_state(farm.farm_id, "beh_from", str(need_from))
         log.debug("목장 %s 행동 KPI %d건(그룹 %d)", farm.name, n, len(gids))
     except (ApiError, LoginError) as e:
         log.warning("목장 %s 그룹행동 조회 실패(알림 수집은 정상): %s", farm.name, e)
@@ -69,6 +76,15 @@ def _collect_api(settings: Settings, db: Database, run_id: int, mapper: AlertTyp
     """공식 API 수집: 목장목록 → (개체목록) → 이벤트. 이벤트는 시점 기록이므로 해제 판정 없음."""
     api = SmaxtecAPI(settings)
     behaviour_cfg = load_toml("rules.toml").get("behaviour", {})
+    # 투입비교(투입기록.xlsx)에 필요한 과거 행동 데이터 시작일 (최대 120일 전까지)
+    from .trials import load_trials, needed_from
+    try:
+        need_from = needed_from(load_trials(db.conn))
+    except Exception as e:  # noqa: BLE001  (투입기록 파일 오류가 수집을 막지 않게)
+        log.warning("투입기록.xlsx 읽기 실패: %s", e)
+        need_from = None
+    if need_from is not None:
+        need_from = max(need_from, (now_local(settings.timezone) - timedelta(days=120)).date())
     farms = api.list_farms()
     if farm_filter:
         farms = [f for f in farms if f.farm_id in farm_filter or f.name in farm_filter]
@@ -116,7 +132,7 @@ def _collect_api(settings: Settings, db: Database, run_id: int, mapper: AlertTyp
                                 detail=ev.detail or None, ext_id=ev.ext_id, point_event=True, value=ev.value)
             stats["alerts_seen"] += 1
             stats["alerts_new"] += r.action == "new"
-        _collect_behaviour(api, db, farm, now, behaviour_cfg)
+        _collect_behaviour(api, db, farm, now, behaviour_cfg, need_from)
         db.mark_farm_ok(farm.farm_id, now)
         db.commit()
         stats["farms_ok"] += 1

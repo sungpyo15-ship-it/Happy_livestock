@@ -94,7 +94,7 @@ def build_demo(db_path: Path, as_of: datetime, days: int = 10, seed: int = 7) ->
             db.commit()
             db.finish_run(run, t + timedelta(minutes=4), "ok", farms_ok=len(farms))
             t += timedelta(hours=2)
-        _demo_behaviour(db, farms, as_of, days, rnd)
+        _demo_behaviour(db, farms, as_of, 45, rnd)
         _demo_transition(db, farms, as_of, rnd)
         db.commit()
     return db_path
@@ -119,6 +119,8 @@ def _demo_behaviour(db: Database, farms, as_of: datetime, days: int, rnd: random
                     lying = rnd.gauss(515, 8)              # 횡와 8.6h
                 if d == 1 and name == "착유우" and sc == "fever":
                     lying -= 95
+                if fid == "1003" and name == "착유우" and d <= 21:   # 투입비교 데모: 21일 전 첨가제 투입 → 반추·횡와 증가
+                    rs, rl, lying = rs + 10, rl + 15, lying + 18
                 if d == 1 and name == "육성우" and sc == "normal" and fid == "1006":
                     rs, rl = rs - 20, rl - 25
                 hist.append((day, rs, rl, lying, standing, rnd.uniform(0.86, 0.92)))
@@ -185,3 +187,17 @@ def _demo_transition(db: Database, farms, as_of: datetime, rnd: random.Random) -
                 {"pregnant": True, "expected_calving_date": f"{due}T12:00:00+00:00"})
             if k == 0:
                 put(fid, aid, "CALVING", "fertility_105", as_of - timedelta(hours=5))
+
+
+def build_demo_trials(path: Path, as_of: datetime) -> Path:
+    """투입기록 데모 파일."""
+    from .trials import ensure_template
+    path.unlink(missing_ok=True)
+    ensure_template(path)
+    from openpyxl import load_workbook
+    wb = load_workbook(path)
+    ws = wb.active
+    ws.append(["마바", (as_of - timedelta(days=21)).date(), "효모배양물 50g/두/일 (데모)", "첨가제", "착유우", 14, 5, "가상 데이터"])
+    ws.append(["가나", (as_of - timedelta(days=4)).date(), "TMR 조사료 비율 변경 (데모)", "사료배합", "", 14, 5, "진행중 예시"])
+    wb.save(path)
+    return path

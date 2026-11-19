@@ -152,10 +152,23 @@ def cmd_report(s, args) -> int:
         raise ConfigError(f"DB 가 없습니다: {db_path} (먼저 collect 또는 demo 실행)")
     as_of = _parse_as_of(args.as_of, s.timezone)
     rules, mapper = load_toml("rules.toml"), AlertTypeMapper(load_toml("alert_types.toml"))
+    from .trials import TRIALS_FILE, compute_all, ensure_template
+    trials_path = getattr(args, "trials", None) or TRIALS_FILE
+    if trials_path == TRIALS_FILE:
+        ensure_template(TRIALS_FILE)   # 처음이면 빈 양식 생성
     with Database(db_path) as db:
         an = analyze(db.conn, as_of, mapper, rules, load_farm_overrides())
+        try:
+            an.trials = compute_all(db.conn, as_of, mapper, rules, trials_path)
+        except Exception as e:  # noqa: BLE001  (엑셀에서 열려 있는 등 → 리포트는 계속)
+            log.warning("투입비교 계산 실패(투입기록.xlsx 확인): %s", e)
+            an.trials = []
     out = (args.out or s.report_dir / f"smaxtec_daily_{as_of:%Y%m%d_%H%M}.xlsx")
     build_excel(an, mapper, rules, out)
+    trials_out = None
+    if an.trials:
+        from .trials_report import build_trials_workbook
+        trials_out = build_trials_workbook(an.trials, out.with_name(out.name.replace("smaxtec_daily_", "투입비교_")))
     from .visit import build_visit_workbook, visit_targets
     targets = visit_targets(an)
     visit_out = out.with_name(out.name.replace("smaxtec_daily_", "방문요약_"))
@@ -169,7 +182,9 @@ def cmd_report(s, args) -> int:
     if targets:
         print(f"방문요약({len(targets)}곳): {visit_out}")
     print(f"목장 모니터 앱: {dash.parent / 'smaxtec_app.html'}  (5_OPEN_APP.bat 로 열기)")
-    files = [out] + ([visit_out] if targets else []) + [dash]
+    files = [out] + ([visit_out] if targets else []) + ([trials_out] if trials_out else []) + [dash]
+    if trials_out:
+        print(f"투입비교({len(an.trials)}건): {trials_out}")
     _publish(s, files)
     if args.email:
         send_email(s, f"[smaXtec 일일요약] {as_of:%m/%d} 방문우선 "
@@ -218,6 +233,17 @@ def cmd_serve(s, args) -> int:
     return 0
 
 
+def cmd_trials_file(s, args) -> int:
+    """투입기록.xlsx 열기(없으면 양식 생성)."""
+    import os
+    from .trials import TRIALS_FILE, ensure_template
+    p = ensure_template(TRIALS_FILE)
+    print(f"투입기록 파일: {p}")
+    if hasattr(os, "startfile"):
+        os.startfile(p)  # noqa: S606  (Windows: 엑셀로 열기)
+    return 0
+
+
 def cmd_status(s, args) -> int:
     from .db import Database
     with Database(s.db_path) as db:
@@ -237,6 +263,8 @@ def cmd_demo(s, args) -> int:
     as_of = now_local(s.timezone).replace(minute=0, second=0) - timedelta(minutes=1)
     db_path = s.data_dir / "demo.db"
     build_demo(db_path, as_of)
+    from .demo import build_demo_trials
+    args.trials = build_demo_trials(s.data_dir / "demo_투입기록.xlsx", as_of)
     print(f"가상 DB 생성: {db_path}")
     args.db, args.as_of, args.email = db_path, as_of.strftime("%Y-%m-%d %H:%M"), False
     args.out = s.report_dir / f"DEMO_smaxtec_daily_{as_of:%Y%m%d}.xlsx"
@@ -269,6 +297,7 @@ def main(argv: list[str] | None = None) -> int:
     ps = sub.add_parser("serve", help="아이폰 앱용 PC 내부 웹서버")
     ps.add_argument("--host", default="127.0.0.1", help="기본 127.0.0.1 (바꾸지 않는 것을 권장)")
     ps.add_argument("--port", type=int, default=8765)
+    sub.add_parser("trials-file", help="투입기록.xlsx 열기(사료·첨가제 투입 전후 비교 입력)")
     sub.add_parser("status")
     pd = sub.add_parser("demo")
     pd.set_defaults(db=None, out=None)
@@ -277,7 +306,8 @@ def main(argv: list[str] | None = None) -> int:
     s = load_settings()
     setup_logging(s.log_dir, s.secrets(), args.verbose)
     handler = {"api-test": cmd_api_test, "init": cmd_init, "inspect": cmd_inspect, "collect": cmd_collect, "report": cmd_report,
-               "status": cmd_status, "visit": cmd_visit, "serve": cmd_serve, "demo": cmd_demo}[args.cmd]
+               "status": cmd_status, "visit": cmd_visit, "serve": cmd_serve,
+               "trials-file": cmd_trials_file, "demo": cmd_demo}[args.cmd]
     try:
         return handler(s, args)
     except ConfigError as e:

@@ -13,6 +13,7 @@ from pathlib import Path
 from .analysis import Analysis
 from .normalize import AlertTypeMapper
 from .pwa import write_pwa
+from .trials_report import trial_payload
 from .transition import INDICATORS
 from .visit import KPI_TYPES, benchmarks, farm_payload
 
@@ -29,6 +30,7 @@ def build_dashboard(an: Analysis, mapper: AlertTypeMapper, out_path: Path) -> Pa
         "clusters": len(an.clusters),
         "tbench": {k: round(v, 1) for k, v in an.transition_bench.items()},
         "tInd": [[c, lbl] for c, lbl in INDICATORS],
+        "trials": [trial_payload(r) for r in getattr(an, "trials", [])],
     }
     blob = json.dumps(data, ensure_ascii=False, default=str).replace("</", "<\\/")
     out_path.parent.mkdir(parents=True, exist_ok=True)
@@ -126,7 +128,7 @@ background:var(--card);color:var(--ink);font-size:14px}
 <main id="app"></main>
 <script>
 const D = __DATA__;
-const TABS = [["sum","요약표"],["farm","목장별"],["trend","7일추세"],["tr","전환기"],["beh","그룹행동"],["clu","집단신호"]];
+const TABS = [["sum","요약표"],["farm","목장별"],["trend","7일추세"],["tr","전환기"],["trial","투입비교"],["beh","그룹행동"],["clu","집단신호"]];
 const KPI = Object.keys(D.kpiLabels);
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -220,6 +222,7 @@ function detail(id){
   </table></div>${D.bench?`<div class="note">비교 기준(담당목장 착유그룹 ${D.bench.n}개 중앙값): 반추 ${Math.round(D.bench.rum)}분 · 횡와 ${D.bench.lying_h}h · 누워반추 ${Math.round(D.bench.rum_lying_share)}%</div>`:""}`
   :`<div class="empty">행동 데이터 없음</div>`}
   ${trSection(f)}
+  ${D.trials.filter(t=>t.farm_id==f.id).length?`<h2>투입 전후 비교</h2>${D.trials.filter(t=>t.farm_id==f.id).map(trialCard).join("")}`:""}
   <h2>5. 확인할 개체 (최근 72시간)</h2>${f.animals.length?`<div class="scroll"><table class="tbl"><tr><th class="l">개체</th><th>상태</th><th>알림수</th><th class="l">알림 종류</th><th>마지막</th></tr>
   ${f.animals.map(a=>`<tr><td class="l"><b>${esc(a.label)}</b></td><td>${esc(a.status||"-")}</td><td>${a.n}</td><td class="wrap">${esc(a.types)}</td><td>${a.last}</td></tr>`).join("")}</table></div>`
   :`<div class="empty">해당 개체 없음</div>`}
@@ -315,6 +318,58 @@ function trSection(f){
    :`<div class="empty">없음</div>`}`;
 }
 
+/* ───── 투입비교 ───── */
+const VC = {"개선(유의)":"#1e7b34","개선 경향":"#4f8a2f","악화(유의)":"var(--urgent)","악화 경향":"#d9631e"};
+const f1 = (v,k=1) => v==null ? "-" : v.toFixed(k);
+const s1 = (v,k=1) => v==null ? "-" : (v>0?"+":"")+v.toFixed(k);
+const pv = v => v==null ? "-" : v<0.001 ? "<0.001" : v.toFixed(3);
+function rumChart(t){
+  const pts = t.rum.filter(x=>x[1]!=null); if(pts.length<3) return "";
+  const W=320,H=110,vals=pts.map(x=>x[1]),mn=Math.min(...vals)-5,mx=Math.max(...vals)+5,n=t.rum.length;
+  const X=i=>8+i*(W-16)/Math.max(1,n-1), Y=v=>H-8-(v-mn)/(mx-mn)*(H-24);
+  const idx = d => t.rum.findIndex(x=>x[0]==d);
+  const bi=t.before?idx(t.before[1]):-1, ai=t.after?idx(t.after[0]):-1;
+  const seg=(from,to)=>t.rum.map((x,i)=>[i,x[1]]).filter(([i,v])=>i>=from&&i<=to&&v!=null).map(([i,v])=>`${X(i)},${Y(v)}`).join(" ");
+  return `<svg viewBox="0 0 ${W} ${H+14}" width="100%" style="max-width:520px;display:block" role="img" aria-label="일별 반추 시간">
+   ${ai>0?`<rect x="${X(bi)}" y="4" width="${X(ai)-X(bi)}" height="${H-12}" fill="currentColor" opacity=".06"/>`:""}
+   <polyline points="${seg(0,bi)}" fill="none" stroke="var(--sub)" stroke-width="2"/>
+   <polyline points="${seg(ai,n-1)}" fill="none" stroke="var(--navy)" stroke-width="2.5"/>
+   <text x="8" y="12" font-size="10" fill="currentColor" opacity=".7">${Math.round(mx)}분</text>
+   <text x="8" y="${H-10}" font-size="10" fill="currentColor" opacity=".7">${Math.round(mn)}분</text>
+   <text x="8" y="${H+12}" font-size="10" fill="currentColor" opacity=".7">${t.rum[0][0]}</text>
+   ${ai>0?`<text x="${X(ai)}" y="${H+12}" font-size="10" fill="currentColor" opacity=".7" text-anchor="middle">투입후 ${t.rum[ai][0]}</text>`:""}
+   <text x="${W-8}" y="${H+12}" font-size="10" fill="currentColor" opacity=".7" text-anchor="end">${t.rum[n-1][0]}</text></svg>
+   <div class="note">회색 = 투입 전 · 남색 = 투입 후 · 음영 = 적응기간(비교 제외)</div>`;
+}
+function metricTable(ms, cnt){
+  const k = cnt?2:1;
+  return `<div class="scroll"><table class="tbl" style="table-layout:fixed"><colgroup><col style="width:30%"><col style="width:30%"><col></colgroup>
+  <tr><th class="l">지표</th><th>투입 전 → 후</th><th class="l">순효과 · 판정</th></tr>
+  ${ms.map(m=>`<tr><td class="l" style="white-space:normal">${esc(m.name)}<br><small style="color:var(--sub)">${esc(m.unit)}</small></td>
+   <td style="white-space:normal">${f1(m.before,k)} → <b>${f1(m.after,k)}</b><br><small style="color:var(--sub)">${s1(m.delta,k)}${cnt?` · ${m.nb}→${m.na}두일`:""}</small></td>
+   <td class="l" style="white-space:normal"><b>${s1(m.net ?? m.delta,k)}</b> <span style="color:${VC[m.verdict]||'var(--sub)'};font-weight:${VC[m.verdict]?700:400}">${esc(m.verdict)}</span>
+   <br><small style="color:var(--sub)">${m.ctrl==null?"대조 없음":`대조 ${s1(m.ctrl,k)}(${m.ctrl_n}곳)`} · p ${pv(m.p)}</small></td></tr>`).join("")}</table></div>`;
+}
+function trialCard(t){
+  const done = t.beh.length || t.alerts.length;
+  return `<div class="box" style="margin-bottom:14px"><div class="row"><div><div class="name">${esc(t.farm)}</div>
+   <div style="font-weight:700;color:var(--navy)">${esc(t.product)}${t.kind?` <small style="color:var(--sub)">[${esc(t.kind)}]</small>`:""}</div></div>
+   ${t.farm_id?`<button class="back" style="display:block" onclick="go('${t.farm_id}')">목장 ›</button>`:""}</div>
+   <div class="meta">시작 ${t.start}${t.before?` · 비교: 전 ${t.before[0]}~${t.before[1]} vs 후 ${t.after[0]}${t.after[1]?"~"+t.after[1]:"부터"} (적응 ${t.adapt}일 제외)`:""}</div>
+   <div class="meta">대상: ${esc(t.groups.join(", ")||"-")} · 상태: <b>${esc(t.status)}</b>${t.memo?` · ${esc(t.memo)}`:""}</div>
+   ${done?`<ul class="hl" style="margin-top:8px">${t.summary.map(x=>`<li>${esc(x)}</li>`).join("")}</ul>
+   ${rumChart(t)}
+   ${t.beh.length?`<h2>그룹 행동 (일 평균)</h2>${metricTable(t.beh,false)}`:""}
+   ${t.alerts.length?`<h2>건강알림 (100두·일당 두수)</h2>${metricTable(t.alerts,true)}`:""}`:""}
+  </div>`;
+}
+function trialTab(){
+  const ts = D.trials.filter(t=>!st.q || t.farm.includes(st.q) || t.product.includes(st.q));
+  return `<input type="search" placeholder="목장·제품 검색" value="${esc(st.q)}" oninput="st.q=this.value;render(true)">
+  ${ts.length ? ts.map(trialCard).join("") : `<div class="empty">등록된 투입 기록이 없습니다.<br>PC 의 9_TRIALS.bat 으로 투입기록.xlsx 를 열어 입력하세요.</div>`}
+  <div class="note">순효과 = 이 목장 변화 − 같은 기간 대조 목장 변화 · p(대조보정) 0.05 미만이면 우연일 가능성 낮음 · 관찰 비교이므로 인과 단정 금지(날씨·사료로트·우군 변동 영향)</div>`;
+}
+
 /* ───── 집단신호 ───── */
 function cluTab(){
   const fs = D.farms.filter(f=>f.cluster);
@@ -330,7 +385,7 @@ function render(keepFocus){
   if(m) st.tab = "farm";
   $("#tabs").innerHTML = TABS.map(([k,l])=>`<button class="${st.tab==k?'on':''}" onclick="setTab('${k}')">${l}${k=='clu'&&D.clusters?` ${D.clusters}`:""}</button>`).join("");
   const pos = keepFocus ? document.activeElement?.selectionStart : null;
-  const view = {sum:sumTab, trend:trendTab, tr:trTab, beh:behTab, clu:cluTab}[st.tab];
+  const view = {sum:sumTab, trend:trendTab, tr:trTab, trial:trialTab, beh:behTab, clu:cluTab}[st.tab];
   $("#app").innerHTML = st.tab=="farm" ? farmTab(m ? decodeURIComponent(m[1]) : null)
     : view() + `<div class="foot">센서 알림·행동지표 기반 선별 자료(진단 아님) · 외부 공유 금지</div>`;
   if(keepFocus){ const i=$("input[type=search]"); if(i){ i.focus(); i.setSelectionRange(pos,pos); } }

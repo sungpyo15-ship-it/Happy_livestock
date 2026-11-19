@@ -56,3 +56,26 @@ def test_transition(tmp_path):
     assert all(x["dim"] < 21 for x in sara.fresh)
     hanwoo = next(f for f in an.farms if f.farm_id == "1004").transition
     assert hanwoo.n == 0 and hanwoo.healthy_pct is None
+
+
+def test_trials_detect_effect(tmp_path):
+    """데모: 마바목장 착유우 21일 전부터 반추 +25분 → 대조보정 후 '개선(유의)', 다른 지표는 과잉 판정 없음."""
+    from smxmon.demo import build_demo_trials
+    from smxmon.trials import compute_all, rate_p, welch_p
+    from smxmon.trials_report import build_trials_workbook
+    as_of = datetime(2026, 11, 19, 5, 59)
+    build_demo(tmp_path / "d.db", as_of)
+    tp = build_demo_trials(tmp_path / "t.xlsx", as_of)
+    mapper = AlertTypeMapper(load_toml("alert_types.toml"))
+    with Database(tmp_path / "d.db") as db:
+        res = compute_all(db.conn, as_of, mapper, load_toml("rules.toml"), tp)
+    done = next(r for r in res if r.trial.farm_name.startswith("마바"))
+    rum = next(m for m in done.beh if m.key == "rum")
+    assert 18 < rum.net < 32 and rum.p < 0.01 and rum.verdict == "개선(유의)"
+    assert all(m.verdict in ("차이 불분명", "참고", "개선 경향", "악화 경향") for m in done.beh if m.key != "rum")
+    running = next(r for r in res if r.trial.farm_name.startswith("가나"))
+    assert running.status.startswith("진행중") and not running.beh
+    assert build_trials_workbook(res, tmp_path / "o.xlsx").exists()
+    # 통계 기준값
+    assert abs(welch_p(list(range(1, 11)), list(range(3, 13))) - 0.1569) < 1e-3
+    assert abs(rate_p(10, 10, 25, 10) - 0.0167) < 1e-3

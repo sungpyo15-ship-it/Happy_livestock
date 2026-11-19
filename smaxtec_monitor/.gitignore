@@ -8,3 +8,4 @@ config/farms.toml
 __pycache__/
 .pytest_cache/
 .venv/
+투입기록.xlsx

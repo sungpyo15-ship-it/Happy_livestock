@@ -215,6 +215,11 @@ def build_excel(an: Analysis, mapper: AlertTypeMapper, rules: dict[str, Any], ou
     # ───── 3-3. 전환기 ─────
     _transition_sheet(wb, an, rules)
 
+    # ───── 3-4. 투입비교 목록 ─────
+    if getattr(an, "trials", None):
+        from .trials_report import add_index_sheet
+        add_index_sheet(wb, an.trials)
+
     # ───── 4. 최근 24h 알림 상세 ─────
     wd = wb.create_sheet("알림상세(24h)")
     _title(wd, "최근 24시간 발생 알림", "지속시간 = 해제시각(없으면 마지막 확인시각) − 발생시각. 해제구분 inferred = 목록에서 사라진 시점으로 추정")

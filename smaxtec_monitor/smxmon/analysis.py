@@ -115,6 +115,7 @@ class Analysis:
     history_days: int
     behaviour: list[GroupBehaviour] = field(default_factory=list)
     transition_bench: dict[str, float] = field(default_factory=dict)
+    trials: list[Any] = field(default_factory=list)   # trials.TrialResult
 
 
 def _alerts_between(conn: sqlite3.Connection, start: datetime, end: datetime) -> list[sqlite3.Row]:
