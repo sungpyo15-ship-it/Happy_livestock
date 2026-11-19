@@ -264,6 +264,11 @@ def load_behaviour(conn: sqlite3.Connection, farm_id: str, farm_name: str, as_of
         gb.sync_7d = round(s7 * 100, 1) if s7 is not None else None
         gb.lactating = any(k in (gb.group_name or "").lower() for k in kw)
 
+        tot = _sum(get("moving", 0), get("standing", 0), get("lying", 0))
+        if tot is None or tot < float(cfg.get("min_day_minutes", 1380)):
+            gb.flags.append("데이터 불완전(판정 제외)")
+            out.append(gb)
+            continue
         d = gb.rum_delta
         if d is not None and gb.rum_7d and d <= -float(cfg.get("rum_drop_min", 30)) \
                 and d / gb.rum_7d * 100 <= -float(cfg.get("rum_drop_pct", 7)):
@@ -272,8 +277,9 @@ def load_behaviour(conn: sqlite3.Connection, farm_id: str, farm_name: str, as_of
         ld = gb.lying_delta
         if ld is not None and ld <= -float(cfg.get("lying_drop_min", 60)):
             gb.flags.append(f"횡와 {ld:+.0f}분")
-        if gb.lactating and gb.lying is not None and gb.lying / 60 < float(cfg.get("lying_min_hours_lactating", 10)):
-            gb.flags.append(f"횡와 {gb.lying / 60:.1f}h(<{cfg.get('lying_min_hours_lactating', 10)}h)")
+        lim = float(cfg.get("lying_min_hours_lactating", 9))
+        if gb.lactating and gb.lying is not None and gb.lying / 60 < lim:
+            gb.flags.append(f"횡와 {gb.lying / 60:.1f}h(<{lim:g}h)")
         if gb.sync is not None and gb.sync_7d is not None and gb.sync_7d - gb.sync >= float(cfg.get("lying_sync_drop_pp", 10)):
             gb.flags.append(f"횡와동조 {gb.sync - gb.sync_7d:+.0f}%p")
         out.append(gb)
@@ -404,12 +410,13 @@ def analyze(conn: sqlite3.Connection, as_of: datetime, mapper: AlertTypeMapper, 
         if bcfg.get("enabled", True):
             s.behaviour = load_behaviour(conn, s.farm_id, s.name, as_of, bcfg)
             rum_groups = [g for g in s.behaviour if g.rum_flag]
-            other = sum(len(g.flags) - g.rum_flag for g in s.behaviour)
+            other = sum(len(g.flags) - g.rum_flag for g in s.behaviour if not g.flags[:1] == ["데이터 불완전(판정 제외)"])
             s.score = round(s.score + pr.get("w_behaviour_rum", 12) * min(2, len(rum_groups))
                             + pr.get("w_behaviour_other", 4) * min(3, other), 1)
             s.grade = ("긴급" if s.score >= pr["urgent"] else "우선" if s.score >= pr["high"]
                        else "관찰" if s.score >= pr["watch"] else "정상")
-            flagged = [f"{g.group_name}: {', '.join(g.flags)}" for g in s.behaviour if g.flags]
+            flagged = [f"{g.group_name}: {', '.join(g.flags)}" for g in s.behaviour
+                       if g.flags and g.flags != ["데이터 불완전(판정 제외)"]]
             if flagged:
                 s.reasons.append("행동[" + " / ".join(flagged[:3]) + "]")
         s.counts_d0 = dict(s.counts_d0)

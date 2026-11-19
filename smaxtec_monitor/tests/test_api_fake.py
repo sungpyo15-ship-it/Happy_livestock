@@ -69,7 +69,7 @@ class H(BaseHTTPRequestHandler):
             m = lambda c, p, w: {"current": c, "prev_day": p, "last_7_days": w}  # noqa: E731
             return self._send(200, {"units": {}, "series": {"g1": {"values": [{
                 "date": day, "rum_while_standing_mean": m(150, 200, 200), "rum_while_lying_mean": m(250, 300, 300),
-                "lying_mean": m(560, 700, 690), "standing_mean": m(400, 300, 300), "moving_mean": m(480, 440, 450),
+                "lying_mean": m(520, 700, 690), "standing_mean": m(440, 300, 300), "moving_mean": m(480, 440, 450),
                 "not_rum_while_standing_mean": m(250, 100, 100), "not_rum_while_lying_mean": m(310, 400, 390),
                 "peak_lying_sync_mean": m(0.70, 0.88, 0.88)}]}}})
         if u.path == "/organisations/org1/events":
@@ -131,6 +131,6 @@ def test_api_behaviour(api, tmp_path, monkeypatch):
     g = an.behaviour[0]
     assert (g.group_name, g.rum, g.rum_7d) == ("착유우", 400, 500)
     assert g.rum_flag and g.lactating
-    assert any("횡와" in f and "h(" in f for f in g.flags)        # 9.3h < 10h
+    assert any("횡와" in f and "h(" in f for f in g.flags)        # 8.7h < 9h
     assert any("횡와동조" in f for f in g.flags)                   # 70% vs 88%
     assert "행동[" in " ".join(an.farms[0].reasons)

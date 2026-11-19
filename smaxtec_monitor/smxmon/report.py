@@ -138,8 +138,16 @@ def build_excel(an: Analysis, mapper: AlertTypeMapper, rules: dict[str, Any], ou
     bc = rules.get("behaviour", {})
     _title(wb_, "그룹별 행동 지표 (smaXtec behaviour, 최신 완료일 그룹 평균)",
            f"반추 = 서서+누워 반추(분/일). 판정: 반추 7일평균 대비 −{bc.get('rum_drop_min', 30)}분 & −{bc.get('rum_drop_pct', 7)}% 이하, "
-           f"횡와 −{bc.get('lying_drop_min', 60)}분 이하, 착유그룹 횡와 <{bc.get('lying_min_hours_lactating', 10)}h, "
+           f"횡와 −{bc.get('lying_drop_min', 60)}분 이하, 착유그룹 횡와 <{bc.get('lying_min_hours_lactating', 9)}h, "
            f"횡와동조 −{bc.get('lying_sync_drop_pp', 10)}%p 이하")
+    lac = [g for g in an.behaviour if g.lactating and g.rum is not None and g.lying is not None
+           and "데이터 불완전(판정 제외)" not in g.flags]
+    if lac:
+        import statistics as _st
+        wb_["A3"] = (f"담당 목장 착유그룹 기준값({len(lac)}개 그룹 중앙값): 반추 {_st.median(g.rum for g in lac):.0f}분, "
+                     f"횡와 {_st.median(g.lying for g in lac) / 60:.1f}h, "
+                     f"누워반추비율 {_st.median(g.rum_lying_share for g in lac if g.rum_lying_share):.0f}%")
+        wb_["A3"].font = Font(name=FONT, size=9, bold=True, color="1F4E78")
     hdr_b = ["목장", "그룹", "두수", "일자", "반추\n(분)", "전일", "7일평균", "Δ반추\n(분)", "횡와\n(h)", "Δ횡와\n(분)",
              "기립\n(h)", "이동\n(h)", "누워반추\n비율%", "횡와동조\n%", "동조\n7일%", "판정"]
     _header(wb_, 4, hdr_b, [18, 12, 6, 11, 7, 7, 7, 8, 7, 8, 7, 7, 9, 8, 7, 40])
