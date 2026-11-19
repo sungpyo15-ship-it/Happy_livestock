@@ -49,6 +49,7 @@ class Settings:
     api_token: str = field(repr=False)
     api_lookback_hours: int
     api_backfill_days: int
+    api_history_days: int
     headless: bool
     min_delay: float
     max_delay: float
@@ -107,6 +108,7 @@ def load_settings(env_file: Path | None = None) -> Settings:
         api_token=os.getenv("SMX_API_TOKEN", "").strip(),
         api_lookback_hours=_int("SMX_API_LOOKBACK_HOURS", 72),
         api_backfill_days=_int("SMX_API_BACKFILL_DAYS", 10),
+        api_history_days=_int("SMX_API_HISTORY_DAYS", 150),
         headless=_bool(os.getenv("SMX_HEADLESS"), True),
         min_delay=_float("SMX_MIN_DELAY_SEC", 3.0),
         max_delay=_float("SMX_MAX_DELAY_SEC", 8.0),

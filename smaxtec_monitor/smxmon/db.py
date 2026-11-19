@@ -102,6 +102,14 @@ CREATE TABLE IF NOT EXISTS group_behaviour (
     PRIMARY KEY (farm_id, group_id, date, metric)
 );
 
+-- 목장별 수집 상태(예: 과거이력 확보 일수)
+CREATE TABLE IF NOT EXISTS collect_state (
+    farm_id TEXT NOT NULL,
+    key     TEXT NOT NULL,
+    value   TEXT,
+    PRIMARY KEY (farm_id, key)
+);
+
 -- (확장용) 개체 지표 시계열: 체온·반추·음수·활동·pH
 CREATE TABLE IF NOT EXISTS animal_metrics (
     farm_id      TEXT NOT NULL,
@@ -242,7 +250,8 @@ class Database:
                     (farm_id, animal_id, alert_type, alert_type_raw, t_occ, t_now, t_now, detail, value, ext_id))
                 res = UpsertResult(int(cur.lastrowid), "new")
             else:
-                self.conn.execute("UPDATE alerts SET last_seen_at=? WHERE alert_id=?", (t_now, row["alert_id"]))
+                self.conn.execute("UPDATE alerts SET last_seen_at=?, detail=COALESCE(?, detail) WHERE alert_id=?",
+                                  (t_now, detail, row["alert_id"]))
                 res = UpsertResult(int(row["alert_id"]), "seen")
             self.conn.execute("INSERT OR IGNORE INTO alert_observations(run_id, alert_id) VALUES (?,?)",
                               (run_id, res.alert_id))
@@ -361,6 +370,14 @@ class Database:
     def behaviour_last_collected(self, farm_id: str) -> str | None:
         r = self.conn.execute("SELECT MAX(collected_at) FROM group_behaviour WHERE farm_id=?", (farm_id,)).fetchone()
         return r[0] if r else None
+
+    def get_state(self, farm_id: str, key: str) -> str | None:
+        r = self.conn.execute("SELECT value FROM collect_state WHERE farm_id=? AND key=?", (farm_id, key)).fetchone()
+        return r[0] if r else None
+
+    def set_state(self, farm_id: str, key: str, value) -> None:
+        self.conn.execute("INSERT INTO collect_state VALUES (?,?,?) ON CONFLICT(farm_id, key) DO UPDATE SET value=excluded.value",
+                          (farm_id, key, str(value)))
 
     def farm_has_alerts(self, farm_id: str) -> bool:
         return self.conn.execute("SELECT 1 FROM alerts WHERE farm_id=? LIMIT 1", (farm_id,)).fetchone() is not None

@@ -64,6 +64,10 @@ def checklist(s: FarmSummary) -> list[tuple[str, str]]:
         items.append(("음수", "급수기 유량·위생, 수온, 음수 접근성(서열 경쟁)"))
     if c.get("MASTITIS"):
         items.append(("유방염", "CMT 검사, 착유 위생·라이너 교체 주기, 깔짚 위생"))
+    t = s.transition
+    if t is not None and t.flags and not any(topic == "전환기" for topic, _ in items):
+        items.append(("전환기", f"[{' / '.join(t.flags)}] 건유후기(close-up) 사료·섭취량·DCAD, 분만 전후 사양 이동·합사, "
+                                "신선우 BCS·식욕·케톤 간이검사, 분만 후 칼슘·에너지 보충 관리 확인"))
     if not items:
         items.append(("정기 점검", "특이 신호 없음 → 사조 잔량, 분변, 반추 관찰 등 정기 항목 위주"))
     return items
@@ -111,6 +115,7 @@ def farm_payload(s: FarmSummary, an: Analysis, mapper: AlertTypeMapper, bench: d
         "checklist": [{"topic": t, "text": x} for t, x in checklist(s)],
         "row": {"surge": s.surge, "cluster_n": s.cluster.n_animals if s.cluster else 0, "long": s.long_active,
                 "per100": s.per100, "c": {c: s.counts_d0.get(c, 0) for c in KPI_TYPES}},
+        "transition": _transition_payload(s.transition),
         "trend_types": {k: [v[d] for d in sorted(v)] for k, v in s.trend_types.items()},
         "trend_total": s.trend_types_total,
         "alerts24": [{"t": a["occurred_at"][5:16], "animal": a["animal_label"], "type": mapper.label(a["alert_type"]),
@@ -118,6 +123,15 @@ def farm_payload(s: FarmSummary, an: Analysis, mapper: AlertTypeMapper, bench: d
                      for a in an.recent_alerts if a["farm_id"] == s.farm_id
                      and mapper.category(a["alert_type"]) in ("health", "reproduction")][:60],
     }
+
+
+def _transition_payload(t) -> dict[str, Any] | None:
+    if t is None or not (t.n or t.fresh or t.upcoming):
+        return None
+    return {"n": t.n, "n_first": t.n_first, "healthy": t.healthy_pct, "rates": t.rates, "pre_rum": t.pre_rum_pct,
+            "first_dim": t.first_dim, "confirm": t.confirm_pct, "n_recent": t.n_recent, "healthy_recent": t.healthy_recent,
+            "rates_first": t.rates_first, "rates_multi": t.rates_multi, "monthly": t.monthly, "fresh": t.fresh,
+            "upcoming": t.upcoming, "small": t.small, "flags": t.flags, "rank": t.rank, "of": t.ranked_of}
 
 
 # ───────────────────────── 엑셀 1장 ─────────────────────────
@@ -239,6 +253,29 @@ def add_visit_sheet(wb: Workbook, s: FarmSummary, an: Analysis, mapper: AlertTyp
         _merge_text(ws, row, "행동 데이터 없음(그룹 미설정 또는 3두 미만)", size=8, color="7F7F7F")
         row += 1
     row += 1
+
+    t = s.transition
+    if t is not None and (t.n or t.fresh or t.upcoming):
+        from .transition import INDICATORS
+        tb = an.transition_bench
+        row = _section(ws, row, f"4-2. 전환기 성적 (분만 후 21일 · 최근 90일 완료 분만 {t.n}두"
+                       + (f", 무사통과 {t.rank}/{t.ranked_of}위)" if t.rank else ", 참고용)" if t.small else ")"))
+        hdr = ["구분", "무사통과"] + [lbl for _, lbl in INDICATORS] + ["분만전반추↓"]
+        pc = lambda v: "-" if v is None else f"{v:.0f}%"  # noqa: E731
+        rows = [["이 목장", pc(t.healthy_pct)] + [pc(t.rates.get(c)) for c, _ in INDICATORS] + [pc(t.pre_rum_pct)]]
+        if tb:
+            rows.append(["담당목장 중앙값", pc(tb["healthy"])] + [pc(tb.get(c)) for c, _ in INDICATORS] + [pc(tb.get("pre_rum"))])
+        row = _table(ws, row, hdr, rows, [2, 1, 1, 1, 1, 1, 1, 2])
+        fresh_alert = [f"{x['label']}({x['dim']}일·{x['alerts']})" for x in t.fresh if x["n"]][:4]
+        line = (f"현재 신선우 {len(t.fresh)}두" + (f" — 알림: {', '.join(fresh_alert)}" if fresh_alert else " — 알림 없음")
+                + f"  ·  분만예정(14일) {len(t.upcoming)}두"
+                + (f" ({', '.join(u['label'] + ('⚠임박' if u.get('imminent') else ' ' + u['due']) for u in t.upcoming[:5])})" if t.upcoming else ""))
+        _merge_text(ws, row, line, size=8, height=26 if len(line) > 90 else 15)
+        row += 1
+        if t.flags:
+            _merge_text(ws, row, "판정: " + " / ".join(t.flags), size=8, bold=True, color="C00000", height=15)
+            row += 1
+        row += 1
 
     if s.cluster:
         row = _section(ws, row, "5. 집단신호 해석 (의심 신호 — 진단 아님)")

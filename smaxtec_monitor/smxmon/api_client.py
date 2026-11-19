@@ -174,7 +174,8 @@ class SmaxtecAPI:
             except (KeyError, ValueError):
                 log.debug("이벤트 시각 해석 불가: %s", e.get("_id"))
                 continue
-            extra = {k: e[k] for k in ("reason", "days_to_calving", "cycle_length", "diagnosis_key")
+            extra = {k: e[k] for k in ("reason", "days_to_calving", "cycle_length", "diagnosis_key",
+                                       "number", "expected_calving_date", "pregnant", "late_abort")
                      if e.get(k) not in (None, "")}
             events.append(ApiEvent(
                 ext_id=str(e.get("_id") or f"{e.get('animal_id')}:{e.get('event_type')}:{e['event_ts']}"),

@@ -58,6 +58,19 @@ lactating_keywords = ["착유", "lact", "milk", "신선", "fresh"]
 # 횡와 동조율: 7일평균 대비 %p 감소 → 우상 경쟁·과밀·환경 스트레스 의심
 lying_sync_drop_pp = 10.0
 
+[transition]
+# 전환기(분만 전후) 성적 — 담당 목장 간 상대비교용
+enabled = true
+pre_days = 21              # 분만 전 관찰 기간
+post_days = 21             # 분만 후 관찰 기간(이 기간이 지난 '완료' 분만우만 발생률 계산)
+window_days = 90           # 성적 집계 기간(완료 분만우의 분만일 기준)
+recent_days = 30           # 최근 추이 확인용
+min_calvings = 8           # 이보다 분만 적으면 '참고용'(판정·순위 제외)
+calving_merge_days = 14    # 분만확인·분만감지가 이 기간 안이면 같은 분만
+upcoming_days = 14         # 분만 예정 목록 범위
+healthy_gap_pp = 15        # 무사통과율이 담당목장 중앙값보다 이만큼(%p) 낮으면 표시
+rate_gap_pp = 10           # 케토시스·유열·유방염·반추감소 발생률이 중앙값보다 이만큼 높으면 표시
+
 [long_active]
 # 이 시간 이상 해제되지 않은 건강알림 = 장기 미해제
 hours = 48
@@ -73,6 +86,7 @@ w_calving = 0.5             # 분만 임박 1건당(방문 필요성 낮게)
 w_group_alarm = 15.0        # smaXtec 자체 그룹경보(그룹 체온상승/그룹 반추감소) 있으면
 w_ketosis = 2.0             # 케토시스 의심 1건당(전환기 사양과 직결)
 w_behaviour_rum = 12.0      # 그룹 반추 감소(그룹당, 최대 2그룹)
+w_transition = 8.0          # 전환기 성적 부진(위 판정에 걸리면 1회)
 w_behaviour_other = 4.0     # 횡와 급감·부족, 동조율 저하(건당, 최대 3건)
 # 점수 구간 → 등급
 urgent = 40

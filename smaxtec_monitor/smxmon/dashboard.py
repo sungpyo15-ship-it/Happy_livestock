@@ -12,6 +12,8 @@ from pathlib import Path
 
 from .analysis import Analysis
 from .normalize import AlertTypeMapper
+from .pwa import write_pwa
+from .transition import INDICATORS
 from .visit import KPI_TYPES, benchmarks, farm_payload
 
 
@@ -25,12 +27,15 @@ def build_dashboard(an: Analysis, mapper: AlertTypeMapper, out_path: Path) -> Pa
         "dates": [f"{d:%m/%d}" for d in sorted(f0.trend)] if f0 else [],
         "farms": [farm_payload(s, an, mapper, bench) for s in an.farms],
         "clusters": len(an.clusters),
+        "tbench": {k: round(v, 1) for k, v in an.transition_bench.items()},
+        "tInd": [[c, lbl] for c, lbl in INDICATORS],
     }
     blob = json.dumps(data, ensure_ascii=False, default=str).replace("</", "<\\/")
     out_path.parent.mkdir(parents=True, exist_ok=True)
     html = TEMPLATE.replace("__DATA__", blob).replace("__ASOF__", data["asOf"])
     out_path.write_text(html, encoding="utf-8")
     (out_path.parent / "smaxtec_app.html").write_text(html, encoding="utf-8")  # 항상 최신본
+    write_pwa(html, out_path.parent / "app")   # 아이폰 홈 화면 앱(서버용)
     return out_path
 
 
@@ -40,6 +45,11 @@ TEMPLATE = r"""<!doctype html>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#1f4e78">
 <meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="목장모니터">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-180.png">
 <title>smaXtec 목장 모니터</title>
 <style>
 :root{--bg:#f4f6f9;--card:#fff;--ink:#1b2430;--sub:#5d6b7a;--line:#e3e8ee;--navy:#1f4e78;--head:#1f4e78;
@@ -116,7 +126,7 @@ background:var(--card);color:var(--ink);font-size:14px}
 <main id="app"></main>
 <script>
 const D = __DATA__;
-const TABS = [["sum","요약표"],["farm","목장별"],["trend","7일추세"],["beh","그룹행동"],["clu","집단신호"]];
+const TABS = [["sum","요약표"],["farm","목장별"],["trend","7일추세"],["tr","전환기"],["beh","그룹행동"],["clu","집단신호"]];
 const KPI = Object.keys(D.kpiLabels);
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -209,6 +219,7 @@ function detail(id){
   <td class="wrap flag">${g.flags.map(esc).join(", ")}</td></tr>`).join("")}
   </table></div>${D.bench?`<div class="note">비교 기준(담당목장 착유그룹 ${D.bench.n}개 중앙값): 반추 ${Math.round(D.bench.rum)}분 · 횡와 ${D.bench.lying_h}h · 누워반추 ${Math.round(D.bench.rum_lying_share)}%</div>`:""}`
   :`<div class="empty">행동 데이터 없음</div>`}
+  ${trSection(f)}
   <h2>5. 확인할 개체 (최근 72시간)</h2>${f.animals.length?`<div class="scroll"><table class="tbl"><tr><th class="l">개체</th><th>상태</th><th>알림수</th><th class="l">알림 종류</th><th>마지막</th></tr>
   ${f.animals.map(a=>`<tr><td class="l"><b>${esc(a.label)}</b></td><td>${esc(a.status||"-")}</td><td>${a.n}</td><td class="wrap">${esc(a.types)}</td><td>${a.last}</td></tr>`).join("")}</table></div>`
   :`<div class="empty">해당 개체 없음</div>`}
@@ -257,6 +268,53 @@ function behTab(){
   : `<div class="empty">해당 그룹 없음</div>`}`;
 }
 
+/* ───── 전환기 ───── */
+const pc = v => v==null ? "-" : Math.round(v)+"%";
+function trTab(){
+  const b = D.tbench;
+  let fs = D.farms.filter(f=>f.transition);
+  if(st.q) fs = fs.filter(f=>f.name.includes(st.q));
+  const k = st.sortK || "healthy";
+  const val = (f,k) => { const t=f.transition; return k=="healthy"?t.healthy : k=="n"?t.n : k=="pre"?t.pre_rum : k=="fresh"?t.fresh.length : k=="up"?t.upcoming.length : t.rates[k]; };
+  fs.sort((a,c)=> (a.transition.small-c.transition.small) || ((val(a,k)??999)-(val(c,k)??999))*(st.sortK?st.sortD:1));
+  const mx = {}; D.tInd.forEach(([c])=>mx[c]=Math.max(1,...fs.map(f=>f.transition.rates[c]||0)));
+  return `${b&&b.n?`<div class="box">담당 목장 중앙값(${b.n}곳, 분만 후 21일 · 최근 90일 완료 분만): 무사통과 <b>${pc(b.healthy)}</b> · ${D.tInd.map(([c,l])=>`${l} <b>${pc(b[c])}</b>`).join(" · ")} · 분만전 반추↓ <b>${pc(b.pre_rum)}</b></div>`:""}
+  <input type="search" placeholder="목장 검색" value="${esc(st.q)}" oninput="st.q=this.value;render(true)" style="margin-top:10px">
+  ${fs.length?`<div class="scroll"><table class="tbl"><tr><th>순위</th><th class="l stick">목장</th><th class="sort" onclick="sortBy('n')">분만</th>
+  <th class="sort" onclick="sortBy('healthy')">무사통과</th>${D.tInd.map(([c,l])=>`<th class="sort" onclick="sortBy('${c}')">${l}</th>`).join("")}
+  <th class="sort" onclick="sortBy('pre')">분만전반추↓</th><th>입력률</th><th class="sort" onclick="sortBy('fresh')">신선우</th><th class="sort" onclick="sortBy('up')">분만예정</th><th class="l">판정</th></tr>
+  ${fs.map(f=>{const t=f.transition; return `<tr class="click" style="${t.small?'opacity:.55':''}" onclick="go('${f.id}')"><td>${t.rank??(t.small?"참고":"-")}</td>
+   <td class="l stick">${esc(f.name)}</td><td>${t.n}${t.n_first?` <small>(초산${t.n_first})</small>`:""}</td>
+   <td style="${t.healthy!=null?`background:rgba(var(--heat),${Math.max(0,Math.min(.8,(70-t.healthy)/70))})`:""}"><b>${pc(t.healthy)}</b></td>
+   ${D.tInd.map(([c])=>`<td style="${heat(t.rates[c],mx[c])}">${pc(t.rates[c])}</td>`).join("")}
+   <td>${pc(t.pre_rum)}</td><td>${pc(t.confirm)}</td><td>${t.fresh.length}</td><td>${t.upcoming.length}</td>
+   <td class="wrap flag">${t.flags.map(esc).join("<br>")}${t.small&&t.n?'<span style="color:var(--sub)">분만 적음(참고)</span>':""}</td></tr>`;}).join("")}
+  </table></div>` : `<div class="empty">분만 기록 없음 (과거 150일 이력 수집 후 계산)</div>`}
+  <div class="note">발생률 = 분만 후 21일 안에 해당 알림이 1번 이상 나온 두수 ÷ 분만 두수 · 센서 '의심' 알림 기준(진단 아님) · 담당 목장 간 비교용</div>`;
+}
+function trSection(f){
+  const t=f.transition, b=D.tbench; if(!t) return "";
+  const cell = (v,bv,hi) => { if(v==null) return "-"; const bad = bv!=null && (hi ? v<=bv-15 : v>=bv+10); return `<span class="${bad?'neg':''}">${Math.round(v)}%</span>`; };
+  return `<h2>4-2. 전환기 성적 <small style="color:var(--sub);font-weight:400">분만 후 21일 · 최근 90일 완료 분만 ${t.n}두${t.rank?` · 무사통과 ${t.rank}/${t.of}위`:t.small?" · 참고용":""}</small></h2>
+  <div class="scroll"><table class="tbl"><tr><th class="l">구분</th><th>무사통과</th>${D.tInd.map(([,l])=>`<th>${l}</th>`).join("")}<th>분만전반추↓</th></tr>
+  <tr><td class="l"><b>이 목장</b></td><td><b>${cell(t.healthy,b.healthy,true)}</b></td>${D.tInd.map(([c])=>`<td>${cell(t.rates[c],b[c],false)}</td>`).join("")}<td>${cell(t.pre_rum,b.pre_rum,false)}</td></tr>
+  ${t.n_first?`<tr><td class="l">초산우</td><td>-</td>${D.tInd.map(([c])=>`<td>${pc(t.rates_first[c])}</td>`).join("")}<td>-</td></tr>
+  <tr><td class="l">경산우</td><td>-</td>${D.tInd.map(([c])=>`<td>${pc(t.rates_multi[c])}</td>`).join("")}<td>-</td></tr>`:""}
+  ${b&&b.n?`<tr class="tot"><td class="l">담당목장 중앙값</td><td>${pc(b.healthy)}</td>${D.tInd.map(([c])=>`<td>${pc(b[c])}</td>`).join("")}<td>${pc(b.pre_rum)}</td></tr>`:""}
+  </table></div>
+  <div class="note">첫 알림까지 평균 ${t.first_dim??"-"}일 · 최근 30일 분만 ${t.n_recent}두 무사통과 ${pc(t.healthy_recent)} · 분만 입력률 ${pc(t.confirm)}${t.flags.length?` · <b class="neg">${t.flags.map(esc).join(" / ")}</b>`:""}</div>
+  ${t.monthly.length?`<div class="scroll" style="margin-top:6px"><table class="tbl"><tr><th class="l">분만월</th>${t.monthly.map(m=>`<th>${m.month.slice(2)}</th>`).join("")}</tr>
+   <tr><td class="l">분만 두수</td>${t.monthly.map(m=>`<td>${m.n}</td>`).join("")}</tr>
+   <tr><td class="l">무사통과</td>${t.monthly.map(m=>`<td><b>${pc(m.healthy)}</b></td>`).join("")}</tr>
+   <tr><td class="l">케토시스</td>${t.monthly.map(m=>`<td>${pc(m.ketosis)}</td>`).join("")}</tr>
+   <tr><td class="l">반추↓</td>${t.monthly.map(m=>`<td>${pc(m.rum)}</td>`).join("")}</tr></table></div>`:""}
+  <h2>현재 신선우 (분만 후 21일 이내 ${t.fresh.length}두)</h2>${t.fresh.length?`<div class="scroll"><table class="tbl"><tr><th class="l">개체</th><th>산차</th><th>분만</th><th>경과일</th><th class="l">알림</th></tr>
+   ${t.fresh.map(x=>`<tr><td class="l"><b>${esc(x.label)}</b></td><td>${x.parity??"-"}</td><td>${x.calved}</td><td>${x.dim}</td><td class="wrap ${x.n?'flag':''}">${esc(x.alerts)||"없음"}</td></tr>`).join("")}</table></div>`
+   :`<div class="empty">없음</div>`}
+  <h2>분만 예정 (14일 이내 ${t.upcoming.length}두)</h2>${t.upcoming.length?`<div class="chips">${t.upcoming.map(u=>`<span class="chip">${u.imminent?'<b class="neg">임박</b> ':""}${esc(u.label)} ${u.due!="-"?u.due+` (${u.days<0?"예정일 지남":u.days+"일 후"})`:""}</span>`).join("")}</div>`
+   :`<div class="empty">없음</div>`}`;
+}
+
 /* ───── 집단신호 ───── */
 function cluTab(){
   const fs = D.farms.filter(f=>f.cluster);
@@ -272,7 +330,7 @@ function render(keepFocus){
   if(m) st.tab = "farm";
   $("#tabs").innerHTML = TABS.map(([k,l])=>`<button class="${st.tab==k?'on':''}" onclick="setTab('${k}')">${l}${k=='clu'&&D.clusters?` ${D.clusters}`:""}</button>`).join("");
   const pos = keepFocus ? document.activeElement?.selectionStart : null;
-  const view = {sum:sumTab, trend:trendTab, beh:behTab, clu:cluTab}[st.tab];
+  const view = {sum:sumTab, trend:trendTab, tr:trTab, beh:behTab, clu:cluTab}[st.tab];
   $("#app").innerHTML = st.tab=="farm" ? farmTab(m ? decodeURIComponent(m[1]) : null)
     : view() + `<div class="foot">센서 알림·행동지표 기반 선별 자료(진단 아님) · 외부 공유 금지</div>`;
   if(keepFocus){ const i=$("input[type=search]"); if(i){ i.focus(); i.setSelectionRange(pos,pos); } }
@@ -281,5 +339,9 @@ function render(keepFocus){
 function setTab(k){ st.tab=k; st.sortK=null; save(); if(location.hash) history.replaceState(null,"",location.pathname); render(); }
 window.addEventListener("hashchange", () => render());
 render();
+// 아이폰 홈 화면 앱: HTTPS 로 열렸을 때 마지막 화면을 저장(오프라인에서도 열림)
+if ("serviceWorker" in navigator && window.isSecureContext && location.protocol !== "file:") {
+  navigator.serviceWorker.register("sw.js").catch(() => {});
+}
 </script></body></html>
 """

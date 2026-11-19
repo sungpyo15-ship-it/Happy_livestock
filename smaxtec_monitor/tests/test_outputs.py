@@ -37,3 +37,22 @@ def test_visit_and_dashboard(tmp_path):
     assert "http://" not in html and "https://" not in html            # 외부 연결 없음
     data = json.loads(re.search(r"const D = (\{.*?\});\n", html, re.S).group(1))
     assert len(data["farms"]) == len(an.farms) and data["farms"][0]["checklist"]
+
+
+def test_transition(tmp_path):
+    from smxmon.transition import INDICATORS
+    as_of = datetime(2026, 11, 19, 5, 59)
+    build_demo(tmp_path / "d.db", as_of)
+    mapper = AlertTypeMapper(load_toml("alert_types.toml"))
+    with Database(tmp_path / "d.db") as db:
+        an = analyze(db.conn, as_of, mapper, load_toml("rules.toml"))
+    dairy = [f for f in an.farms if f.transition and f.transition.n]
+    assert len(dairy) >= 4 and an.transition_bench["n"] >= 3
+    sara = next(f for f in an.farms if f.farm_id == "1001").transition
+    assert sara.rates["RUMINATION_DROP"] > an.transition_bench["RUMINATION_DROP"]   # 시나리오대로 반추감소 높음
+    assert sara.flags and sara.upcoming and sara.fresh
+    assert all(0 <= (sara.rates[c] or 0) <= 100 for c, _ in INDICATORS)
+    # 분만 후 21일이 안 지난 소는 발생률 분모에서 빠짐
+    assert all(x["dim"] < 21 for x in sara.fresh)
+    hanwoo = next(f for f in an.farms if f.farm_id == "1004").transition
+    assert hanwoo.n == 0 and hanwoo.healthy_pct is None

@@ -96,6 +96,7 @@ class FarmSummary:
     # 7일 추세(두수): {구분: {날짜: 두수}}, {구분: 7일 합산 두수(중복 제외)}. 마지막 구분 = "건강 전체"
     trend_types: dict[str, dict[date, int]] = field(default_factory=dict)
     trend_types_total: dict[str, int] = field(default_factory=dict)
+    transition: Any = None   # transition.TransitionStats
     counts_72h: dict[str, int] = field(default_factory=dict)
 
     @property
@@ -113,6 +114,7 @@ class Analysis:
     runs: list[dict[str, Any]]
     history_days: int
     behaviour: list[GroupBehaviour] = field(default_factory=list)
+    transition_bench: dict[str, float] = field(default_factory=dict)
 
 
 def _alerts_between(conn: sqlite3.Connection, start: datetime, end: datetime) -> list[sqlite3.Row]:
@@ -453,6 +455,22 @@ def analyze(conn: sqlite3.Connection, as_of: datetime, mapper: AlertTypeMapper, 
         s.counts_d0 = dict(s.counts_d0)
         summaries.append(s)
 
+    # 전환기 성적 (담당 목장 중앙값 대비 판정 → 점수 반영)
+    tcfg = rules.get("transition", {})
+    tbench: dict[str, float] = {}
+    if tcfg.get("enabled", True):
+        from .transition import benchmark, farm_transition, judge
+        for s in summaries:
+            s.transition = farm_transition(conn, s.farm_id, as_of, mapper, tcfg)
+        tbench = benchmark([s.transition for s in summaries])
+        for s in summaries:
+            judge(s.transition, tbench, tcfg)
+            if s.transition.flags:
+                s.score = round(s.score + pr.get("w_transition", 8), 1)
+                s.grade = ("긴급" if s.score >= pr["urgent"] else "우선" if s.score >= pr["high"]
+                           else "관찰" if s.score >= pr["watch"] else "정상")
+                s.reasons.append(s.transition.flags[0])
+
     summaries.sort(key=lambda x: (-x.score, -x.health_d0, x.name))
 
     recent = [dict(r) for r in conn.execute(
@@ -467,4 +485,4 @@ def analyze(conn: sqlite3.Connection, as_of: datetime, mapper: AlertTypeMapper, 
     runs = [dict(r) for r in conn.execute(
         "SELECT * FROM collection_runs ORDER BY run_id DESC LIMIT 30").fetchall()]
     return Analysis(as_of, summaries, clusters, recent, long_rows, runs, hist,
-                    [g for f in summaries for g in f.behaviour])
+                    [g for f in summaries for g in f.behaviour], tbench)

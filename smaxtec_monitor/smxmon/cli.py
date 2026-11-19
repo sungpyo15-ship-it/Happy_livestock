@@ -6,6 +6,7 @@
   collect   1회 수집 (스케줄러가 1~2시간마다 실행)
   report    일일 요약 엑셀 생성 (+ --email 메일 발송)
   visit     목장 방문용 1장 요약 (예: visit 정진 학운)
+  serve     아이폰 앱용 PC 내부 웹서버 (Tailscale 과 함께 사용)
   status    목장 ID·최근 수집 상태 확인
   demo      가상 데이터로 리포트 미리보기
 """
@@ -210,6 +211,13 @@ def cmd_visit(s, args) -> int:
     return 0
 
 
+def cmd_serve(s, args) -> int:
+    """아이폰 앱용 PC 내부 웹서버 (기본 127.0.0.1 → Tailscale serve 로만 외부 기기 접속)."""
+    from .pwa import serve
+    serve(s.report_dir / "app", args.host, args.port)
+    return 0
+
+
 def cmd_status(s, args) -> int:
     from .db import Database
     with Database(s.db_path) as db:
@@ -258,6 +266,9 @@ def main(argv: list[str] | None = None) -> int:
     pv.add_argument("farms", nargs="+", help="목장 이름 일부 또는 ID (여러 개 가능)")
     pv.add_argument("--as-of")
     pv.add_argument("--db", type=lambda x: __import__("pathlib").Path(x))
+    ps = sub.add_parser("serve", help="아이폰 앱용 PC 내부 웹서버")
+    ps.add_argument("--host", default="127.0.0.1", help="기본 127.0.0.1 (바꾸지 않는 것을 권장)")
+    ps.add_argument("--port", type=int, default=8765)
     sub.add_parser("status")
     pd = sub.add_parser("demo")
     pd.set_defaults(db=None, out=None)
@@ -266,7 +277,7 @@ def main(argv: list[str] | None = None) -> int:
     s = load_settings()
     setup_logging(s.log_dir, s.secrets(), args.verbose)
     handler = {"api-test": cmd_api_test, "init": cmd_init, "inspect": cmd_inspect, "collect": cmd_collect, "report": cmd_report,
-               "status": cmd_status, "visit": cmd_visit, "demo": cmd_demo}[args.cmd]
+               "status": cmd_status, "visit": cmd_visit, "serve": cmd_serve, "demo": cmd_demo}[args.cmd]
     try:
         return handler(s, args)
     except ConfigError as e:

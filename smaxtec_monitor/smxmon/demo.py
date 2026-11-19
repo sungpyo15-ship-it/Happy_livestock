@@ -95,6 +95,7 @@ def build_demo(db_path: Path, as_of: datetime, days: int = 10, seed: int = 7) ->
             db.finish_run(run, t + timedelta(minutes=4), "ok", farms_ok=len(farms))
             t += timedelta(hours=2)
         _demo_behaviour(db, farms, as_of, days, rnd)
+        _demo_transition(db, farms, as_of, rnd)
         db.commit()
     return db_path
 
@@ -139,3 +140,48 @@ def _demo_behaviour(db: Database, farms, as_of: datetime, days: int, rnd: random
                 })
             series[f"{fid}-{i}"] = vals
         db.upsert_behaviour(fid, series, as_of)
+
+
+def _demo_transition(db: Database, farms, as_of: datetime, rnd: random.Random) -> None:
+    """분만·임신감정·전환기 알림 가상 이력(150일)."""
+    import json
+    run = db.start_run(as_of - timedelta(days=150))
+    probs = {"normal": dict(KETOSIS=.08, MILK_FEVER=.04, MASTITIS=.08, TEMP_HIGH=.15, RUMINATION_DROP=.2, pre=.1),
+             "sara": dict(KETOSIS=.28, MILK_FEVER=.06, MASTITIS=.1, TEMP_HIGH=.2, RUMINATION_DROP=.45, pre=.3),
+             "fever": dict(KETOSIS=.1, MILK_FEVER=.12, MASTITIS=.18, TEMP_HIGH=.35, RUMINATION_DROP=.25, pre=.1)}
+    raw = {"KETOSIS": "clinical_condition_403", "MILK_FEVER": "clinical_condition_402",
+           "MASTITIS": "clinical_condition_401", "TEMP_HIGH": "health_104", "RUMINATION_DROP": "health_304"}
+    n = 0
+
+    def put(fid, aid, code, rawc, t, detail=None):
+        nonlocal n
+        n += 1
+        db.upsert_alert(run_id=run, now=as_of, farm_id=fid, animal_id=aid, alert_type=code, alert_type_raw=rawc,
+                        occurred_at=t.replace(second=0, microsecond=0), point_event=True, ext_id=f"demo-tr-{n}",
+                        detail=json.dumps(detail) if detail else None)
+    for fid, _, herd, sc in farms:
+        if "한우" in _:
+            continue
+        p = probs.get(sc, probs["normal"])
+        t = as_of - timedelta(days=150)
+        while t < as_of:
+            if rnd.random() < herd * 0.9 / 365:
+                aid = f"c{fid}{rnd.randint(1000, 9999)}"
+                ct = t + timedelta(hours=rnd.uniform(0, 23))
+                parity = rnd.choice([1, 1, 2, 2, 3, 4])
+                put(fid, aid, "CALVING", "calving_detection", ct)
+                if rnd.random() < .85:
+                    put(fid, aid, "MANAGEMENT", "calving_confirmation", ct.replace(hour=0, minute=0), {"number": parity})
+                if rnd.random() < p["pre"]:
+                    put(fid, aid, "RUMINATION_DROP", "health_302", ct - timedelta(days=rnd.uniform(1, 18)))
+                for code, pr in p.items():
+                    if code != "pre" and rnd.random() < pr * (1.3 if parity == 1 and code == "RUMINATION_DROP" else 1):
+                        put(fid, aid, code, raw[code], ct + timedelta(days=rnd.uniform(0.5, 20)))
+            t += timedelta(days=1)
+        for k in range(rnd.randint(3, 7)):   # 분만 예정
+            aid = f"p{fid}{k}"
+            due = (as_of + timedelta(days=rnd.randint(0, 14))).date()
+            put(fid, aid, "MANAGEMENT", "dry_off", as_of - timedelta(days=50),
+                {"pregnant": True, "expected_calving_date": f"{due}T12:00:00+00:00"})
+            if k == 0:
+                put(fid, aid, "CALVING", "fertility_105", as_of - timedelta(hours=5))

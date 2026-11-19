@@ -212,6 +212,9 @@ def build_excel(an: Analysis, mapper: AlertTypeMapper, rules: dict[str, Any], ou
         wb_["A5"] = "행동 데이터 없음 (api 모드에서 수집)"
     wb_.freeze_panes = "C5"
 
+    # ───── 3-3. 전환기 ─────
+    _transition_sheet(wb, an, rules)
+
     # ───── 4. 최근 24h 알림 상세 ─────
     wd = wb.create_sheet("알림상세(24h)")
     _title(wd, "최근 24시간 발생 알림", "지속시간 = 해제시각(없으면 마지막 확인시각) − 발생시각. 해제구분 inferred = 목록에서 사라진 시점으로 추정")
@@ -281,6 +284,67 @@ def build_excel(an: Analysis, mapper: AlertTypeMapper, rules: dict[str, Any], ou
     out_path.parent.mkdir(parents=True, exist_ok=True)
     wb.save(out_path)
     return out_path
+
+
+def _transition_sheet(wb, an: Analysis, rules: dict[str, Any]) -> None:
+    from .transition import INDICATORS
+    tc = rules.get("transition", {})
+    ws = wb.create_sheet("전환기")
+    b = an.transition_bench
+    _title(ws, f"전환기 성적 — 분만 후 {tc.get('post_days', 21)}일 (최근 {tc.get('window_days', 90)}일 완료 분만우)",
+           f"발생률 = 분만 후 {tc.get('post_days', 21)}일 안에 해당 알림이 1번 이상 나온 두수 ÷ 분만 두수. "
+           f"무사통과 = 건강알림 없이 지난 비율. 분만 {tc.get('min_calvings', 8)}두 미만 목장은 참고용(순위 제외). "
+           "센서 '의심' 알림 기준이라 문헌의 임상 발생률과 직접 비교 불가 → 담당 목장 간 비교용")
+    if b:
+        ws["A3"] = (f"담당 목장 중앙값({b['n']:.0f}곳): 무사통과 {b['healthy']:.0f}% · "
+                    + " · ".join(f"{lbl} {b.get(code, 0):.0f}%" for code, lbl in INDICATORS)
+                    + f" · 분만전 반추↓ {b.get('pre_rum', 0):.0f}%")
+        ws["A3"].font = Font(name=FONT, size=9, bold=True, color="1F4E78")
+    hdr = (["순위", "목장", "분만\n(완료)", "초산", "무사통과\n%"] + [f"{lbl}\n%" for _, lbl in INDICATORS]
+           + ["분만전\n반추↓%", "첫알림\n(분만후 일)", "최근30일\n분만", "최근30일\n무사통과%", "분만\n입력률%",
+              "현재\n신선우", "분만예정\n(14일)", "판정"])
+    _header(ws, 5, hdr, [5, 18, 6, 5, 8] + [7] * len(INDICATORS) + [8, 9, 8, 9, 8, 7, 8, 40])
+    farms = [f for f in an.farms if f.transition and (f.transition.n or f.transition.fresh or f.transition.upcoming)]
+    farms.sort(key=lambda f: (f.transition.small, -(len(f.transition.flags)),
+                              f.transition.healthy_pct if f.transition.healthy_pct is not None else 999))
+    v = lambda x: "-" if x is None else x  # noqa: E731
+    for i, f in enumerate(farms, 1):
+        t = f.transition
+        _row(ws, 5 + i, [t.rank or ("참고" if t.small else "-"), f.name, t.n, t.n_first, v(t.healthy_pct)]
+             + [v(t.rates.get(c)) for c, _ in INDICATORS]
+             + [v(t.pre_rum_pct), v(t.first_dim), t.n_recent, v(t.healthy_recent), v(t.confirm_pct),
+                len(t.fresh), len(t.upcoming), ", ".join(t.flags) or ("분만 적음(참고)" if t.small and t.n else "")],
+             wrap_cols={len(hdr)})
+        ws.cell(row=5 + i, column=2).alignment = Alignment(horizontal="left")
+        if t.flags:
+            ws.cell(row=5 + i, column=len(hdr)).font = FLAG_FONT
+        if t.small:
+            for c in range(1, len(hdr) + 1):
+                ws.cell(row=5 + i, column=c).font = Font(name=FONT, size=10, color="8C8C8C")
+    end = 5 + len(farms)
+    if farms:
+        ws.conditional_formatting.add(f"E6:E{end}", ColorScaleRule(start_type="num", start_value=0, start_color="F8696B",
+                                                                   end_type="num", end_value=100, end_color="FFFFFF"))
+        for k in range(len(INDICATORS) + 1):
+            col = get_column_letter(6 + k)
+            ws.conditional_formatting.add(f"{col}6:{col}{end}", ColorScaleRule(
+                start_type="num", start_value=0, start_color="FFFFFF", end_type="max", end_color="F8696B"))
+        ws.auto_filter.ref = f"A5:{get_column_letter(len(hdr))}{end}"
+    else:
+        ws["A6"] = "분만 기록 없음 (첫 수집 시 과거 150일 이력을 받아야 계산됨)"
+    ws.freeze_panes = "C6"
+
+    # 분만월별 무사통과율
+    months = sorted({m["month"] for f in farms for m in f.transition.monthly})
+    if months:
+        r0 = end + 3
+        ws.cell(row=r0, column=1, value="분만월별 무사통과율 % (분만 두수)").font = Font(name=FONT, bold=True, size=11, color="1F4E78")
+        _header(ws, r0 + 1, ["", "목장"] + months)
+        for i, f in enumerate(farms, 1):
+            mm = {m["month"]: m for m in f.transition.monthly}
+            _row(ws, r0 + 1 + i, ["", f.name] + [f"{mm[m]['healthy']:.0f}% ({mm[m]['n']})" if m in mm and mm[m]["healthy"] is not None
+                                                 else "-" for m in months])
+            ws.cell(row=r0 + 1 + i, column=2).alignment = Alignment(horizontal="left")
 
 
 def build_text_summary(an: Analysis, top_n: int = 10) -> str:
