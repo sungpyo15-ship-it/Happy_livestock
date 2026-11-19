@@ -133,6 +133,37 @@ def build_excel(an: Analysis, mapper: AlertTypeMapper, rules: dict[str, Any], ou
     if not an.clusters:
         wc["A5"] = "해당 없음"
 
+    # ───── 3-2. 그룹 행동 ─────
+    wb_ = wb.create_sheet("그룹행동")
+    bc = rules.get("behaviour", {})
+    _title(wb_, "그룹별 행동 지표 (smaXtec behaviour, 최신 완료일 그룹 평균)",
+           f"반추 = 서서+누워 반추(분/일). 판정: 반추 7일평균 대비 −{bc.get('rum_drop_min', 30)}분 & −{bc.get('rum_drop_pct', 7)}% 이하, "
+           f"횡와 −{bc.get('lying_drop_min', 60)}분 이하, 착유그룹 횡와 <{bc.get('lying_min_hours_lactating', 10)}h, "
+           f"횡와동조 −{bc.get('lying_sync_drop_pp', 10)}%p 이하")
+    hdr_b = ["목장", "그룹", "두수", "일자", "반추\n(분)", "전일", "7일평균", "Δ반추\n(분)", "횡와\n(h)", "Δ횡와\n(분)",
+             "기립\n(h)", "이동\n(h)", "누워반추\n비율%", "횡와동조\n%", "동조\n7일%", "판정"]
+    _header(wb_, 4, hdr_b, [18, 12, 6, 11, 7, 7, 7, 8, 7, 8, 7, 7, 9, 8, 7, 40])
+    rnd = lambda v, k=0: "-" if v is None else round(v, k) if k else round(v)  # noqa: E731
+    gbs = sorted(an.behaviour, key=lambda g: (not g.flags, not g.rum_flag, g.farm_name, not g.lactating))
+    for i, g in enumerate(gbs, 1):
+        _row(wb_, 4 + i, [g.farm_name, g.group_name, g.n_animals or "-", g.date, rnd(g.rum), rnd(g.rum_prev),
+                          rnd(g.rum_7d), rnd(g.rum_delta), rnd(g.lying / 60 if g.lying is not None else None, 1),
+                          rnd(g.lying_delta), rnd(g.standing / 60 if g.standing is not None else None, 1),
+                          rnd(g.moving / 60 if g.moving is not None else None, 1), rnd(g.rum_lying_share, 1),
+                          rnd(g.sync, 1), rnd(g.sync_7d, 1), ", ".join(g.flags)], wrap_cols={16})
+        wb_.cell(row=4 + i, column=1).alignment = Alignment(horizontal="left")
+        if g.flags:
+            wb_.cell(row=4 + i, column=16).font = FLAG_FONT
+    if gbs:
+        last = 4 + len(gbs)
+        wb_.conditional_formatting.add(f"H5:H{last}", ColorScaleRule(
+            start_type="num", start_value=-60, start_color="F8696B", mid_type="num", mid_value=0,
+            mid_color="FFFFFF", end_type="num", end_value=60, end_color="63BE7B"))
+        wb_.auto_filter.ref = f"A4:P{last}"
+    else:
+        wb_["A5"] = "행동 데이터 없음 (api 모드에서 수집)"
+    wb_.freeze_panes = "C5"
+
     # ───── 4. 최근 24h 알림 상세 ─────
     wd = wb.create_sheet("알림상세(24h)")
     _title(wd, "최근 24시간 발생 알림", "지속시간 = 해제시각(없으면 마지막 확인시각) − 발생시각. 해제구분 inferred = 목록에서 사라진 시점으로 추정")
@@ -181,6 +212,9 @@ def build_excel(an: Analysis, mapper: AlertTypeMapper, rules: dict[str, Any], ou
         ("API 모드", "공식 API 이벤트는 '발생 시점' 기록이라 해제·지속시간이 없음(상태=이벤트). "
                     "장기미해제·평균지속은 web 모드 또는 향후 attentions 연동 시 계산."),
         ("해제시각", "사이트에 해제시각이 없으면 '목록에서 사라진 수집 시각'으로 추정(inferred) → 정밀도는 수집 간격(예: 2시간)."),
+        ("그룹행동", "smaXtec behaviour KPI(그룹 평균, 일 단위). 반추는 서서+누워 합계. 그룹 반추 감소는 사료·급여 변화가 "
+                    "그룹 전체에 미친 영향을 개체 알림보다 먼저 보여줄 수 있음. 횡와시간 부족·동조율 저하는 우상·과밀·고온 등 "
+                    "환경 요인 신호. 착유 그룹 판별은 그룹명 키워드(rules.toml lactating_keywords)."),
         ("한계", "센서 알림 기반 선별 도구이며 진단 아님. 발정·분만 알림은 번식 관리용이며 건강점수에 반영하지 않음(분만은 소폭 가중)."),
         ("보안", "목장 데이터는 농장주 소유. 이 파일을 외부(타 목장·타사·SNS)에 공유하지 말 것."),
     ]

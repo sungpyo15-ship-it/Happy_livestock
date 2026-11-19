@@ -59,14 +59,17 @@ class SmaxtecAPI:
     def __init__(self, settings: Settings, base_url: str | None = None):
         self.s = settings
         self.base = (base_url or settings.api_base).rstrip("/")
+        # 같은 토큰으로 Public API v2(행동 KPI 등)도 조회 가능 (2026-11 실측)
+        self.public_base = self.base.replace("/integration/v2", "/api/v2")
         self._token: str | None = settings.api_token or None
         self._token_exp = float("inf") if settings.api_token else 0.0
         self.calls = 0
 
     # ───────── HTTP ─────────
     def _request(self, method: str, path: str, params: dict[str, Any] | None = None,
-                 body: dict[str, Any] | None = None, auth: bool = True, attempts: int | None = None) -> Any:
-        url = self.base + path
+                 body: dict[str, Any] | None = None, auth: bool = True, attempts: int | None = None,
+                 base: str | None = None) -> Any:
+        url = (base or self.base) + path
         if params:
             url += "?" + urllib.parse.urlencode(params, doseq=True)
         headers = {"accept": "application/json", "User-Agent": USER_AGENT}
@@ -144,6 +147,20 @@ class SmaxtecAPI:
             if len(page) < 1000:
                 return out
             offset += 1000
+
+    def list_groups(self, org_id: str) -> list[dict[str, Any]]:
+        """우군(그룹) 목록: _id, name, location, animal_ids."""
+        return self._request("GET", f"/organisations/{org_id}/animalgroups") or []
+
+    def group_behaviour(self, org_id: str, group_ids: list[str], start: str, end: str) -> dict[str, list[dict]]:
+        """그룹 일별 행동 KPI (Public API v2 /kpis/organisations/{id}/behaviour).
+
+        반환: {group_id: [{"date": "YYYY-MM-DD", metric: {"current","prev_day","last_7_days"}, ...}]}
+        단위: 시간 항목 = 분/일, peak_lying_sync_mean = 비율(0~1)
+        """
+        res = self._request("GET", f"/kpis/organisations/{org_id}/behaviour", base=self.public_base,
+                            params={"group_id": group_ids, "start": start, "end": end}) or {}
+        return {gid: v.get("values", []) for gid, v in (res.get("series") or {}).items()}
 
     def list_events(self, org_id: str, since: datetime) -> list[ApiEvent]:
         """since(현지시간) 이후 발생 이벤트. 결과는 현지시간으로 변환."""

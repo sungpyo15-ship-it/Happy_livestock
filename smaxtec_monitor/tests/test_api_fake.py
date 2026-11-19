@@ -59,6 +59,19 @@ class H(BaseHTTPRequestHandler):
             return self._send(200, [{"organisation_id": "org1", "name": "가나목장", "role": "viewer", "timezone": "Asia/Seoul"}])
         if u.path == "/organisations/org1/animals":
             return self._send(200, ANIMALS)
+        if u.path == "/organisations/org1/animalgroups":
+            return self._send(200, [{"_id": "g1", "name": "착유우", "animal_ids": ["a1", "a2", "a3"]},
+                                    {"_id": "g2", "name": "건유우", "animal_ids": ["a9"]}])
+        if u.path == "/kpis/organisations/org1/behaviour":
+            q = parse_qs(u.query)
+            assert q["group_id"] == ["g1"]  # 3두 미만 그룹 제외
+            day = NOW_UTC.astimezone().strftime("%Y-%m-%d")
+            m = lambda c, p, w: {"current": c, "prev_day": p, "last_7_days": w}  # noqa: E731
+            return self._send(200, {"units": {}, "series": {"g1": {"values": [{
+                "date": day, "rum_while_standing_mean": m(150, 200, 200), "rum_while_lying_mean": m(250, 300, 300),
+                "lying_mean": m(560, 700, 690), "standing_mean": m(400, 300, 300), "moving_mean": m(480, 440, 450),
+                "not_rum_while_standing_mean": m(250, 100, 100), "not_rum_while_lying_mean": m(310, 400, 390),
+                "peak_lying_sync_mean": m(0.70, 0.88, 0.88)}]}}})
         if u.path == "/organisations/org1/events":
             assert "min_event_ts" in parse_qs(u.query)
             return self._send(200, EVENTS)
@@ -103,3 +116,21 @@ def test_api_bad_password(api, tmp_path, monkeypatch):
     monkeypatch.setattr(collector, "load_farm_overrides", lambda: {})
     st = collector.collect_once(_settings(tmp_path, api, password="nope"))
     assert st["status"] == "failed" and "로그인 실패" in st["errors"][0] and "nope" not in st["errors"][0]
+
+
+def test_api_behaviour(api, tmp_path, monkeypatch):
+    from smxmon.analysis import analyze
+    from smxmon.collector import now_local
+    from smxmon.config import load_toml
+    from smxmon.normalize import AlertTypeMapper
+    monkeypatch.setattr(collector, "load_farm_overrides", lambda: {})
+    s = _settings(tmp_path, api)
+    assert collector.collect_once(s)["status"] == "ok"
+    with Database(s.db_path) as db:
+        an = analyze(db.conn, now_local(s.timezone), AlertTypeMapper(load_toml("alert_types.toml")), load_toml("rules.toml"))
+    g = an.behaviour[0]
+    assert (g.group_name, g.rum, g.rum_7d) == ("착유우", 400, 500)
+    assert g.rum_flag and g.lactating
+    assert any("횡와" in f and "h(" in f for f in g.flags)        # 9.3h < 10h
+    assert any("횡와동조" in f for f in g.flags)                   # 70% vs 88%
+    assert "행동[" in " ".join(an.farms[0].reasons)

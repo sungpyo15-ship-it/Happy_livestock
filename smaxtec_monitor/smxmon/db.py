@@ -78,6 +78,30 @@ CREATE TABLE IF NOT EXISTS animals (
     PRIMARY KEY (farm_id, animal_id)
 );
 
+-- 우군(그룹)
+CREATE TABLE IF NOT EXISTS animal_groups (
+    farm_id    TEXT NOT NULL,
+    group_id   TEXT NOT NULL,
+    name       TEXT,
+    location   TEXT,
+    n_animals  INTEGER,
+    updated_at TEXT NOT NULL,
+    PRIMARY KEY (farm_id, group_id)
+);
+
+-- 그룹 일별 행동 KPI (smaXtec behaviour). 시간 항목은 분/일, lying_sync 는 0~1
+CREATE TABLE IF NOT EXISTS group_behaviour (
+    farm_id      TEXT NOT NULL,
+    group_id     TEXT NOT NULL,
+    date         TEXT NOT NULL,
+    metric       TEXT NOT NULL,   -- moving / standing / lying / rum_standing / notrum_standing / rum_lying / notrum_lying / lying_sync
+    current      REAL,
+    prev_day     REAL,
+    last_7_days  REAL,
+    collected_at TEXT NOT NULL,
+    PRIMARY KEY (farm_id, group_id, date, metric)
+);
+
 -- (확장용) 개체 지표 시계열: 체온·반추·음수·활동·pH
 CREATE TABLE IF NOT EXISTS animal_metrics (
     farm_id      TEXT NOT NULL,
@@ -109,6 +133,14 @@ SELECT a.*,
 FROM alerts a JOIN farms f USING (farm_id)
 LEFT JOIN animals an ON an.farm_id = a.farm_id AND an.animal_id = a.animal_id;
 """
+
+
+BEHAVIOUR_METRICS = {
+    "moving_mean": "moving", "standing_mean": "standing", "lying_mean": "lying",
+    "rum_while_standing_mean": "rum_standing", "not_rum_while_standing_mean": "notrum_standing",
+    "rum_while_lying_mean": "rum_lying", "not_rum_while_lying_mean": "notrum_lying",
+    "peak_lying_sync_mean": "lying_sync",
+}
 
 
 @dataclass
@@ -298,6 +330,37 @@ class Database:
                 (farm_id, str(a.get("_id")), a.get("official_id"), label, a.get("group_name"),
                  a.get("lactation_status"), has, t))
         return n_sensor
+
+    def upsert_groups(self, farm_id: str, groups: list[dict], now: datetime) -> None:
+        t = to_db_time(now)
+        for g in groups:
+            self.conn.execute(
+                """INSERT INTO animal_groups VALUES (?,?,?,?,?,?)
+                   ON CONFLICT(farm_id, group_id) DO UPDATE SET name=excluded.name, location=excluded.location,
+                     n_animals=excluded.n_animals, updated_at=excluded.updated_at""",
+                (farm_id, str(g["_id"]), g.get("name"), g.get("location"), len(g.get("animal_ids") or []), t))
+
+    def upsert_behaviour(self, farm_id: str, series: dict[str, list[dict]], now: datetime) -> int:
+        t, n = to_db_time(now), 0
+        for gid, values in series.items():
+            for day in values:
+                d = day.get("date")
+                for api_key, v in day.items():
+                    metric = BEHAVIOUR_METRICS.get(api_key)
+                    if not metric or not isinstance(v, dict):
+                        continue
+                    self.conn.execute(
+                        """INSERT INTO group_behaviour VALUES (?,?,?,?,?,?,?,?)
+                           ON CONFLICT(farm_id, group_id, date, metric) DO UPDATE SET current=excluded.current,
+                             prev_day=excluded.prev_day, last_7_days=excluded.last_7_days,
+                             collected_at=excluded.collected_at""",
+                        (farm_id, gid, d, metric, v.get("current"), v.get("prev_day"), v.get("last_7_days"), t))
+                    n += 1
+        return n
+
+    def behaviour_last_collected(self, farm_id: str) -> str | None:
+        r = self.conn.execute("SELECT MAX(collected_at) FROM group_behaviour WHERE farm_id=?", (farm_id,)).fetchone()
+        return r[0] if r else None
 
     def farm_has_alerts(self, farm_id: str) -> bool:
         return self.conn.execute("SELECT 1 FROM alerts WHERE farm_id=? LIMIT 1", (farm_id,)).fetchone() is not None

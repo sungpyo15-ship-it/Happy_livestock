@@ -40,6 +40,37 @@ class ClusterSignal:
 
 
 @dataclass
+class GroupBehaviour:
+    """그룹 1개의 최신 일자 행동 요약 (단위: 분/일, 동조율은 %)."""
+    farm_id: str
+    farm_name: str
+    group_name: str
+    n_animals: int | None
+    date: str
+    rum: float | None = None          # 반추 = 서서반추 + 누워반추
+    rum_prev: float | None = None
+    rum_7d: float | None = None
+    lying: float | None = None
+    lying_7d: float | None = None
+    standing: float | None = None
+    moving: float | None = None
+    rum_lying_share: float | None = None   # 누워서 반추 비율 %
+    sync: float | None = None
+    sync_7d: float | None = None
+    lactating: bool = False
+    flags: list[str] = field(default_factory=list)
+    rum_flag: bool = False
+
+    @property
+    def rum_delta(self) -> float | None:
+        return None if self.rum is None or self.rum_7d is None else self.rum - self.rum_7d
+
+    @property
+    def lying_delta(self) -> float | None:
+        return None if self.lying is None or self.lying_7d is None else self.lying - self.lying_7d
+
+
+@dataclass
 class FarmSummary:
     farm_id: str
     name: str
@@ -60,6 +91,7 @@ class FarmSummary:
     score: float = 0.0
     grade: str = "정상"
     reasons: list[str] = field(default_factory=list)
+    behaviour: list[GroupBehaviour] = field(default_factory=list)
 
     @property
     def per100(self) -> float | None:
@@ -75,6 +107,7 @@ class Analysis:
     long_active_alerts: list[dict[str, Any]]
     runs: list[dict[str, Any]]
     history_days: int
+    behaviour: list[GroupBehaviour] = field(default_factory=list)
 
 
 def _alerts_between(conn: sqlite3.Connection, start: datetime, end: datetime) -> list[sqlite3.Row]:
@@ -192,6 +225,60 @@ def _rumination_stage_note(ev, cluster: ClusterSignal, W: timedelta) -> str:
     total = sum(len(v) for v in by.values())
     advice = f" → {STAGE_ADVICE[top]}" if top in STAGE_ADVICE and len(n) / total >= 0.6 else ""
     return f"[반추감소 단계: {parts}]{advice}"
+
+
+def _sum(*xs):
+    return None if any(x is None for x in xs) else sum(xs)
+
+
+def load_behaviour(conn: sqlite3.Connection, farm_id: str, farm_name: str, as_of: datetime,
+                   cfg: dict[str, Any]) -> list[GroupBehaviour]:
+    """그룹별 최신 완료일(as_of 기준 3일 이내) 행동 지표 + 판정."""
+    rows = conn.execute(
+        """SELECT b.group_id, b.date, b.metric, b.current, b.prev_day, b.last_7_days, g.name, g.n_animals
+           FROM group_behaviour b LEFT JOIN animal_groups g USING (farm_id, group_id)
+           WHERE b.farm_id=? AND b.date <= ? AND b.date >= ?
+             AND b.date = (SELECT MAX(date) FROM group_behaviour x WHERE x.farm_id=b.farm_id
+                           AND x.group_id=b.group_id AND x.date <= ? AND x.current IS NOT NULL)""",
+        (farm_id, as_of.strftime("%Y-%m-%d"), (as_of - timedelta(days=3)).strftime("%Y-%m-%d"),
+         as_of.strftime("%Y-%m-%d"))).fetchall()
+    by: dict[str, dict[str, Any]] = defaultdict(dict)
+    for r in rows:
+        g = by[r["group_id"]]
+        g.update(_name=r["name"] or r["group_id"][-6:], _n=r["n_animals"], _date=r["date"])
+        g[r["metric"]] = (r["current"], r["prev_day"], r["last_7_days"])
+    kw = [k.lower() for k in cfg.get("lactating_keywords", ["착유"])]
+    out = []
+    for gid, g in by.items():
+        get = lambda m, i: (g.get(m) or (None, None, None))[i]  # noqa: E731
+        gb = GroupBehaviour(farm_id, farm_name, g["_name"], g["_n"], g["_date"])
+        gb.rum = _sum(get("rum_standing", 0), get("rum_lying", 0))
+        gb.rum_prev = _sum(get("rum_standing", 1), get("rum_lying", 1))
+        gb.rum_7d = _sum(get("rum_standing", 2), get("rum_lying", 2))
+        gb.lying, gb.lying_7d = get("lying", 0), get("lying", 2)
+        gb.standing, gb.moving = get("standing", 0), get("moving", 0)
+        if gb.rum and get("rum_lying", 0) is not None:
+            gb.rum_lying_share = round(get("rum_lying", 0) / gb.rum * 100, 1)
+        sc, s7 = get("lying_sync", 0), get("lying_sync", 2)
+        gb.sync = round(sc * 100, 1) if sc is not None else None
+        gb.sync_7d = round(s7 * 100, 1) if s7 is not None else None
+        gb.lactating = any(k in (gb.group_name or "").lower() for k in kw)
+
+        d = gb.rum_delta
+        if d is not None and gb.rum_7d and d <= -float(cfg.get("rum_drop_min", 30)) \
+                and d / gb.rum_7d * 100 <= -float(cfg.get("rum_drop_pct", 7)):
+            gb.rum_flag = True
+            gb.flags.append(f"반추 {d:+.0f}분({d / gb.rum_7d * 100:+.0f}%)")
+        ld = gb.lying_delta
+        if ld is not None and ld <= -float(cfg.get("lying_drop_min", 60)):
+            gb.flags.append(f"횡와 {ld:+.0f}분")
+        if gb.lactating and gb.lying is not None and gb.lying / 60 < float(cfg.get("lying_min_hours_lactating", 10)):
+            gb.flags.append(f"횡와 {gb.lying / 60:.1f}h(<{cfg.get('lying_min_hours_lactating', 10)}h)")
+        if gb.sync is not None and gb.sync_7d is not None and gb.sync_7d - gb.sync >= float(cfg.get("lying_sync_drop_pp", 10)):
+            gb.flags.append(f"횡와동조 {gb.sync - gb.sync_7d:+.0f}%p")
+        out.append(gb)
+    out.sort(key=lambda x: (not x.lactating, x.group_name or ""))
+    return out
 
 
 def analyze(conn: sqlite3.Connection, as_of: datetime, mapper: AlertTypeMapper, rules: dict[str, Any],
@@ -312,6 +399,19 @@ def analyze(conn: sqlite3.Connection, as_of: datetime, mapper: AlertTypeMapper, 
             s.reasons.append(f"장기미해제 {s.long_active}건")
         if s.stale:
             s.reasons.append("⚠데이터 지연")
+        # 그룹 행동(behaviour)
+        bcfg = rules.get("behaviour", {})
+        if bcfg.get("enabled", True):
+            s.behaviour = load_behaviour(conn, s.farm_id, s.name, as_of, bcfg)
+            rum_groups = [g for g in s.behaviour if g.rum_flag]
+            other = sum(len(g.flags) - g.rum_flag for g in s.behaviour)
+            s.score = round(s.score + pr.get("w_behaviour_rum", 12) * min(2, len(rum_groups))
+                            + pr.get("w_behaviour_other", 4) * min(3, other), 1)
+            s.grade = ("긴급" if s.score >= pr["urgent"] else "우선" if s.score >= pr["high"]
+                       else "관찰" if s.score >= pr["watch"] else "정상")
+            flagged = [f"{g.group_name}: {', '.join(g.flags)}" for g in s.behaviour if g.flags]
+            if flagged:
+                s.reasons.append("행동[" + " / ".join(flagged[:3]) + "]")
         s.counts_d0 = dict(s.counts_d0)
         summaries.append(s)
 
@@ -328,4 +428,5 @@ def analyze(conn: sqlite3.Connection, as_of: datetime, mapper: AlertTypeMapper, 
         (to_db_time(as_of), *health, to_db_time(as_of), long_h)).fetchall()]
     runs = [dict(r) for r in conn.execute(
         "SELECT * FROM collection_runs ORDER BY run_id DESC LIMIT 30").fetchall()]
-    return Analysis(as_of, summaries, clusters, recent, long_rows, runs, hist)
+    return Analysis(as_of, summaries, clusters, recent, long_rows, runs, hist,
+                    [g for f in summaries for g in f.behaviour])

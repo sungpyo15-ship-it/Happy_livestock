@@ -42,10 +42,33 @@ def run_lock(lock_path: Path, stale_seconds: int = 3 * 3600):
         lock_path.unlink(missing_ok=True)
 
 
+def _collect_behaviour(api: SmaxtecAPI, db: Database, farm, now: datetime, cfg: dict) -> None:
+    """그룹 행동 KPI: 일 단위 지표라 refresh_hours(기본 6h)마다 한 번만 조회. 실패해도 알림 수집에는 영향 없음."""
+    if not cfg.get("enabled", True):
+        return
+    last = db.behaviour_last_collected(farm.farm_id)
+    if last and now - datetime.strptime(last, "%Y-%m-%d %H:%M:%S") < timedelta(hours=float(cfg.get("refresh_hours", 6))):
+        return
+    try:
+        groups = api.list_groups(farm.farm_id)
+        db.upsert_groups(farm.farm_id, groups, now)
+        gids = [g["_id"] for g in groups if len(g.get("animal_ids") or []) >= int(cfg.get("min_group_size", 3))]
+        if not gids:
+            return
+        days = int(cfg.get("backfill_days", 14)) if not last else 3
+        series = api.group_behaviour(farm.farm_id, gids, (now - timedelta(days=days)).strftime("%Y-%m-%d"),
+                                     now.strftime("%Y-%m-%d"))
+        n = db.upsert_behaviour(farm.farm_id, series, now)
+        log.debug("목장 %s 행동 KPI %d건(그룹 %d)", farm.name, n, len(gids))
+    except (ApiError, LoginError) as e:
+        log.warning("목장 %s 그룹행동 조회 실패(알림 수집은 정상): %s", farm.name, e)
+
+
 def _collect_api(settings: Settings, db: Database, run_id: int, mapper: AlertTypeMapper,
                  overrides: dict, farm_filter: list[str] | None, stats: dict, errors: list[str]) -> None:
     """공식 API 수집: 목장목록 → (개체목록) → 이벤트. 이벤트는 시점 기록이므로 해제 판정 없음."""
     api = SmaxtecAPI(settings)
+    behaviour_cfg = load_toml("rules.toml").get("behaviour", {})
     farms = api.list_farms()
     if farm_filter:
         farms = [f for f in farms if f.farm_id in farm_filter or f.name in farm_filter]
@@ -89,6 +112,7 @@ def _collect_api(settings: Settings, db: Database, run_id: int, mapper: AlertTyp
                                 detail=ev.detail or None, ext_id=ev.ext_id, point_event=True, value=ev.value)
             stats["alerts_seen"] += 1
             stats["alerts_new"] += r.action == "new"
+        _collect_behaviour(api, db, farm, now, behaviour_cfg)
         db.mark_farm_ok(farm.farm_id, now)
         db.commit()
         stats["farms_ok"] += 1
