@@ -97,6 +97,7 @@ class FarmSummary:
     trend_types: dict[str, dict[date, int]] = field(default_factory=dict)
     trend_types_total: dict[str, int] = field(default_factory=dict)
     transition: Any = None   # transition.TransitionStats
+    history: Any = None      # history.FarmHistory (30·90일 누적, 12개월 월별)
     counts_72h: dict[str, int] = field(default_factory=dict)
 
     @property
@@ -115,7 +116,8 @@ class Analysis:
     history_days: int
     behaviour: list[GroupBehaviour] = field(default_factory=list)
     transition_bench: dict[str, float] = field(default_factory=dict)
-    trials: list[Any] = field(default_factory=list)   # trials.TrialResult
+    trials: list[Any] = field(default_factory=list)
+    history_bench: dict[Any, Any] = field(default_factory=dict)   # {30: {구분: 100두당 중앙값}, 90: {...}}   # trials.TrialResult
 
 
 def _alerts_between(conn: sqlite3.Connection, start: datetime, end: datetime) -> list[sqlite3.Row]:
@@ -456,6 +458,14 @@ def analyze(conn: sqlite3.Connection, as_of: datetime, mapper: AlertTypeMapper, 
         s.counts_d0 = dict(s.counts_d0)
         summaries.append(s)
 
+    # 장기 알림 지표 (30·90일 누적, 12개월 월별)
+    from .history import farm_history, rank_and_bench
+    hcats = [(c["label"], set(c["types"])) for c in rules.get("report", {}).get("trend_categories", [])]
+    hcats.append(("건강 전체", health))
+    for s in summaries:
+        s.history = farm_history(conn, s.farm_id, as_of, hcats, s.herd_size)
+    hbench = rank_and_bench([(s, s.history, s.herd_size) for s in summaries])
+
     # 전환기 성적 (담당 목장 중앙값 대비 판정 → 점수 반영)
     tcfg = rules.get("transition", {})
     tbench: dict[str, float] = {}
@@ -486,4 +496,4 @@ def analyze(conn: sqlite3.Connection, as_of: datetime, mapper: AlertTypeMapper, 
     runs = [dict(r) for r in conn.execute(
         "SELECT * FROM collection_runs ORDER BY run_id DESC LIMIT 30").fetchall()]
     return Analysis(as_of, summaries, clusters, recent, long_rows, runs, hist,
-                    [g for f in summaries for g in f.behaviour], tbench)
+                    [g for f in summaries for g in f.behaviour], tbench, history_bench=hbench)

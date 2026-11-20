@@ -212,6 +212,9 @@ def build_excel(an: Analysis, mapper: AlertTypeMapper, rules: dict[str, Any], ou
         wb_["A5"] = "행동 데이터 없음 (api 모드에서 수집)"
     wb_.freeze_panes = "C5"
 
+    # ───── 2-2. 누적·월별 ─────
+    _history_sheet(wb, an)
+
     # ───── 3-3. 전환기 ─────
     _transition_sheet(wb, an, rules)
 
@@ -289,6 +292,58 @@ def build_excel(an: Analysis, mapper: AlertTypeMapper, rules: dict[str, Any], ou
     out_path.parent.mkdir(parents=True, exist_ok=True)
     wb.save(out_path)
     return out_path
+
+
+def _history_sheet(wb, an: Analysis) -> None:
+    from .history import HEALTH_ALL, WINDOWS
+    farms = [f for f in an.farms if f.history]
+    if not farms:
+        return
+    ws = wb.create_sheet("누적·월별")
+    h0 = farms[0].history
+    cats = list(h0.cum[WINDOWS[0]].keys())
+    _title(ws, "목장별 알림 누적(30·90일)과 월별 추이(12개월)",
+           "두수 = 기간 안에 해당 알림이 1번 이상 나온 개체 수(중복 제외). 100두당 = 두수 ÷ 현재 센서 두수 × 100. "
+           "순위 = 100두당 건강알림이 적은 순(1위가 가장 적음). 이번 달은 진행 중이라 작게 나옴")
+    b = an.history_bench.get(90, {})
+    if b:
+        ws["A3"] = "담당 목장 중앙값(90일, 100두당): " + " · ".join(f"{k} {v}" for k, v in b.items())
+        ws["A3"].font = Font(name=FONT, size=9, bold=True, color="1F4E78")
+    # A. 누적
+    ws.cell(row=5, column=1, value="A. 30·90일 누적").font = Font(name=FONT, bold=True, size=11, color="1F4E78")
+    hdr = (["목장", "센서\n두수", "30일\n건강 두수", "30일\n100두당", "30일\n순위", "90일\n건강 두수", "90일\n100두당", "90일\n순위"]
+           + [f"{c}\n90일 100두당" for c in cats if c != HEALTH_ALL])
+    _header(ws, 6, hdr, [18, 6, 8, 8, 7, 8, 8, 7] + [9] * (len(cats) - 1))
+    rows = sorted(farms, key=lambda f: (f.history.rank.get(90) is None, -(f.history.per100[90].get(HEALTH_ALL) or 0)))
+    for i, f in enumerate(rows, 7):
+        h = f.history
+        rk = lambda w: f"{h.rank[w]}/{h.ranked_of}" if h.rank.get(w) else "-"  # noqa: E731
+        _row(ws, i, [f.name, f.herd_size or "-", h.cum[30][HEALTH_ALL], h.per100[30][HEALTH_ALL] or "-", rk(30),
+                     h.cum[90][HEALTH_ALL], h.per100[90][HEALTH_ALL] or "-", rk(90)]
+             + [h.per100[90][c] if h.per100[90][c] is not None else "-" for c in cats if c != HEALTH_ALL])
+        ws.cell(row=i, column=1).alignment = Alignment(horizontal="left")
+    end = 6 + len(rows)
+    for col in ["D", "G"] + [get_column_letter(9 + k) for k in range(len(cats) - 1)]:
+        ws.conditional_formatting.add(f"{col}7:{col}{end}", ColorScaleRule(
+            start_type="min", start_color="FFFFFF", end_type="max", end_color="F8696B"))
+    ws.freeze_panes = "B7"
+    # B·C·D. 월별 (건강 전체 / 반추 감소 / 체온 상승) 100두당
+    r = end + 3
+    labels = [f"{m[2:4]}.{m[5:]}" + ("\n(진행중)" if j == len(h0.months) - 1 else "") for j, m in enumerate(h0.months)]
+    for title, cat in (("B. 월별 건강알림 전체", HEALTH_ALL), ("C. 월별 반추 감소", "반추 감소"), ("D. 월별 체온 상승", "체온 상승")):
+        if cat not in h0.monthly:
+            continue
+        ws.cell(row=r, column=1, value=f"{title} (100두당 두수, 센서 두수 없으면 두수)").font = Font(name=FONT, bold=True, size=11, color="1F4E78")
+        _header(ws, r + 1, ["목장", "센서\n두수"] + labels)
+        for i, f in enumerate(rows, r + 2):
+            h = f.history
+            vals = [round(v / f.herd_size * 100, 1) if f.herd_size else v for v in h.monthly[cat]]
+            _row(ws, i, [f.name, f.herd_size or "-"] + vals)
+            ws.cell(row=i, column=1).alignment = Alignment(horizontal="left")
+        last = r + 1 + len(rows)
+        ws.conditional_formatting.add(f"C{r + 2}:{get_column_letter(1 + len(labels))}{last}", ColorScaleRule(
+            start_type="min", start_color="FFFFFF", end_type="max", end_color="F8696B"))
+        r = last + 3
 
 
 def _transition_sheet(wb, an: Analysis, rules: dict[str, Any]) -> None:

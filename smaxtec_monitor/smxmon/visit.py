@@ -116,6 +116,9 @@ def farm_payload(s: FarmSummary, an: Analysis, mapper: AlertTypeMapper, bench: d
         "row": {"surge": s.surge, "cluster_n": s.cluster.n_animals if s.cluster else 0, "long": s.long_active,
                 "per100": s.per100, "c": {c: s.counts_d0.get(c, 0) for c in KPI_TYPES}},
         "transition": _transition_payload(s.transition),
+        "hist": None if not s.history else {
+            "cum": s.history.cum, "per100": s.history.per100, "rank": s.history.rank, "of": s.history.ranked_of,
+            "monthly": s.history.monthly},
         "trend_types": {k: [v[d] for d in sorted(v)] for k, v in s.trend_types.items()},
         "trend_total": s.trend_types_total,
         "alerts24": [{"t": a["occurred_at"][5:16], "animal": a["animal_label"], "type": mapper.label(a["alert_type"]),
@@ -217,6 +220,17 @@ def add_visit_sheet(wb: Workbook, s: FarmSummary, an: Analysis, mapper: AlertTyp
                  [["24h"] + [s.counts_d0.get(c, 0) for c in KPI_TYPES[4:]]
                   + [f"{s.health_d1}건 / {s.health_7d_avg if s.health_7d_avg is not None else '-'}건"],
                   ["72h"] + [s.counts_72h.get(c, 0) for c in KPI_TYPES[4:]] + ["-"]], [2, 1, 1, 1, 2, 3])
+    h = s.history
+    if h:
+        hb = an.history_bench.get(90, {})
+        def part(w):
+            p100 = h.per100[w].get("건강 전체")
+            rk = f", {h.rank[w]}/{h.ranked_of}위" if h.rank.get(w) else ""
+            return f"{w}일 {h.cum[w]['건강 전체']}두" + (f"(100두당 {p100}{rk})" if p100 is not None else "")
+        _merge_text(ws, row, "누적 건강알림: " + part(30) + " · " + part(90)
+                    + (f" · 담당목장 중앙값 90일 100두당 {hb['건강 전체']}" if hb.get("건강 전체") is not None else "")
+                    + " (순위: 적을수록 1위)", size=8, color="595959", height=14)
+        row += 1
     row += 1
 
     # 7일 추세 차트 (데이터는 오른쪽 숨김 영역 L:M)

@@ -82,3 +82,18 @@ def test_trials_detect_effect(tmp_path):
     # 통계 기준값
     assert abs(welch_p(list(range(1, 11)), list(range(3, 13))) - 0.1569) < 1e-3
     assert abs(rate_p(10, 10, 25, 10) - 0.0167) < 1e-3
+
+
+def test_history_cumulative_monthly(tmp_path):
+    as_of = datetime(2026, 11, 19, 5, 59)
+    build_demo(tmp_path / "d.db", as_of)
+    with Database(tmp_path / "d.db") as db:
+        an = analyze(db.conn, as_of, AlertTypeMapper(load_toml("alert_types.toml")), load_toml("rules.toml"))
+    f = next(x for x in an.farms if x.farm_id == "1001")
+    h = f.history
+    assert h.cum[90]["건강 전체"] >= h.cum[30]["건강 전체"] > 0          # 90일 ≥ 30일
+    assert h.months[-1] == "2026-11" and len(h.months) == 12
+    rum = dict(zip(h.months, h.monthly["반추 감소"]))
+    assert rum["2026-09"] > rum["2026-04"]                               # 데모: 9~10월 사료 변경 후 반추감소 증가
+    assert {r for r in (x.history.rank.get(90) for x in an.farms) if r} == set(range(1, h.ranked_of + 1))
+    assert an.history_bench[90]["건강 전체"] > 0

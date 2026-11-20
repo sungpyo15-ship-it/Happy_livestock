@@ -30,6 +30,8 @@ def build_dashboard(an: Analysis, mapper: AlertTypeMapper, out_path: Path) -> Pa
         "clusters": len(an.clusters),
         "tbench": {k: round(v, 1) for k, v in an.transition_bench.items()},
         "tInd": [[c, lbl] for c, lbl in INDICATORS],
+        "months": f0.history.months if f0 and f0.history else [],
+        "hbench": an.history_bench,
         "trials": [trial_payload(r) for r in getattr(an, "trials", [])],
     }
     blob = json.dumps(data, ensure_ascii=False, default=str).replace("</", "<\\/")
@@ -128,7 +130,7 @@ background:var(--card);color:var(--ink);font-size:14px}
 <main id="app"></main>
 <script>
 const D = __DATA__;
-const TABS = [["sum","요약표"],["farm","목장별"],["trend","7일추세"],["tr","전환기"],["trial","투입비교"],["beh","그룹행동"],["clu","집단신호"]];
+const TABS = [["sum","요약표"],["farm","목장별"],["trend","7일추세"],["hist","누적·월별"],["tr","전환기"],["trial","투입비교"],["beh","그룹행동"],["clu","집단신호"]];
 const KPI = Object.keys(D.kpiLabels);
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -153,7 +155,7 @@ const store = { get(k){ try { return JSON.parse(localStorage.getItem(k)); } catc
 const st = Object.assign({ tab:"sum", grade:"전체", q:"", cat:"건강 전체", sortK:null, sortD:1, behAll:false },
                          store.get("ui") || {});
 st.q = "";
-const save = () => store.set("ui", {tab:st.tab, grade:st.grade, cat:st.cat, behAll:st.behAll});
+const save = () => store.set("ui", {tab:st.tab, grade:st.grade, cat:st.cat, behAll:st.behAll, hcat:st.hcat, hunit:st.hunit});
 const heat = (v, mx) => v ? `background:rgba(var(--heat),${Math.min(.85, .12 + .73*v/Math.max(1,mx))})` : "";
 const go = id => { location.hash = "f=" + encodeURIComponent(id); };
 
@@ -235,6 +237,7 @@ function detail(id){
   <td class="wrap flag">${g.flags.map(esc).join(", ")}</td></tr>`).join("")}
   </table></div>${D.bench?`<div class="note">비교 기준(담당목장 착유그룹 ${D.bench.n}개 중앙값): 반추 ${Math.round(D.bench.rum)}분 · 횡와 ${D.bench.lying_h}h · 누워반추 ${Math.round(D.bench.rum_lying_share)}%</div>`:""}`
   :`<div class="empty">행동 데이터 없음</div>`}
+  ${histSection(f)}
   ${trSection(f)}
   ${D.trials.filter(t=>t.farm_id==f.id).length?`<h2>투입 전후 비교</h2>${D.trials.filter(t=>t.farm_id==f.id).map(trialCard).join("")}`:""}
   <h2>5. 확인할 개체 (최근 72시간)</h2>${f.animals.length?`<div class="scroll"><table class="tbl"><tr><th class="l">개체</th><th>상태</th><th>알림수</th><th class="l">알림 종류</th><th>마지막</th></tr>
@@ -284,6 +287,57 @@ function behTab(){
   <td>${g.rum??"-"}</td><td>${g.rum7??"-"}</td><td class="${g.drum<0?'neg':''}">${sgn(g.drum)}</td><td>${g.lying_h??"-"}</td><td>${sgn(g.dlying)}</td>
   <td>${g.share??"-"}</td><td>${g.sync??"-"}</td><td class="wrap flag">${g.flags.map(esc).join(", ")}</td></tr>`).join("")}</table></div>`
   : `<div class="empty">해당 그룹 없음</div>`}`;
+}
+
+/* ───── 누적·월별 ───── */
+const MLBL = () => D.months.map((m,i)=>`${m.slice(2,4)}.${m.slice(5)}${i==D.months.length-1?"*":""}`);
+function histTab(){
+  const fs0 = D.farms.filter(f=>f.hist);
+  if(!fs0.length) return `<div class="empty">기록 없음</div>`;
+  const cats = Object.keys(fs0[0].hist.cum["90"]);
+  if(!cats.includes(st.hcat)) st.hcat = "건강 전체";
+  const c = st.hcat, unit = st.hunit || "p100";
+  let fs = fs0.filter(f=>!st.q || f.name.includes(st.q));
+  const p = (f,w) => f.hist.per100[w][c];
+  const k = st.sortK || "p90";
+  const val = f => k=="p30"?p(f,"30") : k=="n30"?f.hist.cum["30"][c] : k=="n90"?f.hist.cum["90"][c] : p(f,"90");
+  fs.sort((a,b)=>((val(b)??-1)-(val(a)??-1))*(st.sortK?-st.sortD:1));
+  const rk = w => { const ok=fs0.filter(f=>p(f,w)!=null).sort((a,b)=>p(a,w)-p(b,w)); const m={}; ok.forEach((f,i)=>m[f.id]=i+1); return [m, ok.length]; };
+  const [r30,n30] = rk("30"), [r90,n90] = rk("90");
+  const b = (D.hbench["90"]||{})[c];
+  const mv = f => f.hist.monthly[c].map(v => unit=="p100" && f.herd ? +(v/f.herd*100).toFixed(1) : v);
+  const mx = Math.max(1,...fs.flatMap(f=>mv(f).slice(0,-1)));
+  return `<div class="filters">${cats.map(x=>`<button class="${c==x?'on':''}" onclick="st.hcat='${x}';save();render()">${esc(x)}</button>`).join("")}</div>
+  ${b!=null?`<div class="box">담당 목장 중앙값 (90일, 100두당): <b>${b}</b>두 · ${esc(c)}</div>`:""}
+  <input type="search" placeholder="목장 검색" value="${esc(st.q)}" oninput="st.q=this.value;render(true)" style="margin-top:10px">
+  <h2>30·90일 누적 — ${esc(c)}</h2>
+  <div class="scroll"><table class="tbl"><tr><th class="l stick">목장</th><th>센서두수</th>
+   <th class="sort" onclick="sortBy('n30')">30일 두수</th><th class="sort" onclick="sortBy('p30')">100두당</th><th>순위</th>
+   <th class="sort" onclick="sortBy('n90')">90일 두수</th><th class="sort" onclick="sortBy('p90')">100두당</th><th>순위</th></tr>
+  ${fs.map(f=>`<tr class="click" onclick="go('${f.id}')"><td class="l stick g-${f.grade}"><span class="dot"></span>${esc(f.name)}</td><td>${f.herd??"-"}</td>
+   <td>${f.hist.cum["30"][c]}</td><td>${p(f,"30")??"-"}</td><td>${r30[f.id]?r30[f.id]+"/"+n30:"-"}</td>
+   <td>${f.hist.cum["90"][c]}</td><td style="${b!=null&&p(f,"90")!=null&&p(f,"90")>b*1.3?'color:var(--urgent);font-weight:700':''}">${p(f,"90")??"-"}</td><td>${r90[f.id]?r90[f.id]+"/"+n90:"-"}</td></tr>`).join("")}
+  </table></div>
+  <div class="note">순위: 100두당이 적을수록 1위 · 빨간 숫자 = 담당목장 중앙값보다 30% 이상 많음</div>
+  <h2>월별 추이 (12개월) — ${esc(c)}</h2>
+  <div class="filters"><button class="${unit=='p100'?'on':''}" onclick="st.hunit='p100';save();render()">100두당</button>
+   <button class="${unit=='n'?'on':''}" onclick="st.hunit='n';save();render()">두수</button></div>
+  <div class="scroll"><table class="tbl"><tr><th class="l stick">목장</th>${MLBL().map(m=>`<th>${m}</th>`).join("")}</tr>
+  ${fs.map(f=>`<tr class="click" onclick="go('${f.id}')"><td class="l stick">${esc(f.name)}</td>${mv(f).map((v,i)=>`<td style="${i<D.months.length-1?heat(v,mx):''}">${v||""}</td>`).join("")}</tr>`).join("")}
+  </table></div><div class="note">* 이번 달은 진행 중(작게 나옴) · 100두당은 현재 센서 두수 기준</div>`;
+}
+function histSection(f){
+  const h=f.hist; if(!h) return "";
+  const cats = Object.keys(h.cum["90"]), b = D.hbench["90"]||{};
+  const mx = Math.max(1,...cats.filter(c=>c!="건강 전체").flatMap(c=>h.monthly[c].slice(0,-1)));
+  return `<h2>누적·월별 알림 <small style="color:var(--sub);font-weight:400">${h.rank["90"]?`90일 건강알림 ${h.rank["90"]}/${h.of}위 (적을수록 1위)`:""}</small></h2>
+  <div class="scroll"><table class="tbl"><tr><th class="l">구분</th><th>30일 두수</th><th>100두당</th><th>90일 두수</th><th>100두당</th><th>중앙값(90일)</th></tr>
+  ${cats.map(c=>`<tr class="${c=='건강 전체'?'tot':''}"><td class="l">${esc(c)}</td><td>${h.cum["30"][c]}</td><td>${h.per100["30"][c]??"-"}</td>
+   <td>${h.cum["90"][c]}</td><td style="${b[c]!=null&&h.per100["90"][c]!=null&&h.per100["90"][c]>b[c]*1.3?'color:var(--urgent);font-weight:700':''}">${h.per100["90"][c]??"-"}</td><td>${b[c]??"-"}</td></tr>`).join("")}
+  </table></div>
+  <div class="scroll" style="margin-top:6px"><table class="tbl"><tr><th class="l">월별 두수</th>${MLBL().map(m=>`<th>${m}</th>`).join("")}</tr>
+  ${cats.map(c=>`<tr class="${c=='건강 전체'?'tot':''}"><td class="l">${esc(c)}</td>${h.monthly[c].map((v,i)=>`<td style="${c!='건강 전체'&&i<D.months.length-1?heat(v,mx):''}">${v||""}</td>`).join("")}</tr>`).join("")}
+  </table></div><div class="note">* 이번 달은 진행 중 · 빨간 숫자 = 담당목장 중앙값보다 30% 이상 많음</div>`;
 }
 
 /* ───── 전환기 ───── */
@@ -401,7 +455,7 @@ function render(keepFocus){
   if(m) st.tab = "farm";
   $("#tabs").innerHTML = TABS.map(([k,l])=>`<button class="${st.tab==k?'on':''}" onclick="setTab('${k}')">${l}${k=='clu'&&D.clusters?` ${D.clusters}`:""}</button>`).join("");
   const pos = keepFocus ? document.activeElement?.selectionStart : null;
-  const view = {sum:sumTab, trend:trendTab, tr:trTab, trial:trialTab, beh:behTab, clu:cluTab}[st.tab];
+  const view = {sum:sumTab, trend:trendTab, hist:histTab, tr:trTab, trial:trialTab, beh:behTab, clu:cluTab}[st.tab];
   $("#app").innerHTML = st.tab=="farm" ? farmTab(m ? decodeURIComponent(m[1]) : null)
     : view() + `<div class="foot">센서 알림·행동지표 기반 선별 자료(진단 아님) · 외부 공유 금지</div>`;
   if(keepFocus){ const i=$("input[type=search]"); if(i){ i.focus(); i.setSelectionRange(pos,pos); } }

@@ -96,6 +96,7 @@ def build_demo(db_path: Path, as_of: datetime, days: int = 10, seed: int = 7) ->
             t += timedelta(hours=2)
         _demo_behaviour(db, farms, as_of, 45, rnd)
         _demo_transition(db, farms, as_of, rnd)
+        _demo_year_alerts(db, farms, as_of, rnd)
         db.commit()
     return db_path
 
@@ -202,3 +203,29 @@ def build_demo_trials(path: Path, as_of: datetime) -> Path:
     ws.append(["가나", (as_of - timedelta(days=4)).date(), "TMR 조사료 비율 변경 (데모)", "사료배합", "", 14, 5, "진행중 예시"])
     wb.save(path)
     return path
+
+
+def _demo_year_alerts(db: Database, farms, as_of: datetime, rnd: random.Random) -> None:
+    """월별 추이 데모용 1년치 배경 알림(여름 체온·반추 증가, 9월 가나목장 사료 변경 후 반추 증가)."""
+    run = db.start_run(as_of - timedelta(days=370))
+    raw = {"TEMP_HIGH": "health_104", "RUMINATION_DROP": "health_305", "DRINKING_ABNORMAL": "health_103",
+           "PH_LOW": "feeding_202", "TEMP_LOW": "health_106", "ACTIVITY_DROP": "health_703"}
+    n = 0
+    for fid, name, herd, sc in farms:
+        base = {"TEMP_HIGH": .010, "RUMINATION_DROP": .008, "DRINKING_ABNORMAL": .004, "PH_LOW": .002,
+                "TEMP_LOW": .004, "ACTIVITY_DROP": .002}
+        d = as_of - timedelta(days=365)
+        while d < as_of - timedelta(days=10):          # 최근 10일은 기존 데모 수집이 채움
+            for code, rate in base.items():
+                m = 1.0
+                if d.month in (7, 8) and code in ("TEMP_HIGH", "RUMINATION_DROP", "DRINKING_ABNORMAL"):
+                    m = 1.8
+                if fid == "1001" and d.month in (9, 10) and code in ("RUMINATION_DROP", "PH_LOW"):
+                    m = 2.2
+                k = sum(1 for _ in range(herd) if rnd.random() < rate * m)
+                for _ in range(k):
+                    n += 1
+                    db.upsert_alert(run_id=run, now=as_of, farm_id=fid, animal_id=f"y{fid}{rnd.randint(1, herd):04d}",
+                                    alert_type=code, alert_type_raw=raw[code], point_event=True, ext_id=f"demo-y-{n}",
+                                    occurred_at=(d + timedelta(minutes=rnd.randint(0, 1439))).replace(second=0, microsecond=0))
+            d += timedelta(days=1)
