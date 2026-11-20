@@ -87,7 +87,7 @@ def _collect_api(settings: Settings, db: Database, run_id: int, mapper: AlertTyp
         need_from = max(need_from, (now_local(settings.timezone) - timedelta(days=120)).date())
     farms = api.list_farms()
     if farm_filter:
-        farms = [f for f in farms if f.farm_id in farm_filter or f.name in farm_filter]
+        farms = [f for f in farms if f.farm_id in farm_filter or any(k in f.name for k in farm_filter)]
     unknown: dict[str, int] = {}
     for farm in farms:
         ov = overrides.get(farm.farm_id, {})
@@ -167,7 +167,7 @@ def collect_once(settings: Settings, *, farm_filter: list[str] | None = None) ->
                     with_retry(sc.ensure_logged_in, what="로그인", attempts=settings.max_retries)
                     farms = with_retry(sc.list_farms, what="목장 목록", attempts=settings.max_retries)
                     if farm_filter:
-                        farms = [f for f in farms if f.farm_id in farm_filter or f.name in farm_filter]
+                        farms = [f for f in farms if f.farm_id in farm_filter or any(k in f.name for k in farm_filter)]
 
                     for farm in farms:
                         ov = overrides.get(farm.farm_id, {})
