@@ -1,0 +1,157 @@
+<title>무료 서버 설치 안내</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;700&display=swap">
+<style>
+/* 레이아웃: 단일 컬럼 안내서. 번호 = 실제 설치 순서. 파일 이름은 코드 서체, 주의사항은 경고 띠 */
+:root{
+  --bg:#f5f7f6; --paper:#ffffff; --ink:#1d2a26; --sub:#5b6a65; --line:#dde4e1;
+  --accent:#1f5f4c; --accent-soft:#e3efea; --warn:#9a4a12; --warn-soft:#fbefe4; --code:#eef2f0;
+  --font:"IBM Plex Sans KR","Apple SD Gothic Neo","Malgun Gothic",system-ui,sans-serif;
+  --mono:ui-monospace,"Cascadia Mono",Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#121816; --paper:#19211e; --ink:#e4ece9; --sub:#9aaaa4; --line:#2a3531;
+  --accent:#7cc3a8; --accent-soft:#1f2f29; --warn:#f0a56a; --warn-soft:#33251a; --code:#222c28; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#121816; --paper:#19211e; --ink:#e4ece9; --sub:#9aaaa4; --line:#2a3531;
+  --accent:#7cc3a8; --accent-soft:#1f2f29; --warn:#f0a56a; --warn-soft:#33251a; --code:#222c28; color-scheme:dark}
+body{background:var(--bg);color:var(--ink);font:16px/1.7 var(--font);word-break:keep-all;overflow-wrap:anywhere;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:32px 56px}
+main{max-width:720px;margin:0 auto;display:grid;gap:28px}
+header{display:grid;gap:8px}
+.eyebrow{font-size:13px;letter-spacing:.08em;color:var(--accent);font-weight:700}
+h1{font-size:28px;line-height:1.3;margin:0;text-wrap:balance}
+h2{font-size:19px;margin:0 0 10px;text-wrap:balance}
+p{margin:0}
+.lead{color:var(--sub)}
+code,.file{font-family:var(--mono);font-size:.92em;background:var(--code);padding:1px 6px;border-radius:4px;white-space:nowrap}
+.panel{background:var(--paper);border:1px solid var(--line);border-radius:10px;padding:18px 20px;display:grid;gap:10px}
+.need{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;list-style:none;padding:0;margin:0}
+.need li{background:var(--accent-soft);border-radius:8px;padding:10px 12px;font-size:15px}
+.need b{display:block;color:var(--accent)}
+ol.steps{list-style:none;padding:0;margin:0;display:grid;gap:14px;counter-reset:s}
+ol.steps>li{counter-increment:s;display:grid;grid-template-columns:36px minmax(0,1fr);gap:12px;
+  background:var(--paper);border:1px solid var(--line);border-radius:10px;padding:16px 18px}
+ol.steps>li::before{content:counter(s);width:32px;height:32px;border-radius:50%;background:var(--accent);color:var(--paper);
+  display:grid;place-items:center;font-weight:700;font-variant-numeric:tabular-nums}
+.step{display:grid;gap:6px;min-width:0}
+.step h3{margin:0;font-size:17px}
+.step ul{margin:0;padding-left:18px}
+.step li{margin:2px 0}
+.note{font-size:14px;color:var(--sub)}
+.warn{background:var(--warn-soft);border-left:4px solid var(--warn);border-radius:0 8px 8px 0;padding:12px 16px;display:grid;gap:4px}
+.warn b{color:var(--warn)}
+.two{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px}
+.two .panel h3{margin:0;font-size:16px}
+table{border-collapse:collapse;width:100%;font-size:15px}
+.tw{overflow-x:auto}
+th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+th{color:var(--sub);font-weight:500;font-size:13px}
+td:first-child{white-space:nowrap}
+footer{font-size:13px;color:var(--sub)}
+
+pre{background:var(--code);border-radius:8px;padding:10px 12px;overflow-x:auto;font-family:var(--mono);font-size:13.5px;line-height:1.5;margin:0;white-space:pre}
+.copyrow{display:grid;gap:6px;min-width:0}
+.copybtn{justify-self:start;border:1px solid var(--line);background:var(--paper);color:var(--accent);border-radius:6px;padding:4px 10px;font:inherit;font-size:13px;cursor:pointer}
+.copybtn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.time{font-size:13px;color:var(--sub);font-weight:500;margin-left:6px}
+</style>
+<main>
+  <header>
+    <div class="eyebrow">smaXtec 목장 모니터 · 클라우드 버전</div>
+    <h1>무료 서버 설치 안내</h1>
+    <p class="lead">Oracle Cloud 평생 무료 서버에 설치하면 PC 없이 24시간 수집되고, 팀원은 <b>링크 → smaXtec 로그인 → 홈 화면 추가</b>만 하면 됩니다. 처음 한 번 1시간 정도 걸립니다.</p>
+  </header>
+
+  <section class="panel">
+    <h2>준비물</h2>
+    <ul class="need">
+      <li><b>신용·체크카드</b>Oracle 가입 본인확인용 (무료 범위에서는 청구 없음)</li>
+      <li><b>구글 계정</b>무료 주소(DuckDNS) 만들기용</li>
+      <li><b>Windows PC</b>서버에 명령을 붙여넣을 때 한 번 사용</li>
+      <li><b>본인 smaXtec 아이디</b>관리자 계정으로 등록</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>설치 순서</h2>
+    <ol class="steps">
+      <li><div class="step"><h3>Oracle Cloud 가입 <span class="time">10분</span></h3>
+        <ul><li>oracle.com/cloud/free → <b>Start for free</b></li>
+        <li><b>홈 지역(Home Region)은 "South Korea Central (Seoul)"</b> 선택. 나중에 바꿀 수 없습니다</li>
+        <li>카드 인증까지 마치면 콘솔(관리 화면)이 열립니다</li></ul></div></li>
+
+      <li><div class="step"><h3>서버 만들기 <span class="time">10분</span></h3>
+        <ul><li>콘솔 왼쪽 위 메뉴 → <b>Compute → Instances → Create instance</b></li>
+        <li>Image: <b>Canonical Ubuntu 24.04</b> (Change image 에서 선택)</li>
+        <li>Shape: <b>Ampere (VM.Standard.A1.Flex) · 1 OCPU · 6 GB</b> — "Always Free-eligible" 표시 확인</li>
+        <li>A1 이 "Out of capacity" 로 안 만들어지면 <b>VM.Standard.E2.1.Micro</b> (역시 무료) 선택</li>
+        <li>Add SSH keys: <b>Save private key</b> 눌러 키 파일을 내려받기 → <span class="file">문서</span> 폴더에 보관 (잃어버리면 접속 불가)</li>
+        <li><b>Create</b> → 상태가 RUNNING 이 되면 <b>Public IP address</b> 를 메모 (예: 152.70.xx.xx)</li></ul></div></li>
+
+      <li><div class="step"><h3>방화벽 열기 (80·443) <span class="time">5분</span></h3>
+        <ul><li>만든 서버 화면 → Primary VNIC 의 <b>Subnet</b> 링크 → <b>Security Lists</b> → Default Security List</li>
+        <li><b>Add Ingress Rules</b> 두 번: Source CIDR <code>0.0.0.0/0</code>, Destination Port <code>80</code> / 한 번 더 <code>443</code></li></ul></div></li>
+
+      <li><div class="step"><h3>무료 주소 만들기 (DuckDNS) <span class="time">3분</span></h3>
+        <ul><li>duckdns.org → 구글로 로그인</li>
+        <li>sub domain 에 원하는 이름(예: <code>mokjang-monitor</code>) → <b>add domain</b></li>
+        <li>current ip 칸에 2번에서 메모한 <b>서버 IP</b> 입력 → <b>update ip</b></li>
+        <li>내 주소: <code>mokjang-monitor.duckdns.org</code> 처럼 됩니다</li></ul></div></li>
+
+      <li><div class="step"><h3>서버 접속 <span class="time">3분</span></h3>
+        <p>PC 에서 PowerShell 을 열고(시작 → powershell) 아래를 입력합니다. 키 파일 이름과 IP 는 본인 것으로 바꾸세요.</p>
+        <div class="copyrow"><pre id="c1">ssh -i "$HOME\Documents\ssh-key.key" ubuntu@서버IP</pre>
+        <button class="copybtn" data-copy="c1" type="button">복사</button></div>
+        <ul><li>처음에 "Are you sure you want to continue connecting" 이 나오면 <code>yes</code> 입력</li>
+        <li><code>ubuntu@...:~$</code> 가 보이면 서버에 접속된 상태입니다</li></ul></div></li>
+
+      <li><div class="step"><h3>설치 명령 붙여넣기 <span class="time">10분</span></h3>
+        <p>접속한 창에 아래 두 줄을 붙여넣습니다. 주소와 아이디는 본인 것으로 바꾸세요. 관리자 아이디는 <b>smaXtec 로그인 아이디</b>입니다.</p>
+        <div class="copyrow"><pre id="c2">curl -fsSL https://raw.githubusercontent.com/sungpyo15-ship-it/Happy_livestock/refs/heads/claude/practical-cori-rbbhxw/smaxtec_monitor/deploy/install.sh -o install.sh
+sudo bash install.sh 내주소.duckdns.org smaXtec아이디@이메일</pre>
+        <button class="copybtn" data-copy="c2" type="button">복사</button></div>
+        <p class="note">마지막에 "설치 완료" 와 주소가 나오면 끝입니다. 오류가 나면 창 내용을 캡처해 보내 주세요.</p></div></li>
+
+      <li><div class="step"><h3>휴대폰에서 열기 <span class="time">10분</span></h3>
+        <ul><li>휴대폰에서 <code>https://내주소.duckdns.org</code> 열기 → <b>smaXtec 아이디·비밀번호로 로그인</b></li>
+        <li>처음에는 지난 150일 기록을 가져오느라 10분 정도 "데이터 준비 중" 화면이 나옵니다</li>
+        <li>아이폰은 Safari 공유 → <b>홈 화면에 추가</b>, 안드로이드는 Chrome ⋮ → <b>홈 화면에 추가</b></li></ul></div></li>
+
+      <li><div class="step"><h3>팀원 등록</h3>
+        <ul><li>앱 오른쪽 위 <b>계정</b> → 아래 <b>관리자 — 팀원 등록</b>에 팀원의 smaXtec 아이디 입력 → 등록</li>
+        <li>팀원에게 <b>주소만</b> 보내면 됩니다. 팀원은 본인 아이디로 로그인하고 본인 담당 목장만 봅니다</li>
+        <li>등록되지 않은 아이디는 로그인할 수 없습니다</li></ul></div></li>
+    </ol>
+  </section>
+
+  <section class="panel">
+    <h2>설치 후</h2>
+    <div class="tw"><table>
+      <tr><th>항목</th><th>내용</th></tr>
+      <tr><td>자동 수집</td><td>매일 05:30 시작 → 06시 전 완료, 이후 08:10~20:10 2시간마다. PC 는 꺼도 됩니다</td></tr>
+      <tr><td>업데이트</td><td>새 기능이 나오면 5번처럼 서버에 접속해 <code>sudo smxmon-update</code> 한 줄 입력</td></tr>
+      <tr><td>투입비교</td><td>앱 → 계정 → 투입기록 양식 받기 → 엑셀 작성 → 올리기</td></tr>
+      <tr><td>엑셀 리포트</td><td>앱 → 계정 → 파일 받기 (일일 리포트·방문요약·투입비교)</td></tr>
+      <tr><td>문제 확인</td><td>서버 접속 후 <code>sudo journalctl -u smxmon-web -n 50</code> 결과를 캡처해 보내기</td></tr>
+    </table></div>
+  </section>
+
+  <section class="warn">
+    <b>꼭 확인할 것</b>
+    <p>· 팀원 등록 전에 리얼팜에 "팀원 계정으로 서버가 자동 조회하는 방식"이 괜찮은지 확인하세요.</p>
+    <p>· 팀원에게 알려 주세요: 비밀번호는 암호화해 서버에 보관하며, 서버 관리자는 기술적으로 접근할 수 있습니다. 앱의 [연결 해제]로 언제든 삭제됩니다.</p>
+    <p>· 무료 서버가 오래 거의 쉬고 있으면 Oracle 이 회수할 수 있다는 정책이 있습니다. 계정을 종량제(Pay As You Go)로 바꾸고 무료 범위만 쓰면 회수 대상이 아니라고 알려져 있습니다(가입 시 확인 필요).</p>
+    <p>· 키 파일(<span class="file">ssh-key.key</span>)과 서버 IP 는 남에게 보내지 마세요.</p>
+  </section>
+
+  <footer>PC 버전(지금 쓰는 프로그램)은 그대로 계속 쓸 수 있습니다. 클라우드가 안정되면 PC 쪽 06시 자동 실행은 꺼도 됩니다.</footer>
+</main>
+<script>
+document.querySelectorAll(".copybtn").forEach(b => b.addEventListener("click", () => {
+  const el = document.getElementById(b.dataset.copy), txt = el.textContent;
+  const done = () => { b.textContent = "복사됨"; setTimeout(() => b.textContent = "복사", 1500); };
+  try { navigator.clipboard.writeText(txt).then(done, () => sel(el)); } catch (e) { sel(el); }
+}));
+function sel(el){ const r = document.createRange(); r.selectNodeContents(el); const s = getSelection(); s.removeAllRanges(); s.addRange(r); }
+</script>

@@ -5,7 +5,7 @@ REPO="${SMX_REPO:-sungpyo15-ship-it/Happy_livestock}"
 BRANCH="${SMX_BRANCH:-claude/practical-cori-rbbhxw}"
 TMP="$(mktemp -d)"
 curl -fsSL "https://github.com/${REPO}/archive/refs/heads/${BRANCH}.zip" -o "$TMP/code.zip"
-unzip -q "$TMP/code.zip" -d "$TMP"
+python3 -c "import zipfile,sys; zipfile.ZipFile(sys.argv[1]).extractall(sys.argv[2])" "$TMP/code.zip" "$TMP"   # 한글 파일명 보존
 SRC="$(find "$TMP" -maxdepth 2 -type d -name smaxtec_monitor | head -1)"
 [ -n "$SRC" ] || { echo "코드를 찾지 못했습니다"; exit 1; }
 rm -rf /opt/smxmon/app.new && mkdir -p /opt/smxmon/app.new
