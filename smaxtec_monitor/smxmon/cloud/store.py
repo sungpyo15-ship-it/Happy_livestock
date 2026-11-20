@@ -31,6 +31,13 @@ CREATE TABLE IF NOT EXISTS sessions (
     csrf        TEXT NOT NULL,
     expires     TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS notes (      -- 메모·체크리스트 (사용자별, 모든 기기 동기화)
+    uid      TEXT NOT NULL,
+    key      TEXT NOT NULL,
+    value    TEXT NOT NULL,
+    updated  TEXT NOT NULL,
+    PRIMARY KEY (uid, key)
+);
 CREATE TABLE IF NOT EXISTS login_events (
     at          TEXT NOT NULL,
     username    TEXT,
@@ -175,10 +182,28 @@ class CloudStore:
         """연결 해제: 비밀번호·세션·수집 데이터 모두 삭제."""
         with self._lock, self._conn() as c:
             c.execute("DELETE FROM sessions WHERE uid=?", (uid,))
+            c.execute("DELETE FROM notes WHERE uid=?", (uid,))
             c.execute("DELETE FROM users WHERE uid=?", (uid,))
         d = self.root / "users" / uid
         if d.is_dir() and d.parent == self.root / "users":
             shutil.rmtree(d, ignore_errors=True)
+
+    # ───────── 메모·체크리스트 ─────────
+    def notes(self, uid: str) -> dict:
+        import json
+        with self._conn() as c:
+            rows = c.execute("SELECT key, value FROM notes WHERE uid=?", (uid,)).fetchall()
+        return {r["key"]: json.loads(r["value"]) for r in rows}
+
+    def set_note(self, uid: str, key: str, value) -> None:
+        import json
+        with self._lock, self._conn() as c:
+            if value in ("", None, {}):
+                c.execute("DELETE FROM notes WHERE uid=? AND key=?", (uid, key))
+            else:
+                c.execute("INSERT INTO notes VALUES (?,?,?,?) ON CONFLICT(uid, key) DO UPDATE SET "
+                          "value=excluded.value, updated=excluded.updated",
+                          (uid, key, json.dumps(value, ensure_ascii=False), _now()))
 
     # ───────── 로그인 기록 (관리자 화면 진단용, 최근 100건만 보관) ─────────
     def log_login(self, username: str, result: str) -> None:

@@ -134,8 +134,22 @@ const $ = s => document.querySelector(s);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const sgn = v => v==null ? "-" : (v>0?"+":"")+v;
 const day = D.asOf.slice(0,10);
+// 클라우드 앱이면 서버가 window.SMX_CLOUD 를 넣어 줌 → 메모·체크리스트를 모든 기기에 동기화
+const CLOUD = window.SMX_CLOUD || null;
+const NOTE_KEY = /^(memo:[\w.-]+|ck:[\w.-]+:\d{4}-\d{2}-\d{2})$/;
+const syncT = {};
+function pushNote(k, v){
+  if(!CLOUD || !NOTE_KEY.test(k)) return;
+  clearTimeout(syncT[k]);
+  syncT[k] = setTimeout(() => {
+    fetch("/api/notes", {method:"POST", credentials:"same-origin",
+      headers:{"Content-Type":"application/json", "X-CSRF":CLOUD.csrf}, body: JSON.stringify({key:k, value:v})})
+      .then(r => { const e=document.getElementById("syncst"); if(e) e.textContent = r.ok ? "모든 기기에 저장됨" : "저장 실패 — 다시 로그인해 주세요"; })
+      .catch(() => { const e=document.getElementById("syncst"); if(e) e.textContent = "오프라인 — 연결되면 다시 입력해 주세요"; });
+  }, 700);
+}
 const store = { get(k){ try { return JSON.parse(localStorage.getItem(k)); } catch(e){ return null; } },
-                set(k,v){ try { localStorage.setItem(k, JSON.stringify(v)); } catch(e){} } };
+                set(k,v){ try { localStorage.setItem(k, JSON.stringify(v)); } catch(e){} pushNote(k, v); } };
 const st = Object.assign({ tab:"sum", grade:"전체", q:"", cat:"건강 전체", sortK:null, sortD:1, behAll:false },
                          store.get("ui") || {});
 st.q = "";
@@ -231,7 +245,8 @@ function detail(id){
   :`<div class="empty">없음</div>`}
   <h2>7. 현장 점검 체크리스트</h2><div class="box">${f.checklist.map((c,i)=>`<label class="ck"><input type="checkbox" ${ck[i]?"checked":""}
    onchange="tick('${f.id}',${i},this.checked)"><div><b>${esc(c.topic)}</b><span>${esc(c.text)}</span></div></label>`).join("")}</div>
-  <h2>메모</h2><textarea placeholder="농장주 의견·조치·다음 방문 (이 기기에만 저장)" oninput="store.set('memo:${f.id}',this.value)">${esc(memo)}</textarea>
+  <h2>메모</h2><textarea placeholder="농장주 의견·조치·다음 방문 (${CLOUD?"휴대폰·PC 모두에 자동 저장":"이 기기에만 저장"})" oninput="store.set('memo:${f.id}',this.value)">${esc(memo)}</textarea>
+  <div class="note" id="syncst">${CLOUD?"휴대폰·PC 모두에 자동 저장됩니다":"이 기기에만 저장됩니다"}</div>
   <div class="foot">센서 알림·행동지표 기반 선별 자료(진단 아님) · 목장 데이터 외부 공유 금지</div>`;
 }
 function tick(id,i,v){ const k=`ck:${id}:${day}`, o=store.get(k)||{}; o[i]=v; store.set(k,o); }
@@ -394,6 +409,24 @@ function render(keepFocus){
 function setTab(k){ st.tab=k; st.sortK=null; save(); if(location.hash) history.replaceState(null,"",location.pathname); render(); }
 window.addEventListener("hashchange", () => render());
 render();
+// 클라우드: 다른 기기에서 쓴 메모·체크를 받아와 화면 갱신 (입력 중인 메모는 덮어쓰지 않음)
+if (CLOUD) {
+  fetch("/api/notes", {credentials:"same-origin"}).then(r => r.ok ? r.json() : {}).then(d => {
+    let changed = false;
+    for (const [k, v] of Object.entries(d || {})) {
+      if (!NOTE_KEY.test(k)) continue;
+      try { if (localStorage.getItem(k) !== JSON.stringify(v)) { localStorage.setItem(k, JSON.stringify(v)); changed = true; } } catch(e) {}
+    }
+    // 이 기기에만 있던 예전 메모·체크는 서버로 올림
+    try {
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (NOTE_KEY.test(k) && !(k in (d || {}))) pushNote(k, JSON.parse(localStorage.getItem(k)));
+      }
+    } catch(e) {}
+    if (changed && document.activeElement?.tagName !== "TEXTAREA") render();
+  }).catch(() => {});
+}
 // 아이폰 홈 화면 앱: HTTPS 로 열렸을 때 마지막 화면을 저장(오프라인에서도 열림)
 if ("serviceWorker" in navigator && window.isSecureContext && location.protocol !== "file:") {
   navigator.serviceWorker.register("sw.js").catch(() => {});

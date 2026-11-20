@@ -108,3 +108,27 @@ def test_pwa_files(env):
     c = app.test_client()
     assert c.get("/manifest.webmanifest").json["start_url"] == "/"
     assert c.get("/sw.js").status_code == 200 and c.get("/icon-192.png").data[:4] == b"\x89PNG"
+
+
+def test_notes_sync_across_devices(env):
+    store, app = env
+    phone, pc = app.test_client(), app.test_client()
+    phone.post("/login", data={"username": OTHER, "password": "otherpw"})
+    pc.post("/login", data={"username": OTHER, "password": "otherpw"})
+    acc = phone.get("/account").get_data(as_text=True)
+    csrf = _csrf(acc)
+    # CSRF 없거나 잘못된 키는 거부
+    assert phone.post("/api/notes", json={"key": "memo:1001", "value": "x"}).status_code == 400
+    assert phone.post("/api/notes", json={"key": "../etc", "value": "x"}, headers={"X-CSRF": csrf}).status_code == 400
+    # 휴대폰에서 저장 → PC 에서 보임
+    assert phone.post("/api/notes", json={"key": "memo:1001", "value": "TMR 입자도 확인"},
+                      headers={"X-CSRF": csrf}).status_code == 200
+    phone.post("/api/notes", json={"key": "ck:1001:2026-11-20", "value": {"0": True}}, headers={"X-CSRF": csrf})
+    assert pc.get("/api/notes").json == {"memo:1001": "TMR 입자도 확인", "ck:1001:2026-11-20": {"0": True}}
+    # 다른 사용자에게는 안 보임
+    me = app.test_client()
+    me.post("/login", data={"username": USER, "password": "pw"})
+    assert me.get("/api/notes").json == {}
+    # 빈 메모 = 삭제
+    phone.post("/api/notes", json={"key": "memo:1001", "value": ""}, headers={"X-CSRF": csrf})
+    assert "memo:1001" not in pc.get("/api/notes").json

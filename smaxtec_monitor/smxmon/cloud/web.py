@@ -12,6 +12,7 @@ import dataclasses
 import html
 import json
 import logging
+import re
 import time
 from collections import defaultdict, deque
 from urllib.parse import urlparse
@@ -208,8 +209,9 @@ def create_app(store: CloudStore, base: Settings, *, secure_cookie: bool = True,
                 nav += " · 갱신 중"
             elif user.status == "login_failed":
                 nav += ' · <a href="/login" style="color:#ffd0d0">다시 로그인 필요</a>'
-            return Response(f.read_text(encoding="utf-8").replace("<!--CLOUD_NAV-->", nav, 1),
-                            mimetype="text/html")
+            page = f.read_text(encoding="utf-8").replace("<!--CLOUD_NAV-->", nav, 1)
+            page = page.replace("</head>", f"<script>window.SMX_CLOUD={{csrf:{json.dumps(csrf)}}};</script></head>", 1)
+            return Response(page, mimetype="text/html")
         st = STATUS_TXT.get(user.status, user.status)
         body = f"""<div class="card"><h1>데이터 준비 중</h1>
           <p>{html.escape(user.username)} 계정의 담당 목장{f' {user.farms}곳' if user.farms else ''} 기록을 가져오고 있습니다.
@@ -370,6 +372,32 @@ def create_app(store: CloudStore, base: Settings, *, secure_cookie: bool = True,
         u = (request.form.get("username") or "").strip().lower()
         store.disallow(u)
         return account(ok=f"{u} 를 삭제했습니다.")
+
+    # ───────── 메모·체크리스트 동기화 ─────────
+    NOTE_KEY = re.compile(r"^(memo:[\w.-]{1,40}|ck:[\w.-]{1,40}:\d{4}-\d{2}-\d{2})$")
+
+    @app.get("/api/notes")
+    def notes_get():
+        user, _ = need_login()
+        return store.notes(user.uid)
+
+    @app.post("/api/notes")
+    def notes_set():
+        user, csrf = need_login()
+        if request.headers.get("X-CSRF") != csrf:
+            abort(400)
+        d = request.get_json(silent=True) or {}
+        k, v = d.get("key", ""), d.get("value")
+        if not isinstance(k, str) or not NOTE_KEY.match(k):
+            abort(400)
+        if k.startswith("memo:") and not (v is None or isinstance(v, str)):
+            abort(400)
+        if k.startswith("ck:") and not (v is None or isinstance(v, dict)):
+            abort(400)
+        if len(json.dumps(v, ensure_ascii=False)) > 10000:
+            abort(413)
+        store.set_note(user.uid, k, v)
+        return {"ok": True}
 
     @app.get("/healthz")
     def health():
