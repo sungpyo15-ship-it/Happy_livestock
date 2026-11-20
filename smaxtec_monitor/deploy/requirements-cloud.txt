@@ -1,0 +1,7 @@
+# 클라우드 서버용 (브라우저 자동조작 불필요 — 공식 API 모드)
+openpyxl>=3.1
+python-dotenv>=1.0
+tzdata>=2024.1
+flask>=3.0
+waitress>=3.0
+cryptography>=42

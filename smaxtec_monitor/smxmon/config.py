@@ -60,6 +60,7 @@ class Settings:
     report_dir: Path
     log_dir: Path
     publish_dir: Path | None = None
+    trials_path: Path | None = None   # 투입기록.xlsx 위치 (서버: 사용자별 폴더)
     smtp_host: str = ""
     smtp_port: int = 587
     smtp_user: str = field(default="", repr=False)
@@ -76,6 +77,10 @@ class Settings:
     def auth_state_path(self) -> Path:
         # 로그인 세션 쿠키 저장(재로그인 횟수 감소). 비밀번호와 같은 수준으로 취급.
         return self.data_dir / "auth_state.json"
+
+    @property
+    def trials_file(self) -> Path:
+        return self.trials_path or BASE_DIR / "투입기록.xlsx"
 
     @property
     def email_enabled(self) -> bool:

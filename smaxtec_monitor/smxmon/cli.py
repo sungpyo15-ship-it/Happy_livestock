@@ -142,53 +142,22 @@ def _notify_urgent(s) -> None:
 
 
 def cmd_report(s, args) -> int:
-    from .analysis import analyze
-    from .db import Database
-    from .normalize import AlertTypeMapper
     from .notify import send_email
-    from .report import build_excel, build_text_summary
-    db_path = args.db or s.db_path
-    if not db_path.exists():
-        raise ConfigError(f"DB 가 없습니다: {db_path} (먼저 collect 또는 demo 실행)")
+    from .outputs import generate
     as_of = _parse_as_of(args.as_of, s.timezone)
-    rules, mapper = load_toml("rules.toml"), AlertTypeMapper(load_toml("alert_types.toml"))
-    from .trials import TRIALS_FILE, compute_all, ensure_template
-    trials_path = getattr(args, "trials", None) or TRIALS_FILE
-    if trials_path == TRIALS_FILE:
-        ensure_template(TRIALS_FILE)   # 처음이면 빈 양식 생성
-    with Database(db_path) as db:
-        an = analyze(db.conn, as_of, mapper, rules, load_farm_overrides())
-        try:
-            an.trials = compute_all(db.conn, as_of, mapper, rules, trials_path)
-        except Exception as e:  # noqa: BLE001  (엑셀에서 열려 있는 등 → 리포트는 계속)
-            log.warning("투입비교 계산 실패(투입기록.xlsx 확인): %s", e)
-            an.trials = []
-    out = (args.out or s.report_dir / f"smaxtec_daily_{as_of:%Y%m%d_%H%M}.xlsx")
-    build_excel(an, mapper, rules, out)
-    trials_out = None
-    if an.trials:
-        from .trials_report import build_trials_workbook
-        trials_out = build_trials_workbook(an.trials, out.with_name(out.name.replace("smaxtec_daily_", "투입비교_")))
-    from .visit import build_visit_workbook, visit_targets
-    targets = visit_targets(an)
-    visit_out = out.with_name(out.name.replace("smaxtec_daily_", "방문요약_"))
-    if targets:
-        build_visit_workbook(an, targets, mapper, visit_out)
-    from .dashboard import build_dashboard
-    dash = build_dashboard(an, mapper, out.with_name(out.name.replace("smaxtec_daily_", "dashboard_")).with_suffix(".html"))
-    text = build_text_summary(an)
-    print(text)
-    print(f"\n엑셀 저장: {out}")
-    if targets:
-        print(f"방문요약({len(targets)}곳): {visit_out}")
-    print(f"목장 모니터 앱: {dash.parent / 'smaxtec_app.html'}  (5_OPEN_APP.bat 로 열기)")
-    files = [out] + ([visit_out] if targets else []) + ([trials_out] if trials_out else []) + [dash]
-    if trials_out:
-        print(f"투입비교({len(an.trials)}건): {trials_out}")
-    _publish(s, files)
+    o = generate(s, as_of, db_path=args.db, out=args.out, trials_path=getattr(args, "trials", None))
+    an = o.an
+    print(o.text)
+    print(f"\n엑셀 저장: {o.daily}")
+    if o.visit:
+        print(f"방문요약: {o.visit}")
+    if o.trials:
+        print(f"투입비교({len(an.trials)}건): {o.trials}")
+    print(f"목장 모니터 앱: {o.dashboard.parent / 'smaxtec_app.html'}  (5_OPEN_APP.bat 로 열기)")
+    _publish(s, o.files)
     if args.email:
         send_email(s, f"[smaXtec 일일요약] {as_of:%m/%d} 방문우선 "
-                      f"{sum(f.grade in ('긴급', '우선') for f in an.farms)}곳", text, files)
+                      f"{sum(f.grade in ('긴급', '우선') for f in an.farms)}곳", o.text, o.files)
     return 0
 
 

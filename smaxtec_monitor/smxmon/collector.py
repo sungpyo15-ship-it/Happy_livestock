@@ -14,7 +14,7 @@ from .api_client import ApiError, SmaxtecAPI
 from .config import ConfigError, Settings, load_farm_overrides, load_toml
 from .db import Database
 from .normalize import AlertTypeMapper, DateParseError, parse_datetime
-from .scraper import LoginError, ScrapeError, SmaxtecScraper, with_retry
+from .common import LoginError, ScrapeError
 
 log = logging.getLogger("smxmon")
 
@@ -79,7 +79,7 @@ def _collect_api(settings: Settings, db: Database, run_id: int, mapper: AlertTyp
     # 투입비교(투입기록.xlsx)에 필요한 과거 행동 데이터 시작일 (최대 120일 전까지)
     from .trials import load_trials, needed_from
     try:
-        need_from = needed_from(load_trials(db.conn))
+        need_from = needed_from(load_trials(db.conn, settings.trials_file))
     except Exception as e:  # noqa: BLE001  (투입기록 파일 오류가 수집을 막지 않게)
         log.warning("투입기록.xlsx 읽기 실패: %s", e)
         need_from = None
@@ -162,6 +162,7 @@ def collect_once(settings: Settings, *, farm_filter: list[str] | None = None) ->
             if settings.mode == "api":
                 _collect_api(settings, db, run_id, mapper, overrides, farm_filter, stats, errors)
             else:
+                from .scraper import SmaxtecScraper, with_retry   # web 모드에서만 브라우저 라이브러리 필요
                 with SmaxtecScraper(settings, selectors) as sc:
                     with_retry(sc.ensure_logged_in, what="로그인", attempts=settings.max_retries)
                     farms = with_retry(sc.list_farms, what="목장 목록", attempts=settings.max_retries)

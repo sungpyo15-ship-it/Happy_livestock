@@ -123,7 +123,7 @@ background:var(--card);color:var(--ink);font-size:14px}
 .note{color:var(--sub);font-size:12px;margin:6px 2px}
 </style></head>
 <body>
-<header><div class="top"><h1>smaXtec 목장 모니터</h1><div class="asof">기준 __ASOF__ · 최근 24시간</div></div>
+<header><div class="top"><h1>smaXtec 목장 모니터</h1><div class="asof">기준 __ASOF__ · 최근 24시간<!--CLOUD_NAV--></div></div>
 <nav class="tabs" id="tabs"></nav></header>
 <main id="app"></main>
 <script>

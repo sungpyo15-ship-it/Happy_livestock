@@ -24,7 +24,7 @@ from typing import Any
 from zoneinfo import ZoneInfo
 
 from .config import Settings
-from .scraper import FarmInfo, LoginError, ScrapeError
+from .common import FarmInfo, LoginError, ScrapeError
 
 log = logging.getLogger("smxmon")
 USER_AGENT = "smxmon/0.2 (farm-consulting-monitor)"

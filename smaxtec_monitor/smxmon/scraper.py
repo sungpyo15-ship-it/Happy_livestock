@@ -29,30 +29,7 @@ _SECRET_JSON = re.compile(
     r'"([A-Za-z_]*(?:token|password|secret|session|cookie|authorization)[A-Za-z_]*)"\s*:\s*"[^"]*"', re.I)
 
 
-class ScrapeError(RuntimeError):
-    pass
-
-
-class LoginError(ScrapeError):
-    pass
-
-
-@dataclass
-class FarmInfo:
-    farm_id: str
-    name: str
-
-
-@dataclass
-class RawAlert:
-    """화면에서 읽은 그대로의 값 (정규화 전)."""
-    farm_id: str
-    animal_id: str
-    alert_type_raw: str
-    occurred_at_raw: str
-    resolved_at_raw: str = ""
-    detail: str = ""
-    extra: dict[str, Any] = field(default_factory=dict)
+from .common import FarmInfo, LoginError, RawAlert, ScrapeError  # noqa: E402,F401  (호환용 재노출)
 
 
 def _is_todo(v: Any) -> bool:
