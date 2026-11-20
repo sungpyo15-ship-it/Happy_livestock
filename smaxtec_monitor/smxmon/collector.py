@@ -108,7 +108,7 @@ def _collect_api(settings: Settings, db: Database, run_id: int, mapper: AlertTyp
             except ApiError as e:  # 개체목록은 부가정보 → 실패해도 알림 수집은 진행
                 log.warning("목장 %s 개체목록 실패: %s", farm.name, e)
                 db.upsert_farm(farm.farm_id, farm.name, now, ov.get("herd_size"))
-            # 과거이력: 전환기 성적(분만 전후 3주 × 90일 코호트)에 약 150일 필요 → 목장별 1회만 길게 조회
+            # 과거이력: 전환기 12개월 성적(분만 전 3주 + 12개월 + 분만 후 3주)에 약 400일 필요 → 목장별 1회만 길게 조회
             have = int(db.get_state(farm.farm_id, "history_days") or 0)
             need = max(settings.api_backfill_days, settings.api_history_days)
             back = timedelta(days=need) if have < need else timedelta(hours=settings.api_lookback_hours)

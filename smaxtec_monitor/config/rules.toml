@@ -64,6 +64,7 @@ enabled = true
 pre_days = 21              # 분만 전 관찰 기간
 post_days = 21             # 분만 후 관찰 기간(이 기간이 지난 '완료' 분만우만 발생률 계산)
 window_days = 90           # 성적 집계 기간(완료 분만우의 분만일 기준)
+long_days = 365            # 장기 성적·월별 추이 기간 (수집이력 SMX_API_HISTORY_DAYS 365 이상 필요)
 recent_days = 30           # 최근 추이 확인용
 min_calvings = 8           # 이보다 분만 적으면 '참고용'(판정·순위 제외)
 calving_merge_days = 14    # 분만확인·분만감지가 이 기간 안이면 같은 분만

@@ -143,7 +143,7 @@ def create_app(store: CloudStore, base: Settings, *, secure_cookie: bool = True,
           <label>비밀번호<input type="password" name="password" id="password" autocomplete="current-password" required></label>
           <button type="submit">로그인</button>
         </form>
-        <p class="sub">처음 로그인하면 지난 150일 기록을 가져오느라 10분 정도 걸립니다.
+        <p class="sub">처음 로그인하면 지난 1년 기록을 가져오느라 15~30분 정도 걸립니다.
         비밀번호는 자동 수집에만 쓰이며 암호화해 보관하고, [계정 → 연결 해제]로 언제든 삭제할 수 있습니다.</p></div>"""
         return _page("로그인", body, nav=False)
 
@@ -215,7 +215,7 @@ def create_app(store: CloudStore, base: Settings, *, secure_cookie: bool = True,
         st = STATUS_TXT.get(user.status, user.status)
         body = f"""<div class="card"><h1>데이터 준비 중</h1>
           <p>{html.escape(user.username)} 계정의 담당 목장{f' {user.farms}곳' if user.farms else ''} 기록을 가져오고 있습니다.
-          처음에는 <b>10분 정도</b> 걸립니다. 이 화면은 자동으로 새로고침됩니다.</p>
+          처음에는 <b>15~30분</b> 걸립니다. 이 화면은 자동으로 새로고침됩니다.</p>
           <p class="sub">상태: <span class="st-{user.status}">{st}</span>{' — ' + html.escape(user.message) if user.message else ''}</p>
           <a class="btn ghost" href="/account">계정</a></div>"""
         return _page("준비 중", body, nav=False, refresh=None if user.status in ("failed", "login_failed") else 20)

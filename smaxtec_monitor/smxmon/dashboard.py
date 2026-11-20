@@ -293,21 +293,21 @@ function trTab(){
   let fs = D.farms.filter(f=>f.transition);
   if(st.q) fs = fs.filter(f=>f.name.includes(st.q));
   const k = st.sortK || "healthy";
-  const val = (f,k) => { const t=f.transition; return k=="healthy"?t.healthy : k=="n"?t.n : k=="pre"?t.pre_rum : k=="fresh"?t.fresh.length : k=="up"?t.upcoming.length : t.rates[k]; };
+  const val = (f,k) => { const t=f.transition; return k=="healthy"?t.healthy : k=="n"?t.n : k=="pre"?t.pre_rum : k=="yr"?t.healthy_year : k=="fresh"?t.fresh.length : k=="up"?t.upcoming.length : t.rates[k]; };
   fs.sort((a,c)=> (a.transition.small-c.transition.small) || ((val(a,k)??999)-(val(c,k)??999))*(st.sortK?st.sortD:1));
   const mx = {}; D.tInd.forEach(([c])=>mx[c]=Math.max(1,...fs.map(f=>f.transition.rates[c]||0)));
-  return `${b&&b.n?`<div class="box">담당 목장 중앙값(${b.n}곳, 분만 후 21일 · 최근 90일 완료 분만): 무사통과 <b>${pc(b.healthy)}</b> · ${D.tInd.map(([c,l])=>`${l} <b>${pc(b[c])}</b>`).join(" · ")} · 분만전 반추↓ <b>${pc(b.pre_rum)}</b></div>`:""}
+  return `${b&&b.n?`<div class="box">담당 목장 중앙값(${b.n}곳, 분만 후 21일 · 최근 90일 완료 분만${b.healthy_year!=null?` · 12개월 무사통과 ${pc(b.healthy_year)}`:""}): 무사통과 <b>${pc(b.healthy)}</b> · ${D.tInd.map(([c,l])=>`${l} <b>${pc(b[c])}</b>`).join(" · ")} · 분만전 반추↓ <b>${pc(b.pre_rum)}</b></div>`:""}
   <input type="search" placeholder="목장 검색" value="${esc(st.q)}" oninput="st.q=this.value;render(true)" style="margin-top:10px">
   ${fs.length?`<div class="scroll"><table class="tbl"><tr><th>순위</th><th class="l stick">목장</th><th class="sort" onclick="sortBy('n')">분만</th>
   <th class="sort" onclick="sortBy('healthy')">무사통과</th>${D.tInd.map(([c,l])=>`<th class="sort" onclick="sortBy('${c}')">${l}</th>`).join("")}
-  <th class="sort" onclick="sortBy('pre')">분만전반추↓</th><th>입력률</th><th class="sort" onclick="sortBy('fresh')">신선우</th><th class="sort" onclick="sortBy('up')">분만예정</th><th class="l">판정</th></tr>
+  <th class="sort" onclick="sortBy('pre')">분만전반추↓</th><th class="sort" onclick="sortBy('yr')">12개월<br>무사통과</th><th>입력률</th><th class="sort" onclick="sortBy('fresh')">신선우</th><th class="sort" onclick="sortBy('up')">분만예정</th><th class="l">판정</th></tr>
   ${fs.map(f=>{const t=f.transition; return `<tr class="click" style="${t.small?'opacity:.55':''}" onclick="go('${f.id}')"><td>${t.rank??(t.small?"참고":"-")}</td>
    <td class="l stick">${esc(f.name)}</td><td>${t.n}${t.n_first?` <small>(초산${t.n_first})</small>`:""}</td>
    <td style="${t.healthy!=null?`background:rgba(var(--heat),${Math.max(0,Math.min(.8,(70-t.healthy)/70))})`:""}"><b>${pc(t.healthy)}</b></td>
    ${D.tInd.map(([c])=>`<td style="${heat(t.rates[c],mx[c])}">${pc(t.rates[c])}</td>`).join("")}
-   <td>${pc(t.pre_rum)}</td><td>${pc(t.confirm)}</td><td>${t.fresh.length}</td><td>${t.upcoming.length}</td>
+   <td>${pc(t.pre_rum)}</td><td>${pc(t.healthy_year)}${t.n_year?` <small>(${t.n_year})</small>`:""}</td><td>${pc(t.confirm)}</td><td>${t.fresh.length}</td><td>${t.upcoming.length}</td>
    <td class="wrap flag">${t.flags.map(esc).join("<br>")}${t.small&&t.n?'<span style="color:var(--sub)">분만 적음(참고)</span>':""}</td></tr>`;}).join("")}
-  </table></div>` : `<div class="empty">분만 기록 없음 (과거 150일 이력 수집 후 계산)</div>`}
+  </table></div>` : `<div class="empty">분만 기록 없음 (과거 1년 이력 수집 후 계산)</div>`}
   <div class="note">발생률 = 분만 후 21일 안에 해당 알림이 1번 이상 나온 두수 ÷ 분만 두수 · 센서 '의심' 알림 기준(진단 아님) · 담당 목장 간 비교용</div>`;
 }
 function trSection(f){
@@ -315,9 +315,10 @@ function trSection(f){
   const cell = (v,bv,hi) => { if(v==null) return "-"; const bad = bv!=null && (hi ? v<=bv-15 : v>=bv+10); return `<span class="${bad?'neg':''}">${Math.round(v)}%</span>`; };
   return `<h2>4-2. 전환기 성적 <small style="color:var(--sub);font-weight:400">분만 후 21일 · 최근 90일 완료 분만 ${t.n}두${t.rank?` · 무사통과 ${t.rank}/${t.of}위`:t.small?" · 참고용":""}</small></h2>
   <div class="scroll"><table class="tbl"><tr><th class="l">구분</th><th>무사통과</th>${D.tInd.map(([,l])=>`<th>${l}</th>`).join("")}<th>분만전반추↓</th></tr>
-  <tr><td class="l"><b>이 목장</b></td><td><b>${cell(t.healthy,b.healthy,true)}</b></td>${D.tInd.map(([c])=>`<td>${cell(t.rates[c],b[c],false)}</td>`).join("")}<td>${cell(t.pre_rum,b.pre_rum,false)}</td></tr>
+  <tr><td class="l"><b>이 목장 (90일)</b></td><td><b>${cell(t.healthy,b.healthy,true)}</b></td>${D.tInd.map(([c])=>`<td>${cell(t.rates[c],b[c],false)}</td>`).join("")}<td>${cell(t.pre_rum,b.pre_rum,false)}</td></tr>
   ${t.n_first?`<tr><td class="l">초산우</td><td>-</td>${D.tInd.map(([c])=>`<td>${pc(t.rates_first[c])}</td>`).join("")}<td>-</td></tr>
   <tr><td class="l">경산우</td><td>-</td>${D.tInd.map(([c])=>`<td>${pc(t.rates_multi[c])}</td>`).join("")}<td>-</td></tr>`:""}
+  ${t.n_year?`<tr><td class="l">최근 12개월 <small>(${t.n_year}두)</small></td><td><b>${pc(t.healthy_year)}</b></td>${D.tInd.map(([c])=>`<td>${pc(t.rates_year[c])}</td>`).join("")}<td>-</td></tr>`:""}
   ${b&&b.n?`<tr class="tot"><td class="l">담당목장 중앙값</td><td>${pc(b.healthy)}</td>${D.tInd.map(([c])=>`<td>${pc(b[c])}</td>`).join("")}<td>${pc(b.pre_rum)}</td></tr>`:""}
   </table></div>
   <div class="note">첫 알림까지 평균 ${t.first_dim??"-"}일 · 최근 30일 분만 ${t.n_recent}두 무사통과 ${pc(t.healthy_recent)} · 분만 입력률 ${pc(t.confirm)}${t.flags.length?` · <b class="neg">${t.flags.map(esc).join(" / ")}</b>`:""}</div>

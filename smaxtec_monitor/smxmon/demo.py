@@ -145,9 +145,9 @@ def _demo_behaviour(db: Database, farms, as_of: datetime, days: int, rnd: random
 
 
 def _demo_transition(db: Database, farms, as_of: datetime, rnd: random.Random) -> None:
-    """분만·임신감정·전환기 알림 가상 이력(150일)."""
+    """분만·건유·전환기 알림 가상 이력(약 14개월, 여름철 문제 증가)."""
     import json
-    run = db.start_run(as_of - timedelta(days=150))
+    run = db.start_run(as_of - timedelta(days=420))
     probs = {"normal": dict(KETOSIS=.08, MILK_FEVER=.04, MASTITIS=.08, TEMP_HIGH=.15, RUMINATION_DROP=.2, pre=.1),
              "sara": dict(KETOSIS=.28, MILK_FEVER=.06, MASTITIS=.1, TEMP_HIGH=.2, RUMINATION_DROP=.45, pre=.3),
              "fever": dict(KETOSIS=.1, MILK_FEVER=.12, MASTITIS=.18, TEMP_HIGH=.35, RUMINATION_DROP=.25, pre=.1)}
@@ -165,8 +165,9 @@ def _demo_transition(db: Database, farms, as_of: datetime, rnd: random.Random) -
         if "한우" in _:
             continue
         p = probs.get(sc, probs["normal"])
-        t = as_of - timedelta(days=150)
+        t = as_of - timedelta(days=420)
         while t < as_of:
+            summer = 1.6 if t.month in (7, 8) else 1.0   # 고온기 전환기 문제 증가(데모)
             if rnd.random() < herd * 0.9 / 365:
                 aid = f"c{fid}{rnd.randint(1000, 9999)}"
                 ct = t + timedelta(hours=rnd.uniform(0, 23))
@@ -177,7 +178,7 @@ def _demo_transition(db: Database, farms, as_of: datetime, rnd: random.Random) -
                 if rnd.random() < p["pre"]:
                     put(fid, aid, "RUMINATION_DROP", "health_302", ct - timedelta(days=rnd.uniform(1, 18)))
                 for code, pr in p.items():
-                    if code != "pre" and rnd.random() < pr * (1.3 if parity == 1 and code == "RUMINATION_DROP" else 1):
+                    if code != "pre" and rnd.random() < min(.95, pr * summer * (1.3 if parity == 1 and code == "RUMINATION_DROP" else 1)):
                         put(fid, aid, code, raw[code], ct + timedelta(days=rnd.uniform(0.5, 20)))
             t += timedelta(days=1)
         for k in range(rnd.randint(3, 7)):   # 분만 예정

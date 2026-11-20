@@ -2,6 +2,7 @@
 
 - 분만: calving_confirmation(농장 입력, 산차 포함) / calving_detection(센서 감지). 14일 이내 중복은 1회 분만
 - 완료 코호트: 분만 후 post_days(21일)가 지난 소만 발생률 계산 (관찰기간이 짧으면 발생률이 낮게 나오는 왜곡 방지)
+- 기간: 최근 90일(window_days, 판정·순위) + 최근 12개월(long_days, 안정된 장기 수치·월별 계절 추이)
 - 발생률 = 분만 후 21일 안에 해당 알림이 1번 이상 나온 두수 ÷ 분만 두수
 - 무사통과 = 21일 동안 건강알림이 한 번도 없던 소 비율
 - 분만 전 반추감소 = 분만 전 21일 안에 반추감소 알림이 있던 소 비율 (건유후기 사료·관리 신호)
@@ -49,6 +50,10 @@ class TransitionStats:
     ketosis_recent: float | None = None
     rates_first: dict[str, float] = field(default_factory=dict)   # 초산우 발생률
     rates_multi: dict[str, float] = field(default_factory=dict)   # 경산우 발생률
+    # 최근 12개월(long_days) 완료 분만우 — 분만 적은 목장도 안정된 숫자, 계절 영향 평균
+    n_year: int = 0
+    healthy_year: float | None = None
+    rates_year: dict[str, float] = field(default_factory=dict)
     monthly: list[dict[str, Any]] = field(default_factory=list)
     fresh: list[dict[str, Any]] = field(default_factory=list)     # 현재 신선우(분만 후 21일 이내)
     upcoming: list[dict[str, Any]] = field(default_factory=list)  # 분만 예정
@@ -100,7 +105,8 @@ def farm_transition(conn: sqlite3.Connection, farm_id: str, as_of: datetime, map
     pre = timedelta(days=int(cfg.get("pre_days", 21)))
     win = timedelta(days=int(cfg.get("window_days", 90)))
     recent = timedelta(days=int(cfg.get("recent_days", 30)))
-    start = as_of - post - win - pre - timedelta(days=int(cfg.get("calving_merge_days", 14)) + 30)
+    long = timedelta(days=int(cfg.get("long_days", 365)))
+    start = as_of - post - max(win, long) - pre - timedelta(days=int(cfg.get("calving_merge_days", 14)) + 30)
     rows = conn.execute("SELECT * FROM v_alerts WHERE farm_id=? AND occurred_at > ? AND occurred_at <= ?",
                         (farm_id, to_db_time(start), to_db_time(as_of + timedelta(days=1)))).fetchall()
     health = set(mapper.codes("health"))
@@ -141,11 +147,16 @@ def farm_transition(conn: sqlite3.Connection, farm_id: str, as_of: datetime, map
         st.n_recent = len(rec)
         st.healthy_recent = _pct(sum(1 for _, x in rec if not x["any"]), len(rec))
         st.ketosis_recent = _pct(sum(1 for _, x in rec if "KETOSIS" in x["has"]), len(rec))
-    # 분만월별 (완료 코호트, 최근 5개월)
+    # 최근 12개월 (완료 분만우)
+    yres = [(c, cow(c)) for c in calvings if done_end - long < c.t <= done_end]
+    st.n_year = len(yres)
+    if yres:
+        st.healthy_year = _pct(sum(1 for _, x in yres if not x["any"]), len(yres))
+        st.rates_year = {code: _pct(sum(1 for _, x in yres if code in x["has"]), len(yres)) for code, _ in INDICATORS}
+    # 분만월별 (완료 코호트, 최근 12개월 — 계절 비교)
     months: dict[str, list] = defaultdict(list)
-    for c in calvings:
-        if c.t <= done_end and c.t > done_end - timedelta(days=150):
-            months[f"{c.t:%Y-%m}"].append(cow(c))
+    for c, x in yres:
+        months[f"{c.t:%Y-%m}"].append(x)
     st.monthly = [{"month": m, "n": len(xs), "healthy": _pct(sum(not x["any"] for x in xs), len(xs)),
                    "ketosis": _pct(sum("KETOSIS" in x["has"] for x in xs), len(xs)),
                    "rum": _pct(sum("RUMINATION_DROP" in x["has"] for x in xs), len(xs))}
@@ -211,6 +222,9 @@ def benchmark(stats: list[TransitionStats]) -> dict[str, float]:
         return {}
     b = {"n": len(ok), "healthy": statistics.median(s.healthy_pct for s in ok),
          "pre_rum": statistics.median(s.pre_rum_pct for s in ok if s.pre_rum_pct is not None)}
+    yr = [s.healthy_year for s in stats if s.healthy_year is not None and s.n_year >= 20]
+    if len(yr) >= 3:
+        b["healthy_year"] = statistics.median(yr)
     for code, _ in INDICATORS:
         vals = [s.rates[code] for s in ok if s.rates.get(code) is not None]
         b[code] = statistics.median(vals) if vals else 0.0

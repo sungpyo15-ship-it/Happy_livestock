@@ -54,6 +54,9 @@ def test_transition(tmp_path):
     assert all(0 <= (sara.rates[c] or 0) <= 100 for c, _ in INDICATORS)
     # 분만 후 21일이 안 지난 소는 발생률 분모에서 빠짐
     assert all(x["dim"] < 21 for x in sara.fresh)
+    # 12개월 성적: 90일보다 분만 두수 많고, 월별 추이 12개월 내외
+    assert sara.n_year > sara.n * 2 and sara.healthy_year is not None
+    assert 10 <= len(sara.monthly) <= 13
     hanwoo = next(f for f in an.farms if f.farm_id == "1004").transition
     assert hanwoo.n == 0 and hanwoo.healthy_pct is None
 
