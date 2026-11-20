@@ -78,7 +78,8 @@ class FarmSummary:
     last_ok_at: datetime | None
     counts_d0: dict[str, int] = field(default_factory=dict)
     health_d0: int = 0
-    health_animals_d0: int = 0
+    health_animals_d0: int = 0     # (호환용) = health_d0
+    health_events_d0: int = 0      # 참고: 24시간 알림 건수(같은 개체 반복 포함)
     health_d1: int = 0
     health_7d_avg: float | None = None
     surge: bool = False
@@ -331,20 +332,26 @@ def analyze(conn: sqlite3.Connection, as_of: datetime, mapper: AlertTypeMapper, 
         fa = by_farm.get(f["farm_id"], [])
         ev = [(from_db_time(r["occurred_at"]), r) for r in fa]
 
+        # 모든 집계는 '두수' = 기간 안에 알림이 나온 개체 수(같은 개체 반복은 1두)
+        def animals(t0, t1, types=None):
+            return len({r["animal_id"] for t, r in ev if t0 < t <= t1 and (types is None or r["alert_type"] in types)})
+
         d0 = [r for t, r in ev if as_of - H24 < t <= as_of]
-        s.counts_d0 = defaultdict(int)
+        per_type: dict[str, set] = defaultdict(set)
         for r in d0:
-            s.counts_d0[r["alert_type"]] += 1
+            per_type[r["alert_type"]].add(r["animal_id"])
+        s.counts_d0 = defaultdict(int, {k: len(v) for k, v in per_type.items()})
         avail = min(7, max(0, hist - 1))
-        s.health_d0 = sum(1 for r in d0 if r["alert_type"] in health)
-        s.health_animals_d0 = len({r["animal_id"] for r in d0 if r["alert_type"] in health})
-        s.health_d1 = sum(1 for t, r in ev if as_of - 2 * H24 < t <= as_of - H24 and r["alert_type"] in health)
-        if avail > 0:
-            prev = sum(1 for t, r in ev if as_of - (1 + avail) * H24 < t <= as_of - H24 and r["alert_type"] in health)
-            s.health_7d_avg = round(prev / avail, 1)
+        s.health_d0 = animals(as_of - H24, as_of, health)
+        s.health_animals_d0 = s.health_d0
+        s.health_events_d0 = sum(1 for r in d0 if r["alert_type"] in health)
+        s.health_d1 = animals(as_of - 2 * H24, as_of - H24, health)
+        if avail > 0:   # 직전 avail 개 24시간 구간 각각의 두수 평균
+            s.health_7d_avg = round(sum(animals(as_of - (k + 1) * H24, as_of - k * H24, health)
+                                        for k in range(1, avail + 1)) / avail, 1)
 
         for d in trend_dates:
-            s.trend[d] = sum(1 for t, r in ev if t.date() == d and r["alert_type"] in health)
+            s.trend[d] = len({r["animal_id"] for t, r in ev if t.date() == d and r["alert_type"] in health})
         cats = [(c["label"], set(c["types"])) for c in rules.get("report", {}).get("trend_categories", [])]
         cats.append(("건강 전체", health))
         in_range = [(t, r) for t, r in ev if t.date() in s.trend]
@@ -412,23 +419,23 @@ def analyze(conn: sqlite3.Connection, as_of: datetime, mapper: AlertTypeMapper, 
         if s.surge:
             s.reasons.append(f"급증({s.surge_reason})")
         if ph:
-            s.reasons.append(f"pH저하/산독증위험 {ph}건")
+            s.reasons.append(f"pH저하/산독증위험 {ph}두")
         grp = s.counts_d0.get("GROUP_TEMP", 0) + s.counts_d0.get("GROUP_RUMINATION", 0)
         if grp:
-            s.reasons.append(f"그룹경보(체온/반추) {grp}건")
+            s.reasons.append(f"그룹경보(체온/반추) {grp}회")
         if s.counts_d0.get("KETOSIS", 0):
-            s.reasons.append(f"케토시스 의심 {s.counts_d0['KETOSIS']}건")
+            s.reasons.append(f"케토시스 의심 {s.counts_d0['KETOSIS']}두")
         if s.long_active:
             s.reasons.append(f"장기미해제 {s.long_active}건")
         if s.stale:
             s.reasons.append("⚠데이터 지연")
         # 최근 72시간 개체별 건강알림 (방문 시 확인할 개체)
         by_animal: dict[str, dict[str, Any]] = {}
-        s.counts_72h = defaultdict(int)
+        set72: dict[str, set] = defaultdict(set)
         for t, r in ev:
             if t <= as_of - 3 * H24 or t > as_of:
                 continue
-            s.counts_72h[r["alert_type"]] += 1
+            set72[r["alert_type"]].add(r["animal_id"])
             if r["alert_type"] not in health:
                 continue
             a = by_animal.setdefault(r["animal_id"], {"label": r["animal_label"], "status": r["lactation_status"] or "",
@@ -439,7 +446,7 @@ def analyze(conn: sqlite3.Connection, as_of: datetime, mapper: AlertTypeMapper, 
         s.top_animals = sorted(by_animal.values(), key=lambda a: (-len(a["types"]), -a["n"], -a["last"].timestamp()))[:10]
         for a in s.top_animals:
             a["types"] = ", ".join(f"{k}{'×' + str(v) if v > 1 else ''}" for k, v in a["types"].items())
-        s.counts_72h = dict(s.counts_72h)
+        s.counts_72h = {k: len(v) for k, v in set72.items()}
 
         # 그룹 행동(behaviour)
         bcfg = rules.get("behaviour", {})

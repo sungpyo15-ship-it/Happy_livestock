@@ -66,14 +66,14 @@ def build_excel(an: Analysis, mapper: AlertTypeMapper, rules: dict[str, Any], ou
     _title(ws, f"smaXtec 목장 모니터링 일일 요약 — {an.as_of:%Y-%m-%d %H:%M} 기준", period +
            f"  |  수집이력 {an.history_days}일" + ("  (7일 비교는 이력 8일 이상부터 정확)" if an.history_days < 8 else ""))
     hdr = (["순위", "등급", "목장", "센서\n두수"] + [mapper.label(c) for c in cols] +
-           ["건강알림\n(24h)", "알림\n두수", "100두당", "전일", "7일평균", "급증", "집단신호", "장기\n미해제",
+           ["건강알림\n두수(24h)", "참고:\n알림 건수", "100두당", "전일\n두수", "7일평균\n두수", "급증", "집단신호", "장기\n미해제",
             "평균지속\n(h, 7일)", "점수", "방문 사유", "마지막 정상수집"])
     widths = [5, 6, 18, 6] + [8] * len(cols) + [9, 6, 7, 6, 7, 6, 8, 7, 9, 6, 58, 14]
     _header(ws, 4, hdr, widths)
     for i, s in enumerate(an.farms, 1):
         r = 4 + i
         vals = ([i, s.grade, s.name, s.herd_size or "-"] + [s.counts_d0.get(c, 0) for c in cols] +
-                [s.health_d0, s.health_animals_d0, s.per100 if s.per100 is not None else "-", s.health_d1,
+                [s.health_d0, s.health_events_d0, s.per100 if s.per100 is not None else "-", s.health_d1,
                  s.health_7d_avg if s.health_7d_avg is not None else "-",
                  "▲" if s.surge else "", f"{s.cluster.n_animals}두" if s.cluster else "",
                  s.long_active or "", s.avg_duration_h if s.avg_duration_h is not None else "-",
@@ -262,11 +262,13 @@ def build_excel(an: Analysis, mapper: AlertTypeMapper, rules: dict[str, Any], ou
     lines = [
         ("집계 기준", "리포트 시각 기준 최근 24시간(D0), 그 전 24시간(D-1), 그 전 7개 24시간 평균. 알림 '발생시각' 기준."),
         ("건강알림", "alert_types.toml 에서 category=health 인 알림(체온상승·하강, 반추감소, 음수이상, pH저하, 활동감소)."),
-        ("급증", f"D0 ≥ {sg['min_count']}건 이고, 전일 대비 {sg['ratio_vs_prev_day']}배·+{sg['min_increase']}건 이상 "
-                f"또는 7일평균 대비 {sg['ratio_vs_7d_avg']}배·+{sg['min_increase']}건 이상."),
+        ("두수 기준", "모든 숫자는 '두수' = 기간 안에 알림이 1번 이상 나온 개체 수(같은 개체 반복은 1두). "
+                   "요약표 '참고: 알림 건수'만 반복 포함 건수. 급증·점수도 두수로 판정."),
+        ("급증", f"건강알림 두수(24h) ≥ {sg['min_count']}두 이고, 전일 대비 {sg['ratio_vs_prev_day']}배·+{sg['min_increase']}두 이상 "
+                f"또는 7일평균 대비 {sg['ratio_vs_7d_avg']}배·+{sg['min_increase']}두 이상."),
         ("집단신호", "짧은 시간 창 안에 여러 개체가 체온상승/반추감소 → 공통 원인(사료·급여·환경·전염성 질병) 의심. "
                   "반추감소+pH저하 동반 시 SARA 의심 문구."),
-        ("점수", f"건강알림×{pr['w_health_alert']} + pH저하×{pr['w_ph_low']} + 급증 {pr['w_surge']} + 집단 {pr['w_cluster']} "
+        ("점수", f"건강알림 두수×{pr['w_health_alert']} + pH저하×{pr['w_ph_low']} + 급증 {pr['w_surge']} + 집단 {pr['w_cluster']} "
                f"+ 장기미해제×{pr['w_long_active']} + 분만임박×{pr['w_calving']}  → 긴급≥{pr['urgent']}, 우선≥{pr['high']}, 관찰≥{pr['watch']}"),
         ("API 모드", "공식 API 이벤트는 '발생 시점' 기록이라 해제·지속시간이 없음(상태=이벤트). "
                     "장기미해제·평균지속은 web 모드 또는 향후 attentions 연동 시 계산."),
@@ -415,7 +417,7 @@ def build_text_summary(an: Analysis, top_n: int = 10) -> str:
     lines.append(f"방문 우선 목장 {len(urgent)}곳 / 전체 {len(an.farms)}곳, 집단신호 {len(an.clusters)}건")
     lines.append("")
     for i, s in enumerate(an.farms[:top_n], 1):
-        lines.append(f"{i:>2}. [{s.grade}] {s.name}  건강알림 {s.health_d0}건/{s.health_animals_d0}두(전일 {s.health_d1}건)  "
+        lines.append(f"{i:>2}. [{s.grade}] {s.name}  건강알림 {s.health_d0}두(전일 {s.health_d1}두, {s.health_events_d0}건)  "
                      f"{', '.join(s.reasons) or '-'}")
     for c in an.clusters:
         lines += ["", f"■ 집단신호: {c.farm_name} {c.n_animals}두 ({c.window_start:%m/%d %H:%M}~{c.window_end:%H:%M})",

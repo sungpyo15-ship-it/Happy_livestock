@@ -172,10 +172,10 @@ function bars(tr){
 /* ───── 요약표 ───── */
 function sumTab(){
   const cols = [["rank","순위"],["grade","등급"],["name","목장"],["herd","센서두수"],
-    ...KPI.map(k=>[k, D.kpiLabels[k]]),["h","건강알림"],["ha","알림두수"],["per100","100두당"],["d1","전일"],["d7","7일평균"],
+    ...KPI.map(k=>[k, D.kpiLabels[k]]),["h","건강알림 두수"],["ha","참고:건수"],["per100","100두당"],["d1","전일"],["d7","7일평균"],
     ["surge","급증"],["clu","집단"],["score","점수"]];
   let rows = D.farms.map((f,i)=>({f, rank:i+1, grade:f.grade, name:f.name, herd:f.herd??0, ...f.row.c, h:f.health_d0,
-    ha:f.health_animals, per100:f.row.per100??0, d1:f.health_d1, d7:f.health_7d??0, surge:f.surge?1:0,
+    ha:f.health_events, per100:f.row.per100??0, d1:f.health_d1, d7:f.health_7d??0, surge:f.surge?1:0,
     clu:f.row.cluster_n, score:f.score}));
   if(st.q) rows = rows.filter(r=>r.name.includes(st.q));
   if(st.grade!=="전체") rows = rows.filter(r=>st.grade==="방문" ? ["긴급","우선"].includes(r.grade) : r.grade===st.grade);
@@ -205,7 +205,7 @@ function farmList(selId){
   return `<input type="search" placeholder="목장 검색" value="${esc(st.q)}" oninput="st.q=this.value;render(true)">${gradeFilter()}
   ${fs.length ? fs.map(f => `<div class="card g-${f.grade} ${f.id==selId?'sel':''}" onclick="go('${f.id}')">
     <div class="row"><div class="name">${esc(f.name)}</div><span class="badge">${f.grade} ${f.score}</span></div>
-    <div class="meta">건강알림 <b>${f.health_d0}</b>건/${f.health_animals}두 · 전일 ${f.health_d1}건${f.herd?` · ${f.herd}두`:""}${f.stale?" · ⚠지연":""}</div>
+    <div class="meta">건강알림 <b>${f.health_d0}</b>두 · 전일 ${f.health_d1}두${f.herd?` · ${f.herd}두`:""}${f.stale?" · ⚠지연":""}</div>
     ${f.reasons.length?`<div class="chips">${f.reasons.slice(0,3).map(r=>`<span class="chip">${esc(r)}</span>`).join("")}</div>`:""}
   </div>`).join("") : `<div class="empty">해당 목장 없음</div>`}`;
 }
@@ -221,14 +221,14 @@ function detail(id){
   <div class="g-${f.grade}"><div class="row"><div class="big">${esc(f.name)}</div><span class="badge">${f.grade} ${f.score}점</span></div>
   <div class="meta">센서 ${f.herd??"-"}두 · 마지막 수집 ${f.last_ok??"없음"}${f.stale?" · ⚠데이터 지연":""}</div></div>
   <h2>1. 핵심 요약</h2><div class="box"><ul class="hl">${f.headline.map(h=>`<li>${esc(h)}</li>`).join("")}</ul></div>
-  <h2>2. 알림 현황 (24시간 · 72시간)</h2>
+  <h2>2. 알림 현황 — 두수 (24시간 · 72시간)</h2>
   <div class="kpis">${f.counts.map(c=>`<div class="kpi"><span>${esc(c.label)}</span><b>${c.n24}</b><small>72h ${c.n72}</small></div>`).join("")}</div>
-  <div class="note">건강알림 24h <b>${f.health_d0}건/${f.health_animals}두</b> · 전일 ${f.health_d1}건 · 7일평균 ${f.health_7d??"-"}건${f.surge?" · <b class='neg'>급증</b>":""}</div>
+  <div class="note">건강알림 24h <b>${f.health_d0}두</b> (${f.health_events}건) · 전일 ${f.health_d1}두 · 7일평균 ${f.health_7d??"-"}두${f.surge?" · <b class='neg'>급증</b>":""}</div>
   <h2>3. 7일 추세 — 종류별 두수</h2>
   <div class="scroll"><table class="tbl"><tr><th class="l">구분</th>${D.dates.map(d=>`<th>${d}</th>`).join("")}<th>7일 두수</th></tr>
   ${cats.map(c=>`<tr class="${c=='건강 전체'?'tot':''}"><td class="l">${esc(c)}</td>${f.trend_types[c].map(v=>`<td style="${c=='건강 전체'?'':heat(v,mxT)}">${v||""}</td>`).join("")}
    <td><b>${f.trend_total[c]}</b></td></tr>`).join("")}</table></div>
-  <div class="box" style="margin-top:8px">${bars(f.trend)}<div class="note">막대 = 건강알림 건수(일별)</div></div>
+  <div class="box" style="margin-top:8px">${bars(f.trend)}<div class="note">막대 = 건강알림 두수(일별, 같은 개체 반복은 1두)</div></div>
   ${f.cluster?`<h2>집단신호 (의심 — 진단 아님)</h2><div class="box warn"><b>${f.cluster.n}두</b> · ${f.cluster.from} ~ ${f.cluster.to}<br>${esc(f.cluster.text)}
     <div class="meta">개체: ${f.cluster.animals.map(esc).join(", ")}</div></div>`:""}
   <h2>4. 그룹 행동</h2>${f.groups.length?`<div class="scroll"><table class="tbl"><tr><th class="l">그룹</th><th>두수</th><th>반추(분)</th><th>7일평균</th><th>Δ반추</th><th>횡와(h)</th><th>Δ횡와</th><th>누워반추%</th><th class="l">판정</th></tr>

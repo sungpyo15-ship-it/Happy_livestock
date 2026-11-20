@@ -124,3 +124,15 @@ def test_secret_mask():
     rec = logging.LogRecord("x", logging.INFO, "", 0, "login %s / %s", ("me@farm.kr", "S3cret!"), None)
     SecretMaskFilter(["me@farm.kr", "S3cret!"]).filter(rec)
     assert "S3cret" not in rec.getMessage() and "me@farm.kr" not in rec.getMessage()
+
+
+def test_counts_are_animals_not_events(db, mapper):
+    """같은 개체가 24시간에 5번 울려도 1두 → 급증 아님. 서로 다른 5두면 급증."""
+    rules = load_toml("rules.toml")
+    _seed(db, [("cow1", "RUMINATION_DROP", NOW - timedelta(hours=h)) for h in (1, 3, 5, 7, 9)])
+    f = analyze(db.conn, NOW, mapper, rules).farms[0]
+    assert (f.health_d0, f.health_events_d0, f.counts_d0["RUMINATION_DROP"]) == (1, 5, 1)
+    assert not f.surge
+    _seed(db, [(f"c{k}", "TEMP_HIGH", NOW - timedelta(hours=2 + k)) for k in range(5)])
+    f = analyze(db.conn, NOW, mapper, rules).farms[0]
+    assert f.health_d0 == 6 and f.surge

@@ -79,8 +79,8 @@ def headline(s: FarmSummary) -> list[str]:
     if s.cluster:
         lines.append(f"집단신호 {s.cluster.n_animals}두 ({s.cluster.window_start:%m/%d %H:%M}~"
                      f"{s.cluster.window_end:%H:%M}) — {s.cluster.interpretation.split('.')[0]}")
-    trend = f"건강알림 24h {s.health_d0}건/{s.health_animals_d0}두 (전일 {s.health_d1}건"
-    trend += f", 7일평균 {s.health_7d_avg}건)" if s.health_7d_avg is not None else ")"
+    trend = f"건강알림 24h {s.health_d0}두 (전일 {s.health_d1}두"
+    trend += f", 7일평균 {s.health_7d_avg}두)" if s.health_7d_avg is not None else ")"
     if s.surge:
         trend += f" — 급증({s.surge_reason})"
     lines.append(trend)
@@ -97,7 +97,8 @@ def farm_payload(s: FarmSummary, an: Analysis, mapper: AlertTypeMapper, bench: d
     return {
         "id": s.farm_id, "name": s.name, "grade": s.grade, "score": s.score, "herd": s.herd_size,
         "last_ok": f"{s.last_ok_at:%m/%d %H:%M}" if s.last_ok_at else None, "stale": s.stale,
-        "health_d0": s.health_d0, "health_animals": s.health_animals_d0, "health_d1": s.health_d1,
+        "health_d0": s.health_d0, "health_animals": s.health_animals_d0, "health_events": s.health_events_d0,
+        "health_d1": s.health_d1,
         "health_7d": s.health_7d_avg, "surge": s.surge, "reasons": s.reasons, "headline": headline(s),
         "counts": [{"label": mapper.label(c), "n24": s.counts_d0.get(c, 0), "n72": s.counts_72h.get(c, 0)}
                    for c in KPI_TYPES],
@@ -211,14 +212,14 @@ def add_visit_sheet(wb: Workbook, s: FarmSummary, an: Analysis, mapper: AlertTyp
         row += 1
     row += 1
 
-    row = _section(ws, row, "2. 알림 현황 (24시간 / 72시간)")
+    row = _section(ws, row, "2. 알림 현황 — 두수 (24시간 / 72시간, 같은 개체 반복은 1두)")
     labels = [mapper.label(c) for c in KPI_TYPES]
-    row = _table(ws, row, ["구분"] + labels[:4] + ["건강알림 계"],
-                 [["24h"] + [s.counts_d0.get(c, 0) for c in KPI_TYPES[:4]] + [f"{s.health_d0}건/{s.health_animals_d0}두"],
+    row = _table(ws, row, ["구분"] + labels[:4] + ["건강알림 두수"],
+                 [["24h"] + [s.counts_d0.get(c, 0) for c in KPI_TYPES[:4]] + [f"{s.health_d0}두 ({s.health_events_d0}건)"],
                   ["72h"] + [s.counts_72h.get(c, 0) for c in KPI_TYPES[:4]] + ["-"]], [2, 1, 2, 1, 1, 3])
-    row = _table(ws, row, ["구분"] + labels[4:] + ["전일 / 7일평균"],
+    row = _table(ws, row, ["구분"] + labels[4:] + ["전일 / 7일평균(두)"],
                  [["24h"] + [s.counts_d0.get(c, 0) for c in KPI_TYPES[4:]]
-                  + [f"{s.health_d1}건 / {s.health_7d_avg if s.health_7d_avg is not None else '-'}건"],
+                  + [f"{s.health_d1}두 / {s.health_7d_avg if s.health_7d_avg is not None else '-'}두"],
                   ["72h"] + [s.counts_72h.get(c, 0) for c in KPI_TYPES[4:]] + ["-"]], [2, 1, 1, 1, 2, 3])
     h = s.history
     if h:
@@ -234,7 +235,7 @@ def add_visit_sheet(wb: Workbook, s: FarmSummary, an: Analysis, mapper: AlertTyp
     row += 1
 
     # 7일 추세 차트 (데이터는 오른쪽 숨김 영역 L:M)
-    row = _section(ws, row, "3. 건강알림 7일 추세")
+    row = _section(ws, row, "3. 건강알림 7일 추세 (일별 두수)")
     dates = sorted(s.trend)
     for i, d in enumerate(dates):
         ws.cell(row=row + i, column=12, value=f"{d:%m/%d}")
