@@ -56,3 +56,11 @@ def test_health_and_build(tmp_path):
     db.close()
     r = build_all(tmp_path / "smx.db", tmp_path / "cow.db", tmp_path / "out", TODAY, memo_only=True)
     assert r["farms"] == 1 and r["files"][0].exists() and "유방염" in r["app"].read_text(encoding="utf-8")
+
+
+def test_abort_after_positive_pd(tmp_path):
+    c = TODAY - timedelta(days=300)
+    ev = [("x", "calving_confirmation", c, {"number": 2}), ("x", "insemination", c + timedelta(days=45), None),
+          ("x", "pregnancy_result", c + timedelta(days=118), {"pregnant": True}), ("x", "abort", c + timedelta(days=170), None)]
+    r = build_records(_db(tmp_path, ev).conn, "F", TODAY)[0]
+    assert r.status == "aborted" and r.flags[0].startswith("유산")

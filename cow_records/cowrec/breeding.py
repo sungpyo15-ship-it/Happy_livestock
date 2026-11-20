@@ -16,7 +16,7 @@ from typing import Any
 
 HEAT_RAW = {"heat", "health_701", "health_705", "heat_dnb"}
 STATUS = {"fresh": "신선(분만 21일 이내)", "open": "공태(수정 전)", "bred": "수정 후 감정 전", "pregnant": "임신",
-          "dry": "건유", "heifer": "미경산·분만 미확인", "open_neg": "재수정 필요(감정 음성)"}
+          "dry": "건유", "heifer": "미경산·분만 미확인", "open_neg": "재수정 필요(감정 음성)", "aborted": "유산 후 재수정 필요"}
 
 
 @dataclass
@@ -139,6 +139,8 @@ def build_records(conn: sqlite3.Connection, farm_id: str, today: date, gestation
             r.status = "pregnant"
         elif last_ai and (not r.pd_date or r.pd_date < last_ai):
             r.status = "bred"
+        elif r.abort and (not last_ai or r.abort >= last_ai):
+            r.status = "aborted"
         elif r.pd_result is False:
             r.status = "open_neg"
         elif not r.calving:
@@ -168,9 +170,11 @@ def build_records(conn: sqlite3.Connection, farm_id: str, today: date, gestation
             if r.heats:
                 r.first_heat_dim = (r.heats[0] - r.calving).days
         # 주의 표시
-        if r.status in ("open", "open_neg", "bred") and r.dim is not None and r.dim > 150:
+        if r.status == "aborted":
+            r.flags.append(f"유산({r.abort:%m/%d})")
+        if r.status in ("open", "open_neg", "bred", "aborted") and r.dim is not None and r.dim > 150:
             r.flags.append(f"분만 {r.dim}일 미임신")
-        if r.status in ("open", "open_neg", "bred") and len(r.ais) >= 3:
+        if r.status in ("open", "open_neg", "bred", "aborted") and len(r.ais) >= 3:
             r.flags.append(f"수정 {len(r.ais)}회 미임신")
         if r.status in ("open", "fresh") and r.dim is not None and r.dim > 60 and not r.heats:
             r.flags.append("분만 60일 이상 발정 없음")
@@ -193,7 +197,7 @@ def build_records(conn: sqlite3.Connection, farm_id: str, today: date, gestation
                 extra = "센서 발정"
             r.timeline.append({"date": f"{e.t:%Y-%m-%d}", "kind": names[e.kind], "extra": extra})
         out.append(r)
-    order = {"fresh": 0, "open": 1, "open_neg": 2, "bred": 3, "pregnant": 4, "dry": 5, "heifer": 6}
+    order = {"fresh": 0, "open": 1, "open_neg": 2, "aborted": 2, "bred": 3, "pregnant": 4, "dry": 5, "heifer": 6}
     out.sort(key=lambda r: (order.get(r.status, 9), -(r.dim or 0)))
     return out
 

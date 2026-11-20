@@ -70,7 +70,7 @@ td.l,th.l{text-align:left}td.wrap{white-space:normal;text-align:left;min-width:1
 tr.click{cursor:pointer}tr.click:hover td{background:var(--sel)}
 .st{border-radius:6px;padding:2px 6px;font-size:12px}
 .s-pregnant{background:var(--preg)}.s-dry{background:var(--dry)}.s-bred{background:var(--bred)}.s-open{background:var(--open)}
-.s-open_neg{background:var(--neg)}.s-fresh{background:var(--fresh)}.s-heifer{background:var(--chip)}
+.s-open_neg,.s-aborted{background:var(--neg)}.s-fresh{background:var(--fresh)}.s-heifer{background:var(--chip)}
 .flag{color:var(--bad);font-size:12px;font-weight:600}
 h2{font-size:15px;margin:18px 0 8px;color:var(--acc)}
 .box{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px 12px}
@@ -89,8 +89,8 @@ const D = __DATA__;
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const st = {memoOnly: D.farms.some(f=>f.memo_n>0), q:"", status:"전체", sort:null};
-const STATUS = ["전체","주의","fresh","open","open_neg","bred","pregnant","dry","heifer"];
-const SKO = {fresh:"신선",open:"공태",open_neg:"재수정",bred:"감정 전",pregnant:"임신",dry:"건유",heifer:"미경산"};
+const STATUS = ["전체","주의","fresh","open","open_neg","aborted","bred","pregnant","dry","heifer"];
+const SKO = {fresh:"신선",open:"공태",open_neg:"재수정",aborted:"유산 후",bred:"감정 전",pregnant:"임신",dry:"건유",heifer:"미경산"};
 const v = x => x ?? "-";
 
 function farmList(){

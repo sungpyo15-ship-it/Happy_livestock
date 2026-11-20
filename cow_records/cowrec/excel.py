@@ -14,7 +14,7 @@ F = "맑은 고딕"
 NAVY = "1F4E78"
 THIN = Side(style="thin", color="BFBFBF")
 BOX = Border(left=THIN, right=THIN, top=THIN, bottom=THIN)
-ST_FILL = {"pregnant": "E2EFDA", "dry": "DDEBF7", "bred": "FFF2CC", "open": "FCE4D6", "open_neg": "F8CBAD",
+ST_FILL = {"pregnant": "E2EFDA", "dry": "DDEBF7", "bred": "FFF2CC", "open": "FCE4D6", "open_neg": "F8CBAD", "aborted": "F8CBAD",
            "fresh": "EDEDED", "heifer": "FFFFFF"}
 
 
