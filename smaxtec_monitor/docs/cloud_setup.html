@@ -58,17 +58,17 @@ pre{background:var(--code);border-radius:8px;padding:10px 12px;overflow-x:auto;f
 </style>
 <main>
   <header>
-    <div class="eyebrow">smaXtec 목장 모니터 · 클라우드 버전</div>
+    <div class="eyebrow">smaXtec 목장 모니터 · 클라우드 버전 · Google Cloud</div>
     <h1>무료 서버 설치 안내</h1>
-    <p class="lead">Oracle Cloud 평생 무료 서버에 설치하면 PC 없이 24시간 수집되고, 팀원은 <b>링크 → smaXtec 로그인 → 홈 화면 추가</b>만 하면 됩니다. 처음 한 번 1시간 정도 걸립니다.</p>
+    <p class="lead">Google Cloud 평생 무료 서버(e2-micro)에 설치하면 PC 없이 24시간 수집되고, 팀원은 <b>링크 → smaXtec 로그인 → 홈 화면 추가</b>만 하면 됩니다. 처음 한 번 1시간 정도 걸립니다.</p>
   </header>
 
   <section class="panel">
     <h2>준비물</h2>
     <ul class="need">
-      <li><b>신용·체크카드</b>Oracle 가입 본인확인용 (무료 범위에서는 청구 없음)</li>
-      <li><b>구글 계정</b>무료 주소(DuckDNS) 만들기용</li>
-      <li><b>Windows PC</b>서버에 명령을 붙여넣을 때 한 번 사용</li>
+      <li><b>구글 계정</b>Google Cloud 와 무료 주소(DuckDNS) 가입에 사용</li>
+      <li><b>해외결제 카드</b>본인확인용. 무료 범위에서는 청구 없음</li>
+      <li><b>PC 또는 휴대폰 브라우저</b>서버 접속도 브라우저에서 합니다</li>
       <li><b>본인 smaXtec 아이디</b>관리자 계정으로 등록</li>
     </ul>
   </section>
@@ -76,41 +76,38 @@ pre{background:var(--code);border-radius:8px;padding:10px 12px;overflow-x:auto;f
   <section>
     <h2>설치 순서</h2>
     <ol class="steps">
-      <li><div class="step"><h3>Oracle Cloud 가입 <span class="time">10분</span></h3>
-        <ul><li>oracle.com/cloud/free → <b>Start for free</b></li>
-        <li><b>홈 지역(Home Region)</b>: 서울(South Korea Central)이 있으면 서울, 없으면 <b>춘천(South Korea North, Chuncheon)</b>. 검색 칸에 <code>Korea</code> 입력</li>
-        <li>한국 지역이 없으면 <b>Japan East (Tokyo)</b> 또는 <b>Japan Central (Osaka)</b> — 데이터가 일본에 보관됨. 홈 지역은 나중에 바꿀 수 없습니다</li>
-        <li>카드 인증까지 마치면 콘솔(관리 화면)이 열립니다</li></ul></div></li>
+      <li><div class="step"><h3>Google Cloud 가입 <span class="time">10분</span></h3>
+        <ul><li>cloud.google.com/free → <b>무료로 시작하기</b> → 구글 계정으로 로그인</li>
+        <li>국가 <b>대한민국</b>, 계정 유형 <b>개인</b>, 카드 등록 → 90일 무료 체험 크레딧이 생깁니다 (자동 결제되지 않음)</li></ul></div></li>
 
       <li><div class="step"><h3>서버 만들기 <span class="time">10분</span></h3>
-        <ul><li>콘솔 왼쪽 위 메뉴 → <b>Compute → Instances → Create instance</b></li>
-        <li>Image: <b>Canonical Ubuntu 24.04</b> (Change image 에서 선택)</li>
-        <li>Shape: <b>Ampere (VM.Standard.A1.Flex) · 1 OCPU · 6 GB</b> — "Always Free-eligible" 표시 확인</li>
-        <li>A1 이 "Out of capacity" 로 안 만들어지면 <b>VM.Standard.E2.1.Micro</b> (역시 무료) 선택</li>
-        <li>Add SSH keys: <b>Save private key</b> 눌러 키 파일을 내려받기 → <span class="file">문서</span> 폴더에 보관 (잃어버리면 접속 불가)</li>
-        <li><b>Create</b> → 상태가 RUNNING 이 되면 <b>Public IP address</b> 를 메모 (예: 152.70.xx.xx)</li></ul></div></li>
+        <ul><li>콘솔 왼쪽 메뉴 → <b>Compute Engine → VM 인스턴스</b> (처음이면 "사용 설정" 누르고 1~2분 대기) → <b>인스턴스 만들기</b></li>
+        <li>이름: <code>smxmon</code> · 리전: <b>us-west1 (오리건)</b> · 영역: 아무거나</li>
+        <li>머신 구성: <b>E2</b> → 머신 유형 <b>e2-micro</b></li>
+        <li>부팅 디스크 <b>변경</b> → 운영체제 <b>Ubuntu</b>, 버전 <b>Ubuntu 24.04 LTS (x86/64)</b>,
+          부팅 디스크 유형 <b>표준 영구 디스크(Standard)</b>, 크기 <b>30</b> GB</li>
+        <li>방화벽: <b>HTTP 트래픽 허용</b>, <b>HTTPS 트래픽 허용</b> 둘 다 체크</li>
+        <li><b>만들기</b> → 목록에 생긴 서버의 <b>외부 IP</b> 를 메모 (예: 34.82.xx.xx)</li></ul>
+        <p class="note">오른쪽 예상 비용에 월 요금이 보여도 정상입니다. 무료 등급(e2-micro 1대·표준 디스크 30GB·미국 3개 리전)은 청구서에서 0원으로 처리됩니다.</p></div></li>
 
-      <li><div class="step"><h3>방화벽 열기 (80·443) <span class="time">5분</span></h3>
-        <ul><li>만든 서버 화면 → Primary VNIC 의 <b>Subnet</b> 링크 → <b>Security Lists</b> → Default Security List</li>
-        <li><b>Add Ingress Rules</b> 두 번: Source CIDR <code>0.0.0.0/0</code>, Destination Port <code>80</code> / 한 번 더 <code>443</code></li></ul></div></li>
+      <li><div class="step"><h3>요금 알림 걸기 <span class="time">2분</span></h3>
+        <ul><li>왼쪽 메뉴 → <b>결제 → 예산 및 알림</b> → 예산 만들기 → 금액 <b>1,000원</b> → 메일 알림</li>
+        <li>실수로 유료 항목이 생기면 바로 메일이 옵니다</li></ul></div></li>
 
       <li><div class="step"><h3>무료 주소 만들기 (DuckDNS) <span class="time">3분</span></h3>
         <ul><li>duckdns.org → 구글로 로그인</li>
         <li>sub domain 에 원하는 이름(예: <code>mokjang-monitor</code>) → <b>add domain</b></li>
-        <li>current ip 칸에 2번에서 메모한 <b>서버 IP</b> 입력 → <b>update ip</b></li>
-        <li>내 주소: <code>mokjang-monitor.duckdns.org</code> 처럼 됩니다</li></ul></div></li>
+        <li>current ip 칸에 2번의 <b>외부 IP</b> 입력 → <b>update ip</b></li>
+        <li>화면 위쪽 <b>token</b> 값을 복사해 두기 (6번에서 사용 — 서버 IP 가 바뀌어도 주소가 자동으로 따라감)</li></ul></div></li>
 
-      <li><div class="step"><h3>서버 접속 <span class="time">3분</span></h3>
-        <p>PC 에서 PowerShell 을 열고(시작 → powershell) 아래를 입력합니다. 키 파일 이름과 IP 는 본인 것으로 바꾸세요.</p>
-        <div class="copyrow"><pre id="c1">ssh -i "$HOME\Documents\ssh-key.key" ubuntu@서버IP</pre>
-        <button class="copybtn" data-copy="c1" type="button">복사</button></div>
-        <ul><li>처음에 "Are you sure you want to continue connecting" 이 나오면 <code>yes</code> 입력</li>
-        <li><code>ubuntu@...:~$</code> 가 보이면 서버에 접속된 상태입니다</li></ul></div></li>
+      <li><div class="step"><h3>서버 접속 <span class="time">1분</span></h3>
+        <ul><li>VM 인스턴스 목록에서 서버 줄의 <b>SSH</b> 버튼 클릭 → 새 창에서 "승인"</li>
+        <li>검은 화면에 <code>...@smxmon:~$</code> 가 보이면 접속된 상태입니다</li></ul></div></li>
 
       <li><div class="step"><h3>설치 명령 붙여넣기 <span class="time">10분</span></h3>
-        <p>접속한 창에 아래 두 줄을 붙여넣습니다. 주소와 아이디는 본인 것으로 바꾸세요. 관리자 아이디는 <b>smaXtec 로그인 아이디</b>입니다.</p>
+        <p>SSH 창에 아래 두 줄을 붙여넣습니다(붙여넣기: Ctrl+V 또는 마우스 오른쪽). 주소·아이디·토큰은 본인 것으로 바꾸세요. 관리자 아이디는 <b>smaXtec 로그인 아이디</b>입니다.</p>
         <div class="copyrow"><pre id="c2">curl -fsSL https://raw.githubusercontent.com/sungpyo15-ship-it/Happy_livestock/refs/heads/claude/practical-cori-rbbhxw/smaxtec_monitor/deploy/install.sh -o install.sh
-sudo bash install.sh 내주소.duckdns.org smaXtec아이디@이메일</pre>
+sudo bash install.sh 내주소.duckdns.org smaXtec아이디@이메일 DuckDNS토큰</pre>
         <button class="copybtn" data-copy="c2" type="button">복사</button></div>
         <p class="note">마지막에 "설치 완료" 와 주소가 나오면 끝입니다. 오류가 나면 창 내용을 캡처해 보내 주세요.</p></div></li>
 
@@ -121,8 +118,7 @@ sudo bash install.sh 내주소.duckdns.org smaXtec아이디@이메일</pre>
 
       <li><div class="step"><h3>팀원 등록</h3>
         <ul><li>앱 오른쪽 위 <b>계정</b> → 아래 <b>관리자 — 팀원 등록</b>에 팀원의 smaXtec 아이디 입력 → 등록</li>
-        <li>팀원에게 <b>주소만</b> 보내면 됩니다. 팀원은 본인 아이디로 로그인하고 본인 담당 목장만 봅니다</li>
-        <li>등록되지 않은 아이디는 로그인할 수 없습니다</li></ul></div></li>
+        <li>팀원에게 <b>주소만</b> 보내면 됩니다. 팀원은 본인 아이디로 로그인하고 본인 담당 목장만 봅니다</li></ul></div></li>
     </ol>
   </section>
 
@@ -130,20 +126,21 @@ sudo bash install.sh 내주소.duckdns.org smaXtec아이디@이메일</pre>
     <h2>설치 후</h2>
     <div class="tw"><table>
       <tr><th>항목</th><th>내용</th></tr>
-      <tr><td>자동 수집</td><td>매일 05:30 시작 → 06시 전 완료, 이후 08:10~20:10 2시간마다. PC 는 꺼도 됩니다</td></tr>
-      <tr><td>업데이트</td><td>새 기능이 나오면 5번처럼 서버에 접속해 <code>sudo smxmon-update</code> 한 줄 입력</td></tr>
+      <tr><td>자동 수집</td><td>매일 05:30 시작 → 06시 전 완료, 이후 08:10~20:10 2시간마다 (한국 시간). PC 는 꺼도 됩니다</td></tr>
+      <tr><td>업데이트</td><td>5번처럼 SSH 접속 → <code>sudo smxmon-update</code> 한 줄</td></tr>
       <tr><td>투입비교</td><td>앱 → 계정 → 투입기록 양식 받기 → 엑셀 작성 → 올리기</td></tr>
       <tr><td>엑셀 리포트</td><td>앱 → 계정 → 파일 받기 (일일 리포트·방문요약·투입비교)</td></tr>
-      <tr><td>문제 확인</td><td>서버 접속 후 <code>sudo journalctl -u smxmon-web -n 50</code> 결과를 캡처해 보내기</td></tr>
+      <tr><td>문제 확인</td><td>SSH 접속 후 <code>sudo journalctl -u smxmon-web -n 50</code> 결과를 캡처해 보내기</td></tr>
+      <tr><td>90일 후</td><td>무료 체험이 끝날 때 안내 메일이 오면 <b>유료 계정으로 업그레이드(전체 계정 활성화)</b>를 해야 서버가 계속 켜져 있습니다. 무료 등급 범위는 계속 0원입니다(메일 내용 확인 필요)</td></tr>
     </table></div>
   </section>
 
   <section class="warn">
     <b>꼭 확인할 것</b>
-    <p>· 팀원 등록 전에 리얼팜에 "팀원 계정으로 서버가 자동 조회하는 방식"이 괜찮은지 확인하세요.</p>
+    <p>· 부팅 디스크는 반드시 <b>표준 영구 디스크</b>. 기본값(균형)은 유료입니다. 서버는 e2-micro <b>1대만</b> 무료입니다.</p>
+    <p>· 데이터는 미국(오리건) 서버에 저장됩니다. 팀원 등록 전에 리얼팜에 "팀원 계정으로 서버가 자동 조회하는 방식"과 함께 확인하세요.</p>
     <p>· 팀원에게 알려 주세요: 비밀번호는 암호화해 서버에 보관하며, 서버 관리자는 기술적으로 접근할 수 있습니다. 앱의 [연결 해제]로 언제든 삭제됩니다.</p>
-    <p>· 무료 서버가 오래 거의 쉬고 있으면 Oracle 이 회수할 수 있다는 정책이 있습니다. 계정을 종량제(Pay As You Go)로 바꾸고 무료 범위만 쓰면 회수 대상이 아니라고 알려져 있습니다(가입 시 확인 필요).</p>
-    <p>· 키 파일(<span class="file">ssh-key.key</span>)과 서버 IP 는 남에게 보내지 마세요.</p>
+    <p>· DuckDNS 토큰과 Google Cloud 계정은 남에게 알려 주지 마세요.</p>
   </section>
 
   <footer>PC 버전(지금 쓰는 프로그램)은 그대로 계속 쓸 수 있습니다. 클라우드가 안정되면 PC 쪽 06시 자동 실행은 꺼도 됩니다.</footer>

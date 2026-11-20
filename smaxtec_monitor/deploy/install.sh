@@ -1,15 +1,22 @@
 #!/usr/bin/env bash
-# smaXtec 목장 모니터 — 클라우드 서버 설치 (Oracle Cloud · Ubuntu 24.04)
-# 사용법:  sudo bash install.sh <내주소.duckdns.org> <관리자 smaXtec 아이디(이메일)>
+# smaXtec 목장 모니터 — 클라우드 서버 설치 (Google Cloud · Oracle 등 Ubuntu 24.04)
+# 사용법:  sudo bash install.sh <내주소.duckdns.org> <관리자 smaXtec 아이디(이메일)> [DuckDNS 토큰]
+#   DuckDNS 토큰을 넣으면 서버 IP 가 바뀌어도 주소가 자동으로 따라감(5분마다 갱신)
 set -euo pipefail
-DOMAIN="${1:-}"; ADMIN="${2:-}"
+DOMAIN="${1:-}"; ADMIN="${2:-}"; DUCK_TOKEN="${3:-}"
 if [ -z "$DOMAIN" ] || [ -z "$ADMIN" ]; then
-  echo "사용법: sudo bash install.sh 내주소.duckdns.org 관리자아이디@example.com"; exit 1; fi
+  echo "사용법: sudo bash install.sh 내주소.duckdns.org 관리자아이디@example.com [DuckDNS토큰]"; exit 1; fi
 [ "$(id -u)" = 0 ] || { echo "sudo 를 붙여 실행하세요"; exit 1; }
 python3 -c 'import sys; sys.exit(0 if sys.version_info >= (3,11) else 1)' || {
   echo "Python 3.11 이상 필요 → Ubuntu 24.04 이미지로 서버를 만드세요"; exit 1; }
 HERE="$(cd "$(dirname "$0")" && pwd)"
 export DEBIAN_FRONTEND=noninteractive
+
+echo "[0/7] 메모리 여유(스왑 1GB — 작은 무료 서버용)"
+if ! swapon --show | grep -q swapfile && [ ! -f /swapfile ]; then
+  fallocate -l 1G /swapfile && chmod 600 /swapfile && mkswap /swapfile >/dev/null && swapon /swapfile
+  grep -q '^/swapfile' /etc/fstab || echo '/swapfile none swap sw 0 0' >> /etc/fstab
+fi
 
 echo "[1/7] 기본 패키지"
 apt-get update -y -q
@@ -108,6 +115,20 @@ for p in 80 443; do
   iptables -I INPUT -p tcp -m state --state NEW --dport $p -j ACCEPT
 done
 netfilter-persistent save >/dev/null 2>&1 || true
+
+if [ -n "$DUCK_TOKEN" ] && [[ "$DOMAIN" == *.duckdns.org ]]; then
+  echo "  DuckDNS 자동 갱신 설정"
+  SUB="${DOMAIN%.duckdns.org}"
+  umask 077; printf 'SUB=%s\nTOKEN=%s\n' "$SUB" "$DUCK_TOKEN" > /etc/smxmon/duckdns
+  cat > /usr/local/bin/smxmon-duckdns <<'DD'
+#!/usr/bin/env bash
+. /etc/smxmon/duckdns
+curl -fsS "https://www.duckdns.org/update?domains=${SUB}&token=${TOKEN}&ip=" -o /var/log/smxmon-duckdns.log || true
+DD
+  chmod 700 /usr/local/bin/smxmon-duckdns
+  echo '*/5 * * * * root /usr/local/bin/smxmon-duckdns' > /etc/cron.d/smxmon-duckdns
+  /usr/local/bin/smxmon-duckdns
+fi
 
 echo "[7/7] 시작"
 systemctl daemon-reload
