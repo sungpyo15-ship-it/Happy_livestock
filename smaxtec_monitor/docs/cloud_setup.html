@@ -82,11 +82,12 @@ pre{background:var(--code);border-radius:8px;padding:10px 12px;overflow-x:auto;f
 
       <li><div class="step"><h3>서버 만들기 <span class="time">10분</span></h3>
         <ul><li>콘솔 왼쪽 메뉴 → <b>Compute Engine → VM 인스턴스</b> (처음이면 "사용 설정" 누르고 1~2분 대기) → <b>인스턴스 만들기</b></li>
-        <li>이름: <code>smxmon</code> · 리전: <b>us-west1 (오리건)</b> · 영역: 아무거나</li>
-        <li>머신 구성: <b>E2</b> → 머신 유형 <b>e2-micro</b></li>
-        <li>부팅 디스크 <b>변경</b> → 운영체제 <b>Ubuntu</b>, 버전 <b>Ubuntu 24.04 LTS (x86/64)</b>,
-          부팅 디스크 유형 <b>표준 영구 디스크(Standard)</b>, 크기 <b>30</b> GB</li>
-        <li>방화벽: <b>HTTP 트래픽 허용</b>, <b>HTTPS 트래픽 허용</b> 둘 다 체크</li>
+        <li>화면 왼쪽의 단계 메뉴를 위에서부터 차례로 설정합니다 (안 보이면 창을 크게 하거나 아래로 스크롤)</li>
+        <li><b>머신 구성</b>: 이름 <code>smxmon</code> · 리전 <b>us-west1 (오리건)</b> · 시리즈 <b>E2</b> · 머신 유형 <b>e2-micro</b></li>
+        <li><b>OS 및 스토리지</b> (OS and storage) → <b>[변경]</b> → 운영체제 <b>Ubuntu</b>, 버전 <b>Ubuntu 24.04 LTS (x86/64)</b>,
+          부팅 디스크 유형 <b>표준 영구 디스크(Standard)</b>, 크기 <b>30</b> GB → <b>[선택]</b></li>
+        <li><b>네트워킹</b>: <b>HTTP 트래픽 허용</b>, <b>HTTPS 트래픽 허용</b> 둘 다 체크</li>
+        <li>나머지 메뉴(데이터 보호·관찰 가능성·보안·고급)는 그대로</li>
         <li><b>만들기</b> → 목록에 생긴 서버의 <b>외부 IP</b> 를 메모 (예: 34.82.xx.xx)</li></ul>
         <p class="note">오른쪽 예상 비용에 월 요금이 보여도 정상입니다. 무료 등급(e2-micro 1대·표준 디스크 30GB·미국 3개 리전)은 청구서에서 0원으로 처리됩니다.</p></div></li>
 
