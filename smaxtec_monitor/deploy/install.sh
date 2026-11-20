@@ -38,6 +38,7 @@ if [ -f "$HERE/fetch_code.sh" ]; then bash "$HERE/fetch_code.sh"; else
   curl -fsSL "https://raw.githubusercontent.com/${SMX_REPO:-sungpyo15-ship-it/Happy_livestock}/refs/heads/${SMX_BRANCH:-claude/practical-cori-rbbhxw}/smaxtec_monitor/deploy/fetch_code.sh" | bash; fi
 install -m 755 /opt/smxmon/app/smaxtec_monitor/deploy/fetch_code.sh /opt/smxmon/fetch_code.sh
 install -m 755 /opt/smxmon/app/smaxtec_monitor/deploy/update.sh /usr/local/bin/smxmon-update
+install -m 755 /opt/smxmon/app/smaxtec_monitor/deploy/check.sh /usr/local/bin/smxmon-check
 
 echo "[4/7] 설정·암호화 키"
 if [ ! -f /etc/smxmon/env ]; then
