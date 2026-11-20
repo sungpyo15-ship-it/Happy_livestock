@@ -51,6 +51,14 @@ SMX_TIMEZONE=Asia/Seoul
 PYTHONDONTWRITEBYTECODE=1
 ENV
 fi
+# 다시 실행하면 관리자 아이디를 새 값으로 갱신 (암호화 키는 유지)
+ADMIN_LC="$(echo "$ADMIN" | tr '[:upper:]' '[:lower:]')"
+if grep -q '^SMX_CLOUD_ADMIN=' /etc/smxmon/env; then
+  sed -i "s|^SMX_CLOUD_ADMIN=.*|SMX_CLOUD_ADMIN=${ADMIN_LC}|" /etc/smxmon/env
+else
+  echo "SMX_CLOUD_ADMIN=${ADMIN_LC}" >> /etc/smxmon/env
+fi
+echo "  관리자 아이디: ${ADMIN_LC}"
 chmod 600 /etc/smxmon/env
 chown -R smxmon:smxmon /var/lib/smxmon
 
