@@ -346,6 +346,25 @@ def _history_sheet(wb, an: Analysis) -> None:
         ws.conditional_formatting.add(f"C{r + 2}:{get_column_letter(1 + len(labels))}{last}", ColorScaleRule(
             start_type="min", start_color="FFFFFF", end_type="max", end_color="F8696B"))
         r = last + 3
+    # E. 종류별 월별 상세 (두수) — 목장 × 종류 × 12개월
+    ws.cell(row=r, column=1, value="E. 종류별 월별 상세 (두수, 한 개체가 여러 종류에 해당할 수 있음)").font = \
+        Font(name=FONT, bold=True, size=11, color="1F4E78")
+    _header(ws, r + 1, ["목장", "구분"] + labels)
+    rr = r + 2
+    for f in rows:
+        h, start = f.history, rr
+        for cat in cats:
+            _row(ws, rr, [f.name, cat] + h.monthly[cat])
+            if cat == HEALTH_ALL:
+                for col in range(2, len(labels) + 3):
+                    ws.cell(row=rr, column=col).font = Font(name=FONT, size=10, bold=True)
+                    ws.cell(row=rr, column=col).fill = PatternFill("solid", fgColor="F2F2F2")
+            rr += 1
+        ws.merge_cells(start_row=start, start_column=1, end_row=rr - 1, end_column=1)
+        ws.cell(row=start, column=1).alignment = Alignment(horizontal="left", vertical="top", wrap_text=True)
+    if rr > r + 2:
+        ws.conditional_formatting.add(f"C{r + 2}:{get_column_letter(2 + len(labels))}{rr - 1}", ColorScaleRule(
+            start_type="num", start_value=0, start_color="FFFFFF", end_type="percentile", end_value=98, end_color="F8696B"))
 
 
 def _transition_sheet(wb, an: Analysis, rules: dict[str, Any]) -> None:

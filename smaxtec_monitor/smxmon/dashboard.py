@@ -291,6 +291,30 @@ function behTab(){
 
 /* ───── 누적·월별 ───── */
 const MLBL = () => D.months.map((m,i)=>`${m.slice(2,4)}.${m.slice(5)}${i==D.months.length-1?"*":""}`);
+// 목장별 종류 내역 (30·90일 누적표 / 월별 표) — 누적·월별 탭 펼침과 목장 상세에서 함께 사용
+function cumTable(f){
+  const h=f.hist, cats=Object.keys(h.cum["90"]), b=D.hbench["90"]||{};
+  return `<table class="tbl"><tr><th class="l">구분</th><th>30일 두수</th><th>100두당</th><th>90일 두수</th><th>100두당</th><th>중앙값(90일)</th></tr>
+  ${cats.map(c=>`<tr class="${c=='건강 전체'?'tot':''}"><td class="l">${esc(c)}</td><td>${h.cum["30"][c]}</td><td>${h.per100["30"][c]??"-"}</td>
+   <td>${h.cum["90"][c]}</td><td style="${b[c]!=null&&h.per100["90"][c]!=null&&h.per100["90"][c]>b[c]*1.3?'color:var(--urgent);font-weight:700':''}">${h.per100["90"][c]??"-"}</td><td>${b[c]??"-"}</td></tr>`).join("")}</table>`;
+}
+function monthTable(f, unit, hi){
+  const h=f.hist, cats=Object.keys(h.cum["90"]);
+  const val = v => unit=="p100" && f.herd ? +(v/f.herd*100).toFixed(1) : v;
+  const mx = Math.max(1,...cats.filter(c=>c!="건강 전체").flatMap(c=>h.monthly[c].slice(0,-1).map(val)));
+  const hs = i => i===hi ? "outline:2px solid var(--navy);outline-offset:-2px;font-weight:700;" : "";
+  return `<table class="tbl"><tr><th class="l">구분 (${unit=="p100"&&f.herd?"100두당":"두수"})</th>${MLBL().map((m,i)=>`<th style="${hs(i)}">${m}</th>`).join("")}</tr>
+  ${cats.map(c=>`<tr class="${c=='건강 전체'?'tot':''}"><td class="l">${esc(c)}</td>${h.monthly[c].map((v,i)=>`<td style="${hs(i)}${c!='건강 전체'&&i<D.months.length-1?heat(val(v),mx):''}">${val(v)||""}</td>`).join("")}</tr>`).join("")}</table>`;
+}
+const HX = {};   // 펼친 목장: HX["c:"+id] / HX["m:"+id] = 강조할 달 번호
+function hx(kind, id, month){
+  const k = kind+":"+id;
+  if (month === undefined) { if (k in HX) delete HX[k]; else HX[k] = null; }
+  else HX[k] = (HX[k] === month) ? (delete HX[k], undefined) : month;
+  const y = window.scrollY; render(); window.scrollTo(0, y);   // 화면 위치 유지, 검색창 포커스 안 함
+}
+const farmLink = f => `<span class="dot"></span>${esc(f.name)} <a href="#f=${encodeURIComponent(f.id)}" onclick="event.stopPropagation()" style="color:var(--navy);text-decoration:none;font-weight:700" title="목장 상세">›</a>`;
+
 function histTab(){
   const fs0 = D.farms.filter(f=>f.hist);
   if(!fs0.length) return `<div class="empty">기록 없음</div>`;
@@ -307,6 +331,9 @@ function histTab(){
   const b = (D.hbench["90"]||{})[c];
   const mv = f => f.hist.monthly[c].map(v => unit=="p100" && f.herd ? +(v/f.herd*100).toFixed(1) : v);
   const mx = Math.max(1,...fs.flatMap(f=>mv(f).slice(0,-1)));
+  const sub = (n, inner) => `<tr class="sub"><td colspan="${n}" style="background:var(--chip);padding:8px;white-space:normal;text-align:left">
+     <div class="scroll" style="background:var(--card)">${inner}</div>
+     <div class="note">종류별 두수 · 한 개체가 여러 종류에 해당할 수 있어 종류별 합이 '건강 전체'보다 클 수 있음</div></td></tr>`;
   return `<div class="filters">${cats.map(x=>`<button class="${c==x?'on':''}" onclick="st.hcat='${x}';save();render()">${esc(x)}</button>`).join("")}</div>
   ${b!=null?`<div class="box">담당 목장 중앙값 (90일, 100두당): <b>${b}</b>두 · ${esc(c)}</div>`:""}
   <input type="search" placeholder="목장 검색" value="${esc(st.q)}" oninput="st.q=this.value;render(true)" style="margin-top:10px">
@@ -314,30 +341,28 @@ function histTab(){
   <div class="scroll"><table class="tbl"><tr><th class="l stick">목장</th><th>센서두수</th>
    <th class="sort" onclick="sortBy('n30')">30일 두수</th><th class="sort" onclick="sortBy('p30')">100두당</th><th>순위</th>
    <th class="sort" onclick="sortBy('n90')">90일 두수</th><th class="sort" onclick="sortBy('p90')">100두당</th><th>순위</th></tr>
-  ${fs.map(f=>`<tr class="click" onclick="go('${f.id}')"><td class="l stick g-${f.grade}"><span class="dot"></span>${esc(f.name)}</td><td>${f.herd??"-"}</td>
+  ${fs.map(f=>`<tr class="click" onclick="hx('c','${f.id}')"><td class="l stick g-${f.grade}">${("c:"+f.id) in HX?"▾":"▸"} ${farmLink(f)}</td><td>${f.herd??"-"}</td>
    <td>${f.hist.cum["30"][c]}</td><td>${p(f,"30")??"-"}</td><td>${r30[f.id]?r30[f.id]+"/"+n30:"-"}</td>
-   <td>${f.hist.cum["90"][c]}</td><td style="${b!=null&&p(f,"90")!=null&&p(f,"90")>b*1.3?'color:var(--urgent);font-weight:700':''}">${p(f,"90")??"-"}</td><td>${r90[f.id]?r90[f.id]+"/"+n90:"-"}</td></tr>`).join("")}
+   <td>${f.hist.cum["90"][c]}</td><td style="${b!=null&&p(f,"90")!=null&&p(f,"90")>b*1.3?'color:var(--urgent);font-weight:700':''}">${p(f,"90")??"-"}</td><td>${r90[f.id]?r90[f.id]+"/"+n90:"-"}</td></tr>
+   ${("c:"+f.id) in HX ? sub(8, cumTable(f)) : ""}`).join("")}
   </table></div>
-  <div class="note">순위: 100두당이 적을수록 1위 · 빨간 숫자 = 담당목장 중앙값보다 30% 이상 많음</div>
+  <div class="note">목장 줄을 누르면 종류별 내역 · › 는 목장 상세 · 순위: 100두당이 적을수록 1위 · 빨간 숫자 = 담당목장 중앙값보다 30% 이상 많음</div>
   <h2>월별 추이 (12개월) — ${esc(c)}</h2>
   <div class="filters"><button class="${unit=='p100'?'on':''}" onclick="st.hunit='p100';save();render()">100두당</button>
    <button class="${unit=='n'?'on':''}" onclick="st.hunit='n';save();render()">두수</button></div>
   <div class="scroll"><table class="tbl"><tr><th class="l stick">목장</th>${MLBL().map(m=>`<th>${m}</th>`).join("")}</tr>
-  ${fs.map(f=>`<tr class="click" onclick="go('${f.id}')"><td class="l stick">${esc(f.name)}</td>${mv(f).map((v,i)=>`<td style="${i<D.months.length-1?heat(v,mx):''}">${v||""}</td>`).join("")}</tr>`).join("")}
-  </table></div><div class="note">* 이번 달은 진행 중(작게 나옴) · 100두당은 현재 센서 두수 기준</div>`;
+  ${fs.map(f=>{ const k="m:"+f.id, open = k in HX, hi = HX[k];
+    return `<tr class="click" onclick="hx('m','${f.id}')"><td class="l stick">${open?"▾":"▸"} ${farmLink(f)}</td>${mv(f).map((v,i)=>
+      `<td onclick="event.stopPropagation();hx('m','${f.id}',${i})" style="${i<D.months.length-1?heat(v,mx):''}${open&&hi===i?'outline:2px solid var(--navy);outline-offset:-2px;font-weight:700':''}">${v||""}</td>`).join("")}</tr>
+    ${open ? sub(D.months.length+1, monthTable(f, unit, hi)) : ""}`; }).join("")}
+  </table></div><div class="note">목장 줄을 누르면 종류별 월별 내역 · 숫자를 누르면 그 달을 강조해서 펼침 · * 이번 달은 진행 중 · 100두당은 현재 센서 두수 기준</div>`;
 }
 function histSection(f){
   const h=f.hist; if(!h) return "";
-  const cats = Object.keys(h.cum["90"]), b = D.hbench["90"]||{};
-  const mx = Math.max(1,...cats.filter(c=>c!="건강 전체").flatMap(c=>h.monthly[c].slice(0,-1)));
   return `<h2>누적·월별 알림 <small style="color:var(--sub);font-weight:400">${h.rank["90"]?`90일 건강알림 ${h.rank["90"]}/${h.of}위 (적을수록 1위)`:""}</small></h2>
-  <div class="scroll"><table class="tbl"><tr><th class="l">구분</th><th>30일 두수</th><th>100두당</th><th>90일 두수</th><th>100두당</th><th>중앙값(90일)</th></tr>
-  ${cats.map(c=>`<tr class="${c=='건강 전체'?'tot':''}"><td class="l">${esc(c)}</td><td>${h.cum["30"][c]}</td><td>${h.per100["30"][c]??"-"}</td>
-   <td>${h.cum["90"][c]}</td><td style="${b[c]!=null&&h.per100["90"][c]!=null&&h.per100["90"][c]>b[c]*1.3?'color:var(--urgent);font-weight:700':''}">${h.per100["90"][c]??"-"}</td><td>${b[c]??"-"}</td></tr>`).join("")}
-  </table></div>
-  <div class="scroll" style="margin-top:6px"><table class="tbl"><tr><th class="l">월별 두수</th>${MLBL().map(m=>`<th>${m}</th>`).join("")}</tr>
-  ${cats.map(c=>`<tr class="${c=='건강 전체'?'tot':''}"><td class="l">${esc(c)}</td>${h.monthly[c].map((v,i)=>`<td style="${c!='건강 전체'&&i<D.months.length-1?heat(v,mx):''}">${v||""}</td>`).join("")}</tr>`).join("")}
-  </table></div><div class="note">* 이번 달은 진행 중 · 빨간 숫자 = 담당목장 중앙값보다 30% 이상 많음</div>`;
+  <div class="scroll">${cumTable(f)}</div>
+  <div class="scroll" style="margin-top:6px">${monthTable(f, "n")}</div>
+  <div class="note">* 이번 달은 진행 중 · 빨간 숫자 = 담당목장 중앙값보다 30% 이상 많음 · 한 개체가 여러 종류에 해당할 수 있음</div>`;
 }
 
 /* ───── 전환기 ───── */
