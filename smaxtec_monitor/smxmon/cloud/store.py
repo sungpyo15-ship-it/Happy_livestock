@@ -31,6 +31,11 @@ CREATE TABLE IF NOT EXISTS sessions (
     csrf        TEXT NOT NULL,
     expires     TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS login_events (
+    at          TEXT NOT NULL,
+    username    TEXT,
+    result      TEXT NOT NULL      -- ok / not_allowed / bad_password / api_error / rate_limited / empty
+);
 CREATE TABLE IF NOT EXISTS allowed (
     username    TEXT PRIMARY KEY,
     added_at    TEXT NOT NULL,
@@ -174,6 +179,16 @@ class CloudStore:
         d = self.root / "users" / uid
         if d.is_dir() and d.parent == self.root / "users":
             shutil.rmtree(d, ignore_errors=True)
+
+    # ───────── 로그인 기록 (관리자 화면 진단용, 최근 100건만 보관) ─────────
+    def log_login(self, username: str, result: str) -> None:
+        with self._lock, self._conn() as c:
+            c.execute("INSERT INTO login_events VALUES (?,?,?)", (_now(), (username or "")[:80].lower(), result))
+            c.execute("DELETE FROM login_events WHERE rowid NOT IN (SELECT rowid FROM login_events ORDER BY rowid DESC LIMIT 100)")
+
+    def login_events(self, limit: int = 15) -> list[sqlite3.Row]:
+        with self._conn() as c:
+            return c.execute("SELECT * FROM login_events ORDER BY rowid DESC LIMIT ?", (limit,)).fetchall()
 
     # ───────── 세션 ─────────
     def new_session(self, uid: str, days: int = 90) -> tuple[str, str]:

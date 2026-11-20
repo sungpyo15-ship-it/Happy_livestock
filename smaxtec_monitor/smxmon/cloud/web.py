@@ -156,20 +156,27 @@ def create_app(store: CloudStore, base: Settings, *, secure_cookie: bool = True,
         while q and now - q[0] > 900:
             q.popleft()
         if len(q) >= 8:
+            store.log_login(request.form.get("username") or "", "rate_limited")
             return login_form("로그인 시도가 너무 많습니다. 15분 뒤 다시 시도하세요."), 429
         q.append(now)
         u = (request.form.get("username") or "").strip().lower()
         pw = request.form.get("password") or ""
         if not u or not pw:
+            store.log_login(u, "empty")
             return login_form("아이디와 비밀번호를 입력하세요.", u), 400
         if not store.is_allowed(u):
+            store.log_login(u, "not_allowed")
             return login_form("등록되지 않은 아이디입니다. 관리자에게 등록을 요청하세요.", u), 403
         try:
             n = verify(u, pw)
         except LoginError:
-            return login_form("smaXtec 아이디 또는 비밀번호가 맞지 않습니다.", u), 401
+            store.log_login(u, "bad_password")
+            return login_form("smaXtec 아이디 또는 비밀번호가 맞지 않습니다. web.smaxtec.com 에서 같은 아이디·비밀번호로 "
+                              "로그인되는지 확인하세요. 웹에서는 되는데 여기서만 안 되면 관리자에게 알려 주세요.", u), 401
         except (ApiError, OSError):
+            store.log_login(u, "api_error")
             return login_form("smaXtec 서버에 연결하지 못했습니다. 잠시 뒤 다시 시도하세요.", u), 502
+        store.log_login(u, "ok")
         user, new = store.upsert_user(u, pw)
         store.set_farms(user.uid, n)
         token, _ = store.new_session(user.uid)
@@ -250,6 +257,12 @@ def create_app(store: CloudStore, base: Settings, *, secure_cookie: bool = True,
 
     def admin_html(user: User, csrf: str) -> str:
         allowed = store.allowed_list()
+        res_txt = {"ok": "성공", "not_allowed": "등록 안 됨", "bad_password": "비밀번호 거절", "api_error": "연결 실패",
+                   "rate_limited": "시도 과다", "empty": "빈 입력"}
+        events = "".join(
+            f"<tr><td>{e['at'][5:16]}</td><td>{html.escape(e['username'] or '-')}</td>"
+            f"<td class='{'st-ok' if e['result'] == 'ok' else 'st-failed'}'>{res_txt.get(e['result'], e['result'])}</td></tr>"
+            for e in store.login_events()) or "<tr><td colspan=3 class=sub>없음</td></tr>"
         rows = "".join(
             f"<tr><td>{html.escape(u.username)}</td><td class='st-{u.status}'>{STATUS_TXT.get(u.status, u.status)}</td>"
             f"<td>{u.farms or '-'}</td><td>{(u.last_ok or '-')[5:16]}</td></tr>" for u in store.users())
@@ -267,7 +280,10 @@ def create_app(store: CloudStore, base: Settings, *, secure_cookie: bool = True,
             <button type="submit">등록</button></form>
           <table><tr><th>허용 아이디</th><th>메모</th><th></th></tr>{al or '<tr><td colspan=3 class=sub>없음</td></tr>'}</table>
           <h2>사용 현황</h2>
-          <table><tr><th>아이디</th><th>상태</th><th>목장</th><th>마지막 수집</th></tr>{rows}</table></div>"""
+          <table><tr><th>아이디</th><th>상태</th><th>목장</th><th>마지막 수집</th></tr>{rows}</table>
+          <h2>최근 로그인 기록</h2>
+          <table><tr><th>시각</th><th>아이디</th><th>결과</th></tr>{events}</table>
+          <p class="sub">등록 안 됨 = 허용 목록에 없음(철자 확인) · 비밀번호 거절 = smaXtec 이 거절(웹 로그인 확인, 웹은 되면 리얼팜에 API 조회 권한 문의)</p></div>"""
 
     @app.post("/refresh")
     def refresh():

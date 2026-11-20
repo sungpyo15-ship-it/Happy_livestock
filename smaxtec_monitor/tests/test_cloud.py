@@ -56,6 +56,7 @@ def test_login_collect_view_isolation_delete(env):
     assert c.get("/").status_code == 302                                   # 로그인 필요
     assert c.post("/login", data={"username": "stranger@x.kr", "password": "x"}).status_code == 403
     assert c.post("/login", data={"username": USER, "password": "wrong"}).status_code == 401
+    assert [e["result"] for e in store.login_events()][:2] == ["bad_password", "not_allowed"]
     r = c.post("/login", data={"username": USER.upper(), "password": "pw"})
     assert r.status_code == 302 and "smx_session" in r.headers.get("Set-Cookie", "")
     u = _wait(store, USER)
@@ -90,6 +91,7 @@ def test_admin_allow_remove(env):
     c.post("/login", data={"username": ADMIN, "password": "adminpw"})
     acc = c.get("/account").get_data(as_text=True)
     assert "관리자 — 팀원 등록" in acc
+    assert "최근 로그인 기록" in acc and "성공" in acc
     c.post("/admin/allow", data={"csrf": _csrf(acc), "username": "new@x.kr", "note": "홍길동"})
     assert store.is_allowed("new@x.kr")
     c.post("/admin/remove", data={"csrf": _csrf(acc), "username": "new@x.kr"})
