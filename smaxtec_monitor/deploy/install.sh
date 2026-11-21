@@ -142,6 +142,7 @@ fi
 echo "[7/7] 시작"
 systemctl daemon-reload
 systemctl enable --now smxmon-web.service smxmon-collect.timer
+bash /opt/smxmon/app/smaxtec_monitor/deploy/post_update.sh || true
 systemctl restart caddy
 sleep 3
 systemctl is-active --quiet smxmon-web && echo "  웹앱: 실행 중" || echo "  웹앱: 실패 → journalctl -u smxmon-web -n 50"

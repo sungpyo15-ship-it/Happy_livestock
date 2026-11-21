@@ -13,6 +13,10 @@ if grep -q 'monthTable' "$APP/smxmon/dashboard.py" 2>/dev/null; then ok "누적�
 if [ -f "$APP/config/actions.toml" ]; then ok "조치 가이드 포함"; else ng "조치 가이드 없음 → sudo smxmon-update"; fi
 echo "    코드 설치 시각: $(stat -c %y "$APP/config/rules.toml" 2>/dev/null | cut -d. -f1)"
 
+B=$(ls -t /var/backups/smxmon/smxmon_*.tar.gz 2>/dev/null | head -1)
+if [ -n "$B" ] && [ $(( ($(date +%s) - $(stat -c %Y "$B")) / 3600 )) -lt 30 ]; then ok "백업: 최근 $(stat -c %y "$B" | cut -c1-16) · $(ls /var/backups/smxmon/smxmon_*.tar.gz | wc -l)개 보관"
+elif [ -n "$B" ]; then ng "백업이 30시간 넘게 없음 → sudo smxmon-backup"; else ng "백업 없음 → sudo smxmon-update 한 번 더"; fi
+
 echo "[2] 서비스"
 for s in smxmon-web caddy; do systemctl is-active --quiet $s && ok "$s 실행 중" || ng "$s 꺼짐 → sudo systemctl restart $s"; done
 systemctl is-active --quiet smxmon-collect.timer && ok "자동 수집 타이머 켜짐" || ng "자동 수집 타이머 꺼짐"

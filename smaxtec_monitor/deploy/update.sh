@@ -6,5 +6,6 @@ bash /opt/smxmon/fetch_code.sh
 install -m 755 /opt/smxmon/app/smaxtec_monitor/deploy/fetch_code.sh /opt/smxmon/fetch_code.sh
 install -m 755 /opt/smxmon/app/smaxtec_monitor/deploy/update.sh /usr/local/bin/smxmon-update
 install -m 755 /opt/smxmon/app/smaxtec_monitor/deploy/check.sh /usr/local/bin/smxmon-check
+bash /opt/smxmon/app/smaxtec_monitor/deploy/post_update.sh
 systemctl restart smxmon-web
 echo "업데이트 완료 — 웹앱 재시작됨 (다음 수집부터 새 기능 반영)"
