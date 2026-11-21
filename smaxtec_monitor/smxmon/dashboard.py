@@ -171,6 +171,11 @@ st.q = "";
 if(!location.hash) st.tab = "today";   // 앱을 열면 항상 '오늘 할 일'부터
 const save = () => store.set("ui", {tab:st.tab, grade:st.grade, cat:st.cat, behAll:st.behAll, hcat:st.hcat, hunit:st.hunit});
 const heat = (v, mx) => v ? `background:rgba(var(--heat),${Math.min(.85, .12 + .73*v/Math.max(1,mx))})` : "";
+// 검색창: 한글 조합 중에는 화면을 다시 그리지 않음(다시 그리면 조합이 끊겨 자음·모음이 따로 들어감)
+let IME = 0;
+function qIn(e, el){ st.q = el.value; if(IME || e.isComposing) return; render(true); }
+document.addEventListener("compositionstart", e => { if(e.target.type === "search") IME = 1; }, true);
+document.addEventListener("compositionend", e => { if(e.target.type === "search"){ IME = 0; qIn(e, e.target); } }, true);
 const go = id => { location.hash = "f=" + encodeURIComponent(id); };
 
 function bars(tr){
@@ -195,7 +200,7 @@ function sumTab(){
   if(st.grade!=="전체") rows = rows.filter(r=>st.grade==="방문" ? ["긴급","우선"].includes(r.grade) : r.grade===st.grade);
   if(st.sortK){ const k=st.sortK; rows.sort((a,b)=>(typeof a[k]=="string"?a[k].localeCompare(b[k]):a[k]-b[k])*st.sortD); }
   const mx = {}; KPI.forEach(k=>mx[k]=Math.max(1,...D.farms.map(f=>f.row.c[k])));
-  return `${gradeFilter()}<input type="search" placeholder="목장 검색" value="${esc(st.q)}" oninput="st.q=this.value;render(true)">
+  return `${gradeFilter()}<input type="search" placeholder="목장 검색" value="${esc(st.q)}" oninput="qIn(event,this)">
   <div class="scroll"><table class="tbl"><tr>${cols.map(([k,l])=>`<th class="sort ${k=='name'?'l stick':''}" onclick="sortBy('${k}')">${l}</th>`).join("")}</tr>
   ${rows.map(r=>`<tr class="click g-${r.grade}" onclick="go('${r.f.id}')"><td>${r.rank}</td><td><span class="badge">${r.grade}</span></td>
    <td class="l stick"><b>${esc(r.name)}</b></td><td>${r.f.herd??"-"}</td>
@@ -216,7 +221,7 @@ function gradeFilter(){
 function farmList(selId){
   let fs = D.farms.filter(f => st.grade=="전체" || (st.grade=="방문" ? ["긴급","우선"].includes(f.grade) : f.grade==st.grade));
   if(st.q) fs = fs.filter(f => f.name.includes(st.q));
-  return `<input type="search" placeholder="목장 검색" value="${esc(st.q)}" oninput="st.q=this.value;render(true)">${gradeFilter()}
+  return `<input type="search" placeholder="목장 검색" value="${esc(st.q)}" oninput="qIn(event,this)">${gradeFilter()}
   ${fs.length ? fs.map(f => `<div class="card g-${f.grade} ${f.id==selId?'sel':''}" onclick="go('${f.id}')">
     <div class="row"><div class="name">${esc(f.name)}</div><span class="badge">${f.grade} ${f.score}</span></div>
     <div class="meta">건강알림 <b>${f.health_d0}</b>두 · 전일 ${f.health_d1}두${f.herd?` · ${f.herd}두`:""}${f.stale?" · ⚠지연":""}</div>
@@ -383,7 +388,7 @@ function trendTab(){
   if(st.sortK==="t7") fs.sort((a,b)=>(a.trend_total[st.cat]-b.trend_total[st.cat])*st.sortD);
   const mx = Math.max(1,...D.farms.flatMap(f=>f.trend_types[st.cat]));
   return `<div class="filters">${cats.map(c=>`<button class="${st.cat==c?'on':''}" onclick="st.cat='${c}';save();render()">${esc(c)}</button>`).join("")}</div>
-  <input type="search" placeholder="목장 검색" value="${esc(st.q)}" oninput="st.q=this.value;render(true)">
+  <input type="search" placeholder="목장 검색" value="${esc(st.q)}" oninput="qIn(event,this)">
   <div class="scroll"><table class="tbl"><tr><th class="l stick">목장</th><th>센서두수</th>${D.dates.map(d=>`<th>${d}</th>`).join("")}
   <th class="sort" onclick="sortBy('t7')">7일 두수</th><th>100두당</th></tr>
   ${fs.map(f=>{ const t=f.trend_total[st.cat]; return `<tr class="click" onclick="go('${f.id}')"><td class="l stick g-${f.grade}"><span class="dot"></span>${esc(f.name)}</td>
@@ -403,7 +408,7 @@ function behTab(){
   <div class="note">용어 · <b>누운 시간</b>: 하루 중 누워 쉰 시간 · <b>누워반추</b>: 되새김 중 누워서 한 비율(높을수록 편안) · <b>함께 눕기</b>: 같은 시간에 그룹 소들이 함께 누워 있는 비율(떨어지면 누울 자리 부족·과밀·더위 의심) · <b>Δ</b>: 7일 평균 대비 변화</div>
   <div class="filters" style="margin-top:10px"><button class="${!st.behAll?'on':''}" onclick="st.behAll=false;save();render()">이상 그룹 ${rows.filter(ok).length}</button>
   <button class="${st.behAll?'on':''}" onclick="st.behAll=true;save();render()">전체 그룹 ${rows.length}</button></div>
-  <input type="search" placeholder="목장 검색" value="${esc(st.q)}" oninput="st.q=this.value;render(true)">
+  <input type="search" placeholder="목장 검색" value="${esc(st.q)}" oninput="qIn(event,this)">
   ${show.length?`<div class="scroll"><table class="tbl"><tr><th class="l stick">목장</th><th class="l">그룹</th><th>두수</th><th>반추</th><th>7일</th><th>Δ반추</th><th>누운시간h</th><th>Δ누운시간</th><th>누워반추%</th><th>함께눕기%</th><th class="l">판정</th></tr>
   ${show.map(({f,g})=>`<tr class="click" onclick="go('${f.id}')"><td class="l stick">${esc(f.name)}</td><td class="l">${esc(g.name)}</td><td>${g.n??""}</td>
   <td>${g.rum??"-"}</td><td>${g.rum7??"-"}</td><td class="${g.drum<0?'neg':''}">${sgn(g.drum)}</td><td>${g.lying_h??"-"}</td><td>${sgn(g.dlying)}</td>
@@ -460,7 +465,7 @@ function histTab(){
      <div class="note">종류별 두수 · 한 개체가 여러 종류에 해당할 수 있어 종류별 합이 '건강 전체'보다 클 수 있음</div></td></tr>`;
   return `<div class="filters">${cats.map(x=>`<button class="${c==x?'on':''}" onclick="st.hcat='${x}';save();render()">${esc(x)}</button>`).join("")}</div>
   ${b!=null?`<div class="box">담당 목장 중앙값 (90일, 100두당): <b>${b}</b>두 · ${esc(c)}</div>`:""}
-  <input type="search" placeholder="목장 검색" value="${esc(st.q)}" oninput="st.q=this.value;render(true)" style="margin-top:10px">
+  <input type="search" placeholder="목장 검색" value="${esc(st.q)}" oninput="qIn(event,this)" style="margin-top:10px">
   <h2>30·90일 누적 — ${esc(c)}</h2>
   <div class="scroll"><table class="tbl"><tr><th class="l stick">목장</th><th>센서두수</th>
    <th class="sort" onclick="sortBy('n30')">30일 두수</th><th class="sort" onclick="sortBy('p30')">100두당</th><th>순위</th>
@@ -502,7 +507,7 @@ function trTab(){
   fs.sort((a,c)=> (a.transition.small-c.transition.small) || ((val(a,k)??999)-(val(c,k)??999))*(st.sortK?st.sortD:1));
   const mx = {}; D.tInd.forEach(([c])=>mx[c]=Math.max(1,...fs.map(f=>f.transition.rates[c]||0)));
   return `${b&&b.n?`<div class="box">담당 목장 중앙값(${b.n}곳, 분만 후 21일 · 최근 90일 완료 분만${b.healthy_year!=null?` · 12개월 무사통과 ${pc(b.healthy_year)}`:""}): 무사통과 <b>${pc(b.healthy)}</b> · ${D.tInd.map(([c,l])=>`${l} <b>${pc(b[c])}</b>`).join(" · ")} · 분만전 반추↓ <b>${pc(b.pre_rum)}</b></div>`:""}
-  <input type="search" placeholder="목장 검색" value="${esc(st.q)}" oninput="st.q=this.value;render(true)" style="margin-top:10px">
+  <input type="search" placeholder="목장 검색" value="${esc(st.q)}" oninput="qIn(event,this)" style="margin-top:10px">
   ${fs.length?`<div class="scroll"><table class="tbl"><tr><th>순위</th><th class="l stick">목장</th><th class="sort" onclick="sortBy('n')">분만</th>
   <th class="sort" onclick="sortBy('healthy')">무사통과</th>${D.tInd.map(([c,l])=>`<th class="sort" onclick="sortBy('${c}')">${l}</th>`).join("")}
   <th class="sort" onclick="sortBy('pre')">분만전반추↓</th><th class="sort" onclick="sortBy('yr')">12개월<br>무사통과</th><th>입력률</th><th class="sort" onclick="sortBy('fresh')">신선우</th><th class="sort" onclick="sortBy('up')">분만예정</th><th class="l">판정</th></tr>
@@ -610,7 +615,7 @@ function trialCard(t){
 }
 function trialTab(){
   const ts = D.trials.filter(t=>!st.q || t.farm.includes(st.q) || t.product.includes(st.q));
-  return `<input type="search" placeholder="목장·제품 검색" value="${esc(st.q)}" oninput="st.q=this.value;render(true)">
+  return `<input type="search" placeholder="목장·제품 검색" value="${esc(st.q)}" oninput="qIn(event,this)">
   ${ts.length ? ts.map(trialCard).join("") : `<div class="empty">등록된 투입 기록이 없습니다.<br>PC 의 9_TRIALS.bat 으로 투입기록.xlsx 를 열어 입력하세요.</div>`}
   <div class="note">순효과 = 이 목장 변화 − 같은 기간 대조 목장 변화 · p(대조보정) 0.05 미만이면 우연일 가능성 낮음 · 관찰 비교이므로 인과 단정 금지(날씨·사료로트·우군 변동 영향)</div>`;
 }
