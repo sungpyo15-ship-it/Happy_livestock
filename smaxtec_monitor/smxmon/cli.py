@@ -233,6 +233,18 @@ def cmd_validate(s, args) -> int:
     if not s.db_path.exists():
         print("DB 가 없습니다 (먼저 collect 또는 demo)")
         return 1
+    if not args.no_fetch and (s.username or s.api_token):
+        from .api_client import SmaxtecAPI
+        from .feedback import fetch
+        w = sqlite3.connect(s.db_path, timeout=120)
+        farms = [r[0] for r in w.execute("SELECT farm_id FROM farms")]
+        try:
+            print(f"농장 피드백(알림 확인 처리·질병 메모) 받는 중 — 목장 {len(farms)}곳")
+            st = fetch(SmaxtecAPI(s), w, farms, s.timezone, progress=print)
+            print(f"  완료: 알림 확인 {st['todos']}건 · 새 메모 {st['new_notes']}건 · 실패 {st['errors']}곳")
+        except Exception as e:  # noqa: BLE001
+            print(f"  농장 피드백 받기 실패(받아 둔 자료로 계속): {e}")
+        w.close()
     out, text = run([("내 DB", sqlite3.connect(f"file:{s.db_path}?mode=ro", uri=True))],
                     s.report_dir / f"판정검증_{datetime.now():%Y%m%d_%H%M}.xlsx", days=args.days, anon=args.anon,
                     progress=print)
@@ -286,6 +298,7 @@ def main(argv: list[str] | None = None) -> int:
     pval = sub.add_parser("validate", help="판정 기준 검증(과거 판정 vs 이후 진단 기록)")
     pval.add_argument("--days", type=int, default=365)
     pval.add_argument("--anon", action="store_true")
+    pval.add_argument("--no-fetch", action="store_true", help="농장 피드백 새로 받지 않음")
     pd = sub.add_parser("demo")
     pd.set_defaults(db=None, out=None)
     args = p.parse_args(argv)

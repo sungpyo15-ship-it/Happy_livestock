@@ -226,7 +226,7 @@ def create_app(store: CloudStore, base: Settings, *, secure_cookie: bool = True,
         user, csrf = need_login()
         d = store.user_dir(user.uid) / "reports"
         files = [("daily", "일일 리포트(엑셀)", "smaxtec_daily_*.xlsx"), ("visit", "방문요약(엑셀)", "방문요약_*.xlsx"),
-                 ("trialrep", "투입비교 보고서(엑셀)", "투입비교_*.xlsx"), ("validate", "판정검증(엑셀)", "판정검증_*.xlsx")]
+                 ("trialrep", "투입비교 보고서(엑셀)", "투입비교_*.xlsx"), ("validate", "판정검증(엑셀)", "판정검증_2*.xlsx")]
         links = "".join(f'<a class="btn ghost" href="/files/{k}">{lbl}</a>' for k, lbl, pat in files
                         if any(d.glob(pat)))
         st = STATUS_TXT.get(user.status, user.status)
@@ -300,12 +300,13 @@ def create_app(store: CloudStore, base: Settings, *, secure_cookie: bool = True,
               f"마지막 결과: {last}" if last else "아직 실행 안 함")
         text = html.escape(summ.read_text(encoding="utf-8")) if summ.exists() and fs else ""
         return f"""<div class="card"><h2>관리자 — 판정 기준 검증</h2>
-          <p class="sub">지난 1년 매일 06시 판정(긴급·우선 등)을 다시 계산해, 그 뒤 7일 동안의 진단 기록(농장 입력)·알림 지속과 비교합니다.
+          <p class="sub">지난 1년 매일 06시 판정(긴급·우선 등)을 다시 계산해, 그 뒤 7일 동안의 질병 메모·알림 확인 처리(농장 입력)·알림 지속과 비교합니다.
+          실행할 때 각 팀원 계정으로 농장의 알림 확인 기록·메모를 받아옵니다(처음엔 수십 분 걸릴 수 있음, 이후엔 새 것만).
           모든 팀원 DB 사용(목장 중복 제외). 결과 엑셀은 팀원 전체 목장 포함 → 외부 공유 금지.</p>
           <p>{st}</p>
           <div class="row"><form method="post" action="/admin/validate"><input type="hidden" name="csrf" value="{csrf}">
             <button type="submit" {'disabled' if running else ''}>검증 실행</button></form>
-          {'<a class="btn ghost" href="/files/validate">결과 엑셀 받기</a>' if fs and not running else ''}</div>
+          {'<a class="btn ghost" href="/files/validate">결과 엑셀 받기</a><a class="btn ghost" href="/files/validate_anon">목장 이름 가린 엑셀</a>' if fs and not running else ''}</div>
           {f'<details><summary>요약 보기 (목장 이름 없음 — 그대로 복사해 공유 가능)</summary><pre style="white-space:pre-wrap;font-size:12px">{text}</pre></details>' if text else ''}
         </div>"""
 
@@ -329,7 +330,7 @@ def create_app(store: CloudStore, base: Settings, *, secure_cookie: bool = True,
             p = ensure_template(d / "투입기록.xlsx")
             return send_file(p, as_attachment=True, download_name="투입기록.xlsx")
         pat = {"daily": "smaxtec_daily_*.xlsx", "visit": "방문요약_*.xlsx", "trialrep": "투입비교_*.xlsx",
-               "validate": "판정검증_*.xlsx"}.get(kind)
+               "validate": "판정검증_2*.xlsx", "validate_anon": "판정검증익명_*.xlsx"}.get(kind)
         if not pat:
             abort(404)
         fs = sorted((d / "reports").glob(pat), key=lambda p: p.stat().st_mtime)

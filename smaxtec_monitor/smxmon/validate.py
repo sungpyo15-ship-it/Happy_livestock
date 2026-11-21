@@ -3,10 +3,10 @@
 지난 기간의 매일 06:00 시점으로 '그날 아침 판정'(점수·등급·급증·집단신호)을 다시 계산하고,
 그 뒤 N일 동안 실제로 일어난 일(농장이 smaXtec 에 입력한 진단 기록 등)과 맞춰 본다.
 
-정답(결과) 자료 — 모두 smaXtec 이벤트(농장·수의사가 입력한 것):
-  diagnosis       진단 기록 (유방염·케토시스·자궁염·파행 …)  ← 주 정답
-  false_positive  알림을 '오경보'로 표시한 기록
-  delete          개체 삭제(도태·판매·폐사 추정 — 사유는 확인 필요)
+정답(결과) 자료 — 농장·수의사가 smaXtec 에 남긴 것:
+  질병 메모(fb_notes)     알림 확인 때 남긴 메모의 질병(유방염·케토시스 …)  ← 국내 농장 주 정답 (feedback.py 로 수집)
+  알림 확인 처리(fb_todos) 확인함(user-ack) / 해당 없음(user-nack = 농장 판단 오경보)
+  diagnosis·false_positive·delete 이벤트(있으면)
 보조 지표(정답 아님): 판정 후 7일간 건강알림 두수가 그 목장 평소보다 높게 유지됐는지(일시적 잡음 vs 지속 문제)
 
 ⚠ 진단 기록은 농장마다 입력 습관이 달라 '기록 없음 ≠ 질병 없음'. 기록이 적으면 결론을 내리지 않음.
@@ -36,7 +36,18 @@ DX_KO = {
     "BLOAT": "고창증", "INDIGESTION": "소화불량", "METRITIS": "자궁염", "ENDOMETRITIS": "자궁염",
     "RETAINED_PLACENTA": "후산정체", "LAMENESS": "파행", "DIGITAL_DERMATITIS": "파행", "SOLE_ULCER": "파행",
     "PNEUMONIA": "폐렴·호흡기", "RESPIRATORY_DISEASE": "폐렴·호흡기", "DIARRHEA": "설사", "FEVER": "발열",
+    "MILK_FEVER_ACUTE": "유열", "WHITE_LINE_DISEASE": "파행", "INJURY": "외상",
 }
+CAT_KO = {"UDDER": "유방", "METABOLISM": "대사", "CLAW": "발굽", "LIMBS": "다리·발굽", "LOCOMOTION": "보행",
+          "DIGESTION": "소화기", "DIGESTIVE": "소화기", "RESPIRATORY": "호흡기", "INFECTIOUS": "전염성",
+          "GENERAL": "일반", "CALF": "송아지", "SKIN": "피부", "PARASITES": "기생충", "INJURY": "외상"}
+CLOSING_KO = {"user-ack": "확인함", "user-nack": "해당 없음", "auto-ack": "자동 확인", "auto-nack": "자동 종료",
+              "archived": "보관"}
+TODO_KO = {"401_mastitis": "유방염 의심", "402_milk_fever": "유열 위험", "403_ketosis": "케토시스 의심"}
+# 개선안(검증 비교용) — 실제 판정에는 아직 반영 안 함
+ALT_SURGE_HERD_PCT = 4.0     # 급증 최소 두수 = max(3, 센서두수 × 4%)
+ALT_SURGE_MIN_INCREASE = 3   # 증가폭 3두 이상
+VARIANTS = [("현재", "cur"), ("A 급증 강화", "A"), ("B 급증 강화 + 100두당 혼합", "B")]
 REPRO_DX = {"CYSTIC_OVARY", "ANOESTRUS", "ABORTION", "DYSTOCIA"}   # 번식 진단은 건강 판정 검증에서 제외
 
 
@@ -50,6 +61,10 @@ class FarmDay:
     cluster: bool
     health_d0: int
     herd: int | None
+    d1: int = 0
+    avg7: float | None = None
+    vgrade: dict[str, str] = field(default_factory=dict)
+    vsurge: dict[str, bool] = field(default_factory=dict)
     dx7: int = 0            # 이후 7일 진단 두수(건강 진단)
     fwd_ratio: float | None = None   # 이후 7일 건강알림 두수 평균 / 목장 평소
 
@@ -68,6 +83,9 @@ class Result:
     detail_keys: dict[str, set] = field(default_factory=dict)
     animal_alert_before_dx: list[bool] = field(default_factory=list)
     dx_by_name: dict[str, list[bool]] = field(default_factory=dict)
+    dx_source: dict[str, int] = field(default_factory=dict)
+    todos: list[tuple[str, str, str]] = field(default_factory=list)   # farm, 알림종류, 처리
+    todo_keys: set = field(default_factory=set)
 
 
 def _t(s: str) -> datetime:
@@ -107,7 +125,7 @@ def backtest(sources: list[tuple[str, sqlite3.Connection]], mapper: AlertTypeMap
             an = analyze(conn, d, mapper, rules, ov, light=True)
             for s in an.farms:
                 res.days.append(FarmDay(s.farm_id, d, s.grade, s.score, s.surge, s.cluster is not None,
-                                        s.health_d0, s.herd_size))
+                                        s.health_d0, s.herd_size, s.health_d1, s.health_7d_avg))
             d += H24
             k += 1
             if progress and k % 30 == 0:
@@ -132,10 +150,12 @@ def backtest(sources: list[tuple[str, sqlite3.Connection]], mapper: AlertTypeMap
                     if key in REPRO_DX:
                         continue
                     res.dx.append((fid, aid, t, DX_KO.get(key, "기타")))
+                    res.dx_source["진단 이벤트"] = res.dx_source.get("진단 이벤트", 0) + 1
                 elif raw == "false_positive":
                     res.fp.append((fid, t))
                 else:
                     res.deleted.append((fid, t))
+        _load_feedback(conn, mine, res)
         # 3) 판정별 이후 결과 붙이기
         dx_by_farm: dict[str, list[tuple[datetime, str]]] = defaultdict(list)
         for fid, aid, t, _ in res.dx:
@@ -161,6 +181,54 @@ def backtest(sources: list[tuple[str, sqlite3.Connection]], mapper: AlertTypeMap
             res.animal_alert_before_dx.append(hit)
             res.dx_by_name.setdefault(name, []).append(hit)
     return res
+
+
+def _load_feedback(conn: sqlite3.Connection, mine: list[str], res: Result) -> None:
+    """feedback.py 가 받아 둔 질병 메모·알림 확인 처리."""
+    from .feedback import NON_DISEASE_CATEGORY
+    have = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+    ph = ",".join("?" * len(mine))
+    if "fb_notes" in have:
+        for fid, aid, ts, cat, ev in conn.execute(
+                f"SELECT farm_id, animal_id, ts, category, event FROM fb_notes WHERE farm_id IN ({ph})", mine):
+            cat, ev = (cat or "").upper(), (ev or "").upper()
+            if not ts or not aid or (not cat and not ev) or cat in NON_DISEASE_CATEGORY or ev in REPRO_DX:
+                continue
+            name = DX_KO.get(ev) or (CAT_KO.get(cat, "기타") + "(분류)")
+            res.dx.append((fid, aid, _t(ts), name))
+            res.dx_source["질병 메모"] = res.dx_source.get("질병 메모", 0) + 1
+    if "fb_todos" in have:
+        for fid, sub, dt, closing, keys in conn.execute(
+                f"SELECT farm_id, sub_type, data_type, closing, keys FROM fb_todos WHERE farm_id IN ({ph})", mine):
+            res.todos.append((fid, TODO_KO.get(sub or "", sub or dt or "기타"), CLOSING_KO.get(closing or "", closing or "-")))
+            if keys:
+                try:
+                    res.todo_keys.update(json.loads(keys))
+                except ValueError:
+                    pass
+
+
+def apply_variants(res: Result) -> None:
+    """개선안 A·B 로 등급 다시 매기기 (저장된 점수에서 급증·건강알림 항목만 바꿔 계산)."""
+    import math
+    pr, sg = res.rules["priority"], res.rules["surge"]
+    herds = [d.herd for d in res.days if d.herd]
+    hmed = statistics.median(herds) if herds else 100
+
+    def grade(sc: float) -> str:
+        return "긴급" if sc >= pr["urgent"] else "우선" if sc >= pr["high"] else "관찰" if sc >= pr["watch"] else "정상"
+    for d in res.days:
+        mn = max(int(sg["min_count"]), math.ceil((d.herd or 0) * ALT_SURGE_HERD_PCT / 100))
+        inc = ALT_SURGE_MIN_INCREASE
+        alt = d.health_d0 >= mn and (
+            (d.health_d0 >= d.d1 * sg["ratio_vs_prev_day"] and d.health_d0 - d.d1 >= inc)
+            or (d.avg7 is not None and d.health_d0 >= d.avg7 * sg["ratio_vs_7d_avg"] and d.health_d0 - d.avg7 >= inc))
+        sa = d.score - pr["w_surge"] * d.surge + pr["w_surge"] * alt
+        sb = sa
+        if d.herd:
+            sb = sa - pr["w_health_alert"] * d.health_d0 + pr["w_health_alert"] * (0.5 * d.health_d0 + 0.5 * d.health_d0 / d.herd * hmed)
+        d.vgrade = {"cur": d.grade, "A": grade(sa), "B": grade(sb)}
+        d.vsurge = {"cur": d.surge, "A": alt, "B": alt}
 
 
 # ───────────────────────── 집계 ─────────────────────────
@@ -195,7 +263,9 @@ def summarize(res: Result) -> dict[str, Any]:
             "urgent_per30": sum(1 for d in ds if d.grade == "긴급") / len(ds) * 30,
             "flag_per30": sum(1 for d in ds if d.grade in ("긴급", "우선")) / len(ds) * 30,
             "dx": sum(1 for f, *_ in res.dx if f == fid), "fp": sum(1 for f, _ in res.fp if f == fid),
-            "deleted": sum(1 for f, _ in res.deleted if f == fid)})
+            "deleted": sum(1 for f, _ in res.deleted if f == fid),
+            "todos": sum(1 for f, *_ in res.todos if f == fid),
+            "nack": sum(1 for f, _, c in res.todos if f == fid and c == "해당 없음")})
     out["farms"].sort(key=lambda x: -x["urgent_per30"])
     # 재현율: 진단 전 7일 안에 그 목장이 긴급·우선이었나
     idx = {(d.farm_id, d.day.date()): d for d in res.days}
@@ -230,6 +300,37 @@ def summarize(res: Result) -> dict[str, Any]:
                      "lift": (st["dx100"] / base["dx100"]) if st.get("n") and st.get("dx100") is not None and base.get("dx100") else None,
                      "current": c in (pr["urgent"], pr["high"])})
     out["grid"], out["base"] = grid, base
+    # 개선안 비교
+    if res.days and not res.days[0].vgrade:
+        apply_variants(res)
+    bands = [(0, 50), (50, 80), (80, 120), (120, 10 ** 6)]
+    out["variants"] = []
+    for label, key in VARIANTS:
+        vs = {g: _stats([d for d in res.days if d.vgrade.get(key) == g]) for g in ("긴급", "정상")}
+        pf = defaultdict(list)
+        for d in res.days:
+            pf[d.farm_id].append(d)
+        u30 = {fid: sum(1 for d in ds if d.vgrade.get(key) == "긴급") / len(ds) * 30 for fid, ds in pf.items()}
+        herd = {fid: ds[-1].herd for fid, ds in pf.items()}
+        band = {f"{lo}~{hi if hi < 10 ** 6 else ''}두": (statistics.median(x) if (x := [u30[f] for f in u30 if herd[f] and lo <= herd[f] < hi]) else None)
+                for lo, hi in bands}
+        sv = [d for d in res.days if d.vsurge.get(key)]
+        lift = (vs["긴급"]["dx100"] / vs["정상"]["dx100"]) if vs["긴급"].get("dx100") is not None and vs["정상"].get("dx100") else None
+        out["variants"].append({
+            "label": label, "urgent_share": sum(1 for d in res.days if d.vgrade.get(key) == "긴급") / n * 100,
+            "flag_share": sum(1 for d in res.days if d.vgrade.get(key) in ("긴급", "우선")) / n * 100,
+            "urgent_med": statistics.median(u30.values()) if u30 else None, "bands": band,
+            "surge_share": len(sv) / n * 100, "surge_fwd": _stats(sv).get("fwd"),
+            "fwd_urgent": vs["긴급"].get("fwd"), "fwd_normal": vs["정상"].get("fwd"), "lift": lift,
+            "recall": recall(lambda d, k=key: d.vgrade.get(k) in ("긴급", "우선"))})
+    # 농장 알림 확인 처리 (알림 종류별)
+    tt: dict[str, dict[str, int]] = defaultdict(lambda: defaultdict(int))
+    for _, typ, cl in res.todos:
+        tt[typ][cl] += 1
+    out["todos"] = {k: dict(v) for k, v in sorted(tt.items(), key=lambda x: -sum(x[1].values()))}
+    out["n_todos"] = len(res.todos)
+    out["todo_farms"] = len({f for f, *_ in res.todos})
+    out["dx_source"] = dict(res.dx_source)
     out["verdict"] = verdict(out, res)
     return out
 
@@ -275,6 +376,25 @@ def verdict(o: dict[str, Any], res: Result) -> list[str]:
             v.append(f"[개체] 진단받은 소의 {_f(o['animal_recall'])}% 는 진단 전 7일 안에 센서 건강알림이 있었음(센서 민감도 참고치).")
     if o["n_fp"]:
         v.append(f"[오경보 표시] 농장이 '오경보'로 표시한 기록 {o['n_fp']}건 — 목장별 표 참고.")
+    if o.get("n_todos"):
+        tot = defaultdict(int)
+        for d in o["todos"].values():
+            for k, c in d.items():
+                tot[k] += c
+        n = sum(tot.values())
+        v.append(f"[농장 알림 확인] {o['todo_farms']}개 목장 {n}건 — 확인함 {tot['확인함'] / n * 100:.0f}% · "
+                 f"해당 없음 {tot['해당 없음'] / n * 100:.0f}% · 자동 종료 {(tot['자동 종료'] + tot['자동 확인']) / n * 100:.0f}%"
+                 " (해당 없음 = 농장이 본 오경보. 알림 종류별 표 참고)")
+    va = {x["label"][0]: x for x in o.get("variants", [])}
+    if "현" in va and "A" in va:
+        c, a, b = va["현"], va["A"], va.get("B")
+        v.append(f"[개선안 A 급증 강화] 급증 {_f(c['surge_share'])}% → {_f(a['surge_share'])}% 의 날, "
+                 f"긴급 목장당 월 {_f(c['urgent_med'], 2)} → {_f(a['urgent_med'], 2)}일, 긴급 뒤 알림지속 {_f(c['fwd_urgent'], 2)} → {_f(a['fwd_urgent'], 2)}.")
+        if b:
+            cb, bb = c["bands"], b["bands"]
+            v.append("[개선안 B 100두당 혼합] 긴급(월 일수, 두수 구간별) " +
+                     " · ".join(f"{k}: {_f(cb[k], 2)}→{_f(bb[k], 2)}" for k in cb) +
+                     f" · 긴급 뒤 알림지속 {_f(b['fwd_urgent'], 2)}.")
     return v
 
 
@@ -282,7 +402,7 @@ def verdict(o: dict[str, Any], res: Result) -> list[str]:
 def text_report(o: dict[str, Any], res: Result) -> str:
     """콘솔·공유용 요약 (목장 이름 없음)."""
     L = [f"판정 기준 검증 — {res.start:%Y-%m-%d} ~ {res.end:%Y-%m-%d} · 목장 {o['n_farms']}곳 · 목장-일 {o['n_farmdays']}개",
-         f"정답 자료: 진단 {o['n_dx']}건({o['n_dx_farms']}개 목장) · 오경보 표시 {o['n_fp']}건 · 개체 삭제 {o['n_deleted']}건", ""]
+         f"정답 자료: 진단·질병메모 {o['n_dx']}건({o['n_dx_farms']}개 목장) · 농장 알림 확인 {o.get('n_todos', 0)}건 · 오경보 표시 {o['n_fp']}건 · 개체 삭제 {o['n_deleted']}건", ""]
     L += o["verdict"] + ["", "등급별 (이후 7일)  | 목장-일 | 진단있음% | 진단두수/100두 | 알림지속(평소=1)"]
     for g in GRADES:
         s = o["by_grade"][g]
@@ -294,6 +414,19 @@ def text_report(o: dict[str, Any], res: Result) -> str:
     for gr in o["grid"]:
         L.append(f"  {gr['cut']:6}{' ←현재' if gr['current'] else '      '} | {_f(gr['share']):>5} | {_f(gr['any_dx']):>5} | "
                  f"{_f(gr['lift'], 1, '배'):>5} | {_f(gr['recall']):>5} | {_f(gr['fwd'], 2):>5}")
+    L += ["", "개선안 비교 | 긴급 % | 긴급·우선 % | 목장당 긴급 월일수 | 급증 % | 급증 뒤 지속 | 긴급 뒤 지속 | 정상 뒤 지속 | 진단 정상대비 | 놓치지 않은 %"]
+    for x in o.get("variants", []):
+        L.append(f"  {x['label']} | {_f(x['urgent_share'])} | {_f(x['flag_share'])} | {_f(x['urgent_med'], 2)} | {_f(x['surge_share'])} | "
+                 f"{_f(x['surge_fwd'], 2)} | {_f(x['fwd_urgent'], 2)} | {_f(x['fwd_normal'], 2)} | {_f(x['lift'], 1, '배')} | {_f(x['recall'])}")
+        L.append("     두수 구간별 긴급 월일수: " + " · ".join(f"{k} {_f(v, 2)}" for k, v in x["bands"].items()))
+    if o.get("todos"):
+        L += ["", "농장 알림 확인 처리 (알림 종류별 건수)"]
+        for typ, d in list(o["todos"].items())[:12]:
+            L.append(f"  {typ}: " + ", ".join(f"{k} {c}" for k, c in sorted(d.items(), key=lambda x: -x[1])))
+    if o.get("dx_source"):
+        L.append("정답 자료 출처: " + ", ".join(f"{k} {c}건" for k, c in o["dx_source"].items()))
+    if res.todo_keys:
+        L.append("알림 확인 기록 항목: " + ", ".join(sorted(res.todo_keys)))
     L += ["", "자료 구조(키): " + "; ".join(f"{k}={sorted(v)}" for k, v in res.detail_keys.items()) if res.detail_keys else ""]
     return "\n".join(L)
 
@@ -350,10 +483,29 @@ def build_workbook(o: dict[str, Any], res: Result, out: Path, anon: bool = False
           [[k, v] for k, v in o["recall"].items()] + [[], ["개체: 진단 전 7일 안에 센서 건강알림", o["animal_recall"]], [],
                                                      ["진단명", "건수", "센서 알림 있었던 %"]] +
           [[k, n, p] for k, (n, p) in o["animal_recall_by_dx"].items()], [34, 12, 18])
+    table("개선안 비교", ["안", "긴급 %", "긴급·우선 %", "목장당 긴급 (월 일수)"] + list(o["variants"][0]["bands"]) +
+          ["급증 %", "급증 뒤 알림지속", "긴급 뒤 알림지속", "정상 뒤 알림지속", "진단 정상 대비 (배)", "놓치지 않은 %"],
+          [[x["label"], x["urgent_share"], x["flag_share"], x["urgent_med"], *x["bands"].values(), x["surge_share"],
+            x["surge_fwd"], x["fwd_urgent"], x["fwd_normal"], x["lift"], x["recall"]] for x in o["variants"]] +
+          [[], [f"A = 급증 최소 두수를 max(3, 센서두수×{ALT_SURGE_HERD_PCT:g}%)·증가폭 {ALT_SURGE_MIN_INCREASE}두 이상으로 강화"],
+           ["B = A + 점수의 건강알림 항목을 '두수 절반 + 100두당 비율 절반'으로 (목장 크기 영향 완화)"],
+           ["두수 구간 열 = 그 센서두수 구간 목장들의 긴급 월 일수 중앙값"], ["※ 비교용 시험 계산 — 실제 판정에는 아직 반영하지 않음"]],
+          [26, 9, 11, 14, 11, 11, 11, 11, 9, 13, 13, 13, 14, 13]) if o.get("variants") else None
+    if o.get("todos"):
+        cls = ["확인함", "해당 없음", "자동 확인", "자동 종료", "보관"]
+        rows = []
+        for typ, d in o["todos"].items():
+            n = sum(d.values())
+            rows.append([typ, n] + [d.get(c, 0) / n * 100 for c in cls])
+        table("농장 확인 처리", ["알림 종류", "건수"] + [f"{c} %" for c in cls], rows +
+              [[], ["확인함 = 농장이 보고 처리 · 해당 없음 = 농장이 문제없다고 닫음(농장 판단 오경보) · 자동 = 농장이 처리하지 않아 자동 종료"]],
+              [22, 10, 12, 12, 12, 12, 10])
     names = {f["farm_id"]: (f"목장{i:02d}" if anon else f["name"]) for i, f in enumerate(o["farms"], 1)}
-    table("목장별", ["목장", "센서 두수", "계산 일수", "긴급 (월 일수)", "긴급·우선 (월 일수)", "진단 기록", "오경보 표시", "개체 삭제"],
-          [[names[f["farm_id"]], f["herd"], f["days"], f["urgent_per30"], f["flag_per30"], f["dx"], f["fp"], f["deleted"]] for f in o["farms"]],
-          [20, 10, 10, 12, 14, 10, 10, 10])
+    table("목장별", ["목장", "센서 두수", "계산 일수", "긴급 (월 일수)", "긴급·우선 (월 일수)", "진단·질병메모", "알림 확인 처리",
+                    "해당 없음 %", "오경보 표시", "개체 삭제"],
+          [[names[f["farm_id"]], f["herd"], f["days"], f["urgent_per30"], f["flag_per30"], f["dx"], f["todos"],
+            (f["nack"] / f["todos"] * 100) if f["todos"] else None, f["fp"], f["deleted"]] for f in o["farms"]],
+          [20, 10, 10, 12, 14, 12, 12, 11, 10, 10])
     table("자료 점검", ["이벤트", "기록에 있는 항목(키)"], [[k, ", ".join(sorted(v))] for k, v in res.detail_keys.items()] or [["진단·오경보·삭제 기록 없음", ""]], [18, 100])
     out.parent.mkdir(parents=True, exist_ok=True)
     wb.save(out)
@@ -361,9 +513,11 @@ def build_workbook(o: dict[str, Any], res: Result, out: Path, anon: bool = False
 
 
 def run(sources: list[tuple[str, sqlite3.Connection]], out: Path, *, days: int = 365, anon: bool = False,
-        now: datetime | None = None, progress=None) -> tuple[Path, str]:
+        now: datetime | None = None, progress=None, anon_copy: Path | None = None) -> tuple[Path, str]:
     from .config import load_farm_overrides, load_toml
     rules, mapper = load_toml("rules.toml"), AlertTypeMapper(load_toml("alert_types.toml"))
     res = backtest(sources, mapper, rules, load_farm_overrides(), days=days, now=now, progress=progress)
     o = summarize(res)
+    if anon_copy:
+        build_workbook(o, res, anon_copy, anon=True)
     return build_workbook(o, res, out, anon=anon), text_report(o, res)

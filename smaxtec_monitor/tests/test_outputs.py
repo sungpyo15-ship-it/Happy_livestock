@@ -118,12 +118,22 @@ def test_validate_backtest(tmp_path):
                       (f, a, "MANAGEMENT", "diagnosis", tt, tt, tt, "event", json.dumps({"diagnosis_key": "MASTITIS"})))
     c.execute("INSERT INTO alerts(farm_id,animal_id,alert_type,alert_type_raw,occurred_at,first_seen_at,last_seen_at,status,detail)"
               " VALUES('1001','x','MANAGEMENT','false_positive','2026-10-01 10:00:00','2026-10-01 10:00:00','2026-10-01 10:00:00','event','{}')")
+    from smxmon.feedback import ensure_schema
+    ensure_schema(c)
+    c.execute("INSERT INTO fb_notes VALUES('n1','1001','a1','2026-09-01 10:00:00','UDDER','MASTITIS','[]','')")
+    c.execute("INSERT INTO fb_notes VALUES('n2','1001','a1','2026-09-02 10:00:00','REPRODUCTION','X','[]','')")
+    c.executemany("INSERT INTO fb_todos VALUES(?,?,?,?,?,?,?,?,?,?,?)",
+                  [("t1", "1001", "a1", "clinical_condition", "401_mastitis", "user-ack", None, None, "n1", '["_id"]', ""),
+                   ("t2", "1001", "a2", "clinical_condition", "401_mastitis", "user-nack", None, None, None, '["_id"]', "")])
     c.commit()
     c.close()
     out, text = run([("t", sqlite3.connect(f"file:{tmp_path / 'd.db'}?mode=ro", uri=True))], tmp_path / "v.xlsx",
                     days=200, anon=True, now=as_of + timedelta(days=10))
     wb = openpyxl.load_workbook(out)
-    assert wb.sheetnames == ["결론", "등급·신호별", "기준값 시험", "놓침(재현율)", "목장별", "자료 점검"]
+    assert wb.sheetnames == ["결론", "등급·신호별", "기준값 시험", "놓침(재현율)", "개선안 비교", "농장 확인 처리", "목장별", "자료 점검"]
+    assert "질병 메모 1건" in text and "유방염 의심: 확인함 1, 해당 없음 1" in text
+    v = {r[0].value: r for r in wb["개선안 비교"].iter_rows(min_row=2) if r[0].value}
+    assert v["A 급증 강화"][8].value <= v["현재"][8].value          # 급증 % 감소
     assert wb["목장별"]["A2"].value == "목장01"            # 익명
     g = {r[0].value: r for r in wb["등급·신호별"].iter_rows(min_row=2) if r[0].value}
     assert g["긴급"][3].value > g["정상"][3].value          # 진단두수/100두

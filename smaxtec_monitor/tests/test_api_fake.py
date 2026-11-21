@@ -72,6 +72,14 @@ class H(BaseHTTPRequestHandler):
                 "lying_mean": m(520, 700, 690), "standing_mean": m(440, 300, 300), "moving_mean": m(480, 440, 450),
                 "not_rum_while_standing_mean": m(250, 100, 100), "not_rum_while_lying_mean": m(310, 400, 390),
                 "peak_lying_sync_mean": m(0.70, 0.88, 0.88)}]}}})
+        if u.path == "/organisations/org1/todos":
+            return self._send(200, [
+                {"_id": "t1", "closing_reason": "user-ack", "created_at": "2026-11-18T01:00:00",
+                 "data": {"animal_id": "a1", "data_type": "clinical_condition", "sub_type": "401_mastitis", "note_id": "n1"}},
+                {"_id": "t2", "closing_reason": "user-nack", "data": {"animal_id": "a2", "data_type": "health"}}])
+        if u.path == "/notes/n1":
+            return self._send(200, {"_id": "n1", "animal_id": "a1", "note_ts": "2026-11-18T02:00:00Z",
+                                    "category": "UDDER", "note_event": "MASTITIS", "note_actions": ["ANTIBIOTICS"]})
         if u.path == "/organisations/org1/events":
             assert "min_event_ts" in parse_qs(u.query)
             return self._send(200, EVENTS)
@@ -134,3 +142,17 @@ def test_api_behaviour(api, tmp_path, monkeypatch):
     assert any("누운 시간" in f and "h(" in f for f in g.flags)        # 8.7h < 9h
     assert any("함께 눕기" in f for f in g.flags)                   # 70% vs 88%
     assert "행동[" in " ".join(an.farms[0].reasons)
+
+
+def test_feedback_fetch(api, tmp_path):
+    import sqlite3
+    from smxmon.api_client import SmaxtecAPI
+    from smxmon.feedback import fetch
+    s = _settings(tmp_path, api)
+    conn = sqlite3.connect(tmp_path / "f.db")
+    st = fetch(SmaxtecAPI(s), conn, ["org1"], "Asia/Seoul", pause=0)
+    assert st == {"farms": 1, "todos": 2, "new_notes": 1, "errors": 0}
+    n = conn.execute("SELECT animal_id, ts, category, event FROM fb_notes").fetchone()
+    assert n == ("a1", "2026-11-18 11:00:00", "UDDER", "MASTITIS")
+    assert fetch(SmaxtecAPI(s), conn, ["org1"], "Asia/Seoul", pause=0)["new_notes"] == 0   # 이미 받은 메모는 다시 안 받음
+    assert {r[0] for r in conn.execute("SELECT closing FROM fb_todos")} == {"user-ack", "user-nack"}
