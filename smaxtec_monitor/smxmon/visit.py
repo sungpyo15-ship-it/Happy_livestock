@@ -138,7 +138,7 @@ def _transition_payload(t) -> dict[str, Any] | None:
             "first_dim": t.first_dim, "confirm": t.confirm_pct, "n_recent": t.n_recent, "healthy_recent": t.healthy_recent,
             "rates_first": t.rates_first, "rates_multi": t.rates_multi, "monthly": t.monthly, "fresh": t.fresh,
             "upcoming": t.upcoming, "small": t.small, "flags": t.flags, "rank": t.rank, "of": t.ranked_of,
-            "n_year": t.n_year, "healthy_year": t.healthy_year, "rates_year": t.rates_year}
+            "n_year": t.n_year, "healthy_year": t.healthy_year, "rates_year": t.rates_year, "cnt": t.cnt}
 
 
 # ───────────────────────── 엑셀 1장 ─────────────────────────
@@ -280,9 +280,15 @@ def add_visit_sheet(wb: Workbook, s: FarmSummary, an: Analysis, mapper: AlertTyp
                        + (f", 무사통과 {t.rank}/{t.ranked_of}위)" if t.rank else ", 참고용)" if t.small else ")"))
         hdr = ["구분", "무사통과"] + [lbl for _, lbl in INDICATORS] + ["분만전반추↓"]
         pc = lambda v: "-" if v is None else f"{v:.0f}%"  # noqa: E731
-        rows = [["이 목장(90일)", pc(t.healthy_pct)] + [pc(t.rates.get(c)) for c, _ in INDICATORS] + [pc(t.pre_rum_pct)]]
+
+        def pn(v, k):   # 45% (9두)
+            c = t.cnt.get(k)
+            return "-" if v is None else f"{v:.0f}% ({c[0]}두)" if c else f"{v:.0f}%"
+        rows = [[f"이 목장(90일·{t.n}두)", pn(t.healthy_pct, "healthy")] + [pn(t.rates.get(c), f"rate:{c}") for c, _ in INDICATORS]
+                + [pn(t.pre_rum_pct, "pre_rum")]]
         if t.n_year:
-            rows.append([f"최근 12개월({t.n_year}두)", pc(t.healthy_year)] + [pc(t.rates_year.get(c)) for c, _ in INDICATORS] + ["-"])
+            rows.append([f"최근 12개월({t.n_year}두)", pn(t.healthy_year, "healthy_year")]
+                        + [pn(t.rates_year.get(c), f"year:{c}") for c, _ in INDICATORS] + ["-"])
         if tb:
             rows.append(["담당목장 중앙값", pc(tb["healthy"])] + [pc(tb.get(c)) for c, _ in INDICATORS] + [pc(tb.get("pre_rum"))])
         row = _table(ws, row, hdr, rows, [2, 1, 1, 1, 1, 1, 1, 2])

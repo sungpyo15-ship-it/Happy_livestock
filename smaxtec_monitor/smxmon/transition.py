@@ -59,6 +59,7 @@ class TransitionStats:
     upcoming: list[dict[str, Any]] = field(default_factory=list)  # 분만 예정
     small: bool = True
     flags: list[str] = field(default_factory=list)
+    cnt: dict[str, list[int]] = field(default_factory=dict)   # 지표 → [해당 두수, 분모 두수] (healthy, rate:KETOSIS, year:… 등)
     rank: int | None = None         # 무사통과율 순위(높을수록 1)
     ranked_of: int | None = None
 
@@ -128,39 +129,55 @@ def farm_transition(conn: sqlite3.Connection, farm_id: str, as_of: datetime, map
     cohort = [c for c in calvings if done_end - win < c.t <= done_end]
     st.n = len(cohort)
     st.small = st.n < int(cfg.get("min_calvings", 8))
-    st.confirm_pct = _pct(sum(c.confirmed for c in calvings if c.t > done_end - win), sum(1 for c in calvings if c.t > done_end - win))
+    nc, dc = sum(c.confirmed for c in calvings if c.t > done_end - win), sum(1 for c in calvings if c.t > done_end - win)
+    st.confirm_pct = _pct(nc, dc)
+    st.cnt["confirm"] = [nc, dc]
     if cohort:
         res = [(c, cow(c)) for c in cohort]
         st.n_first = sum(1 for c, _ in res if c.parity == 1)
+        first = [x for c, x in res if c.parity == 1]
+        multi = [x for c, x in res if c.parity and c.parity > 1]
         for code, _ in INDICATORS:
             st.counts[code] = sum(1 for _, x in res if code in x["has"])
             st.rates[code] = _pct(st.counts[code], st.n)
-            first = [x for c, x in res if c.parity == 1]
-            multi = [x for c, x in res if c.parity and c.parity > 1]
-            st.rates_first[code] = _pct(sum(code in x["has"] for x in first), len(first))
-            st.rates_multi[code] = _pct(sum(code in x["has"] for x in multi), len(multi))
-        st.healthy_pct = _pct(sum(1 for _, x in res if not x["any"]), st.n)
-        st.pre_rum_pct = _pct(sum(1 for _, x in res if x["pre_rum"]), st.n)
+            nf, nm = sum(code in x["has"] for x in first), sum(code in x["has"] for x in multi)
+            st.rates_first[code] = _pct(nf, len(first))
+            st.rates_multi[code] = _pct(nm, len(multi))
+            st.cnt[f"rate:{code}"] = [st.counts[code], st.n]
+            st.cnt[f"first:{code}"] = [nf, len(first)]
+            st.cnt[f"multi:{code}"] = [nm, len(multi)]
+        nh, npr = sum(1 for _, x in res if not x["any"]), sum(1 for _, x in res if x["pre_rum"])
+        st.healthy_pct = _pct(nh, st.n)
+        st.pre_rum_pct = _pct(npr, st.n)
+        st.cnt["healthy"], st.cnt["pre_rum"] = [nh, st.n], [npr, st.n]
         firsts = [x["first"] for _, x in res if x["first"] is not None]
         st.first_dim = round(statistics.mean(firsts), 1) if firsts else None
         rec = [(c, x) for c, x in res if c.t > done_end - recent]
         st.n_recent = len(rec)
-        st.healthy_recent = _pct(sum(1 for _, x in rec if not x["any"]), len(rec))
-        st.ketosis_recent = _pct(sum(1 for _, x in rec if "KETOSIS" in x["has"]), len(rec))
+        hr, kr = sum(1 for _, x in rec if not x["any"]), sum(1 for _, x in rec if "KETOSIS" in x["has"])
+        st.healthy_recent, st.ketosis_recent = _pct(hr, len(rec)), _pct(kr, len(rec))
+        st.cnt["healthy_recent"], st.cnt["ketosis_recent"] = [hr, len(rec)], [kr, len(rec)]
     # 최근 12개월 (완료 분만우)
     yres = [(c, cow(c)) for c in calvings if done_end - long < c.t <= done_end]
     st.n_year = len(yres)
     if yres:
-        st.healthy_year = _pct(sum(1 for _, x in yres if not x["any"]), len(yres))
-        st.rates_year = {code: _pct(sum(1 for _, x in yres if code in x["has"]), len(yres)) for code, _ in INDICATORS}
+        hy = sum(1 for _, x in yres if not x["any"])
+        st.healthy_year = _pct(hy, len(yres))
+        st.cnt["healthy_year"] = [hy, len(yres)]
+        for code, _ in INDICATORS:
+            k = sum(1 for _, x in yres if code in x["has"])
+            st.rates_year[code] = _pct(k, len(yres))
+            st.cnt[f"year:{code}"] = [k, len(yres)]
     # 분만월별 (완료 코호트, 최근 12개월 — 계절 비교)
     months: dict[str, list] = defaultdict(list)
     for c, x in yres:
         months[f"{c.t:%Y-%m}"].append(x)
-    st.monthly = [{"month": m, "n": len(xs), "healthy": _pct(sum(not x["any"] for x in xs), len(xs)),
-                   "ketosis": _pct(sum("KETOSIS" in x["has"] for x in xs), len(xs)),
-                   "rum": _pct(sum("RUMINATION_DROP" in x["has"] for x in xs), len(xs))}
-                  for m, xs in sorted(months.items())]
+    st.monthly = []
+    for m, xs in sorted(months.items()):
+        hn, kn, rn = (sum(not x["any"] for x in xs), sum("KETOSIS" in x["has"] for x in xs),
+                      sum("RUMINATION_DROP" in x["has"] for x in xs))
+        st.monthly.append({"month": m, "n": len(xs), "healthy": _pct(hn, len(xs)), "ketosis": _pct(kn, len(xs)),
+                           "rum": _pct(rn, len(xs)), "healthy_n": hn, "ketosis_n": kn, "rum_n": rn})
     # 현재 신선우
     for c in sorted((c for c in calvings if c.t > as_of - post), key=lambda c: c.t, reverse=True):
         evs = [(t, lbl) for t, _, lbl in ev_by_animal.get(c.animal_id, []) if c.t <= t <= as_of]
