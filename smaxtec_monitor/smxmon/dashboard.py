@@ -109,6 +109,8 @@ ul.hl{margin:0;padding-left:18px}ul.hl li{margin:3px 0}
 .tbl{width:100%;border-collapse:collapse;font-size:13px}
 .tbl th,.tbl td{padding:6px 6px;border-bottom:1px solid var(--line);text-align:center;white-space:nowrap}
 .tbl th{color:var(--sub);font-weight:600;font-size:12px;background:var(--card);position:sticky;top:0}
+.td{display:flex;gap:8px;align-items:flex-start;margin-top:7px;font-size:14px}.td .tl{flex:none;width:58px;color:var(--sub);font-size:12px;padding-top:2px}
+.td .chip{margin:0 3px 3px 0;display:inline-block}
 .af .afl{font-size:12px;color:var(--sub);margin:8px 0 2px}.af .afl:first-child{margin-top:0}
 button.ch{border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:999px;padding:4px 10px;font-size:13px;cursor:pointer;margin:2px 2px 0 0}
 button.ch.on{background:var(--navy);color:#fff;border-color:var(--navy)}
@@ -141,7 +143,7 @@ background:var(--card);color:var(--ink);font-size:14px}
 <main id="app"></main>
 <script>
 const D = __DATA__;
-const TABS = [["sum","요약표"],["farm","목장별"],["trend","7일추세"],["hist","누적·월별"],["tr","전환기"],["trial","투입비교"],["beh","그룹행동"],["clu","집단신호"]];
+const TABS = [["today","오늘 할 일"],["sum","요약표"],["farm","목장별"],["trend","7일추세"],["hist","누적·월별"],["tr","전환기"],["trial","투입비교"],["beh","그룹행동"],["clu","집단신호"]];
 const KPI = Object.keys(D.kpiLabels);
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -166,6 +168,7 @@ const store = { get(k){ try { return JSON.parse(localStorage.getItem(k)); } catc
 const st = Object.assign({ tab:"sum", grade:"전체", q:"", cat:"건강 전체", sortK:null, sortD:1, behAll:false },
                          store.get("ui") || {});
 st.q = "";
+if(!location.hash) st.tab = "today";   // 앱을 열면 항상 '오늘 할 일'부터
 const save = () => store.set("ui", {tab:st.tab, grade:st.grade, cat:st.cat, behAll:st.behAll, hcat:st.hcat, hunit:st.hunit});
 const heat = (v, mx) => v ? `background:rgba(var(--heat),${Math.min(.85, .12 + .73*v/Math.max(1,mx))})` : "";
 const go = id => { location.hash = "f=" + encodeURIComponent(id); };
@@ -277,6 +280,45 @@ function guideSection(ids){
   return `${ids.length?ids.map(id=>guideBox(id)).join(""):`<div class="empty">지금 해당하는 신호 없음</div>`}
   ${rest.length?`<details class="gd"><summary style="color:var(--sub)">다른 알림 조치 가이드 보기 (${rest.length})</summary><div class="gs">${rest.map(g=>guideBox(g.id)).join("")}</div></details>`:""}
   <div class="note">센서 알림은 의심 신호(진단 아님) · 약품 사용·치료는 반드시 수의사 진료·처방에 따름</div>`; }
+/* ───── 오늘 할 일 (첫 화면) ───── */
+const G_PRI = ["group_rum","ph_low","heat_stress","lying","sync","temp_high","rumination","ketosis","mastitis","milk_fever","drinking","activity","temp_low"];
+function oneAction(f){
+  // 집단신호가 있으면 그 내용(체온/고온/반추·pH)에 맞는 가이드를 먼저
+  const ct = f.cluster ? f.cluster.text : "", pri = [];
+  if(/고온|THI/.test(ct)) pri.push("heat_stress");
+  if(/체온|감염/.test(ct)) pri.push("temp_high");
+  if(/SARA|pH|반추/.test(ct)) pri.push("group_rum","ph_low","rumination");
+  const gid = [...pri, ...G_PRI].find(g=>(f.guides||[]).includes(g));
+  const g = gid && GD[gid];
+  if(g && g.act.length) return {title:g.title, text:g.act[0], check:g.check[0]||""};
+  const c = f.checklist[0]; return c ? {title:c.topic, text:c.text, check:""} : null;
+}
+function goAct(id){ location.hash = "f=" + encodeURIComponent(id); setTimeout(()=>{ const e=[...document.querySelectorAll('h2')].find(x=>x.textContent.includes('9. 조치')); if(e) window.scrollBy(0,e.getBoundingClientRect().top-100); }, 60); }
+function todayTab(){
+  const vis = D.farms.filter(f=>f.grade=="긴급"||f.grade=="우선");
+  const pick = [...vis, ...D.farms.filter(f=>f.grade=="관찰")].slice(0,3);
+  const pend = allActs().filter(needResult).sort((a,b)=>a.d.localeCompare(b.d));
+  const fresh = D.farms.reduce((n,f)=>n+(f.transition?f.transition.fresh.filter(x=>x.n).length:0),0);
+  return `<div class="box"><b>${D.asOf.slice(5,10).replace("-","/")}</b> 기준 · 방문 권장(긴급·우선) <b>${vis.length}곳</b> · 집단신호 <b>${D.clusters}건</b>${fresh?` · 알림 있는 신선우 <b>${fresh}두</b>`:""}${pend.length?` · 결과 입력 대기 <b class="neg">${pend.length}건</b>`:""}</div>
+  <h2>오늘 가볼 목장 ${pick.length}곳</h2>
+  ${pick.length?pick.map((f,i)=>{ const a=oneAction(f), cows=f.animals.slice(0,3);
+    return `<div class="card g-${f.grade}" style="cursor:default">
+     <div class="row"><div class="name">${i+1}. ${esc(f.name)}</div><span class="badge">${f.grade} ${f.score}점</span></div>
+     <div class="meta">${esc(f.headline[0]||"")}${f.reasons.length?` · ${f.reasons.slice(0,2).map(esc).join(" · ")}`:""}</div>
+     <div class="td"><span class="tl">볼 개체</span>${cows.length?cows.map(c=>`<span class="chip"><b>${esc(c.label)}</b> ${esc(c.types)}</span>`).join(" "):'<span class="meta">특정 개체 없음(그룹·환경 신호)</span>'}</div>
+     ${a?`<div class="td"><span class="tl">할 조치</span><span><b>${esc(a.title)}</b> — ${esc(a.text)}${a.check?`<br><small class="cn">먼저 확인: ${esc(a.check)}</small>`:""}</span></div>`:""}
+     <div class="row" style="justify-content:flex-start;gap:6px;margin-top:8px">
+      <button type="button" class="ch" onclick="go('${f.id}')">목장 상세 ›</button>
+      <button type="button" class="ch on" onclick="goAct('${f.id}')">조치 기록하기</button></div></div>`; }).join("")
+   :`<div class="empty">오늘은 방문이 필요한 목장이 없습니다 — 정기 방문 일정대로</div>`}
+  ${pend.length?`<h2>결과 입력 대기 (조치 후 7일 지남)</h2>
+   ${pend.slice(0,8).map(x=>`<div class="box" style="margin-bottom:6px"><b>${esc(x.fname)}</b> · ${x.d.slice(5)} <small class="cn">(${daysAgo(x.d)}일 전)</small> · ${esc(x.target)}
+    <div class="meta">${x.acts.map(esc).join(", ")}${x.memo?` — ${esc(x.memo)}`:""}</div>
+    <div>${(isCow(x)?RES_COW:RES_FARM).map(r=>chip(false,r,`actRes('${x.k}','${r}')`)).join("")}</div></div>`).join("")}
+    ${pend.length>8?`<div class="note">외 ${pend.length-8}건 — 각 목장 상세 '9. 조치·결과 기록'에서</div>`:""}`:""}
+  <div class="note">순서 = 방문 우선순위 점수(긴급 → 우선 → 관찰) · 할 조치 = 지금 신호에 맞는 조치 가이드의 첫 항목(전체는 목장 상세 7번) · 센서 신호 기반(진단 아님)</div>`;
+}
+
 /* ───── 조치·결과 기록 (act:<목장>:<id> 1건 = 1키, 기기 간 동기화) ───── */
 const ACTS = ["사료 배합 조정","급여·TMR 관리","조사료 교체·점검","첨가제 투입","음수 개선","우사 환경 개선","해충 방제",
               "과밀 완화·그룹 재편","개체 격리·집중 관찰","수의사 진료 의뢰","삭제·발굽 관리","기타"];
@@ -588,7 +630,7 @@ function render(keepFocus){
   if(m) st.tab = "farm";
   $("#tabs").innerHTML = TABS.map(([k,l])=>`<button class="${st.tab==k?'on':''}" onclick="setTab('${k}')">${l}${k=='clu'&&D.clusters?` ${D.clusters}`:""}</button>`).join("");
   const pos = keepFocus ? document.activeElement?.selectionStart : null;
-  const view = {sum:sumTab, trend:trendTab, hist:histTab, tr:trTab, trial:trialTab, beh:behTab, clu:cluTab}[st.tab];
+  const view = {today:todayTab, sum:sumTab, trend:trendTab, hist:histTab, tr:trTab, trial:trialTab, beh:behTab, clu:cluTab}[st.tab];
   $("#app").innerHTML = st.tab=="farm" ? farmTab(m ? decodeURIComponent(m[1]) : null)
     : view() + `<div class="foot">센서 알림·행동지표 기반 선별 자료(진단 아님) · 외부 공유 금지</div>`;
   if(keepFocus){ const i=$("input[type=search]"); if(i){ i.focus(); i.setSelectionRange(pos,pos); } }
