@@ -149,6 +149,7 @@ def test_dhi_upload_and_link(tmp_path):
     build_demo(tmp_path / "d.db", as_of)
     c = sqlite3.connect(tmp_path / "d.db")
     fid = "1001"
+    c.execute("DELETE FROM dhi")      # 데모 검정성적 비우고 시험
     for aid in {r[0] for r in c.execute("SELECT animal_id FROM alerts WHERE farm_id=?", (fid,))}:   # 데모엔 개체표가 없어 만들어 넣음
         c.execute("INSERT OR REPLACE INTO animals VALUES (?,?,?,?,?,?,?,?)", (fid, aid, f"KR00212{aid:0>7}", f"c{aid}", "착유우", "", 1, "x"))
     animals = c.execute("SELECT animal_id, label FROM animals WHERE farm_id=? AND label IS NOT NULL", (fid,)).fetchall()
