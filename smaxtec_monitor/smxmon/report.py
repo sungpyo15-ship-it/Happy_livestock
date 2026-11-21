@@ -285,15 +285,45 @@ def build_excel(an: Analysis, mapper: AlertTypeMapper, rules: dict[str, Any], ou
         c = wg.cell(row=i, column=2, value=v)
         c.font, c.alignment = BODY_FONT, Alignment(wrap_text=True, vertical="top")
 
+    _guide_sheet(wb, an)
+
     for sh in wb.worksheets:  # 인쇄: 가로, 너비 1페이지 맞춤
         sh.page_setup.orientation = "landscape"
         sh.page_setup.paperSize = sh.PAPERSIZE_A4
         sh.sheet_properties.pageSetUpPr.fitToPage = True
         sh.page_setup.fitToWidth, sh.page_setup.fitToHeight = 1, 0
-        sh.print_title_rows = "4:4" if sh.title != "기준설명" else None
+        sh.print_title_rows = "4:4" if sh.title not in ("기준설명", "조치가이드") else None
     out_path.parent.mkdir(parents=True, exist_ok=True)
     wb.save(out_path)
     return out_path
+
+
+def _guide_sheet(wb, an: Analysis) -> None:
+    """조치 가이드 전체 + 지금 해당 목장 (config/actions.toml — 수의사 검토용으로도 사용)."""
+    from .actions import farm_guides, guides
+    gs = guides()
+    if not gs:
+        return
+    ws = wb.create_sheet("조치가이드")
+    ws.cell(row=1, column=1, value="알림별 조치 가이드 — 확인 → 바로 할 조치(사양·환경) → 수의사 연락 기준").font = Font(name=FONT, bold=True, size=13)
+    ws.cell(row=2, column=1, value="센서 알림은 의심 신호(진단 아님). 약품 사용·치료는 수의사 진료·처방에 따름. "
+            "내용 수정: config/actions.toml").font = Font(name=FONT, size=9, color="7F7F7F")
+    hits = {g["id"]: [] for g in gs}
+    for f in an.farms:
+        for i in farm_guides(f):
+            hits.setdefault(i, []).append(f.name)
+    _header(ws, 4, ["알림", "① 먼저 확인", "② 바로 할 조치 (사양·환경)", "③ 수의사 연락 기준", "지금 해당 목장"],
+            [16, 52, 46, 36, 22])
+    for r, g in enumerate(gs, 5):
+        _row(ws, r, [g["title"], "\n".join("· " + x for x in g["check"]), "\n".join("· " + x for x in g["act"]),
+                     "\n".join("· " + x for x in g["vet"]) or "-", ", ".join(hits.get(g["id"], [])) or "-"],
+             wrap_cols={2, 3, 4, 5})
+        ws.cell(row=r, column=1).font = Font(name=FONT, bold=True, size=10)
+        for c in (2, 3, 4, 5):
+            ws.cell(row=r, column=c).alignment = Alignment(vertical="top", wrap_text=True)
+        lines = max(sum(-(-len("· " + x) * 18 // (w * 10)) for x in xs) or 1
+                    for xs, w in ((g["check"], 52), (g["act"], 46), (g["vet"], 36)))
+        ws.row_dimensions[r].height = min(400, 14 * lines + 6)
 
 
 def _history_sheet(wb, an: Analysis) -> None:

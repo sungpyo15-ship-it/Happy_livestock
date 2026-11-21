@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from .actions import guides
 from .analysis import Analysis
 from .normalize import AlertTypeMapper
 from .pwa import write_pwa
@@ -33,6 +34,7 @@ def build_dashboard(an: Analysis, mapper: AlertTypeMapper, out_path: Path) -> Pa
         "months": f0.history.months if f0 and f0.history else [],
         "hbench": an.history_bench,
         "trials": [trial_payload(r) for r in getattr(an, "trials", [])],
+        "guides": list(guides()),
     }
     blob = json.dumps(data, ensure_ascii=False, default=str).replace("</", "<\\/")
     out_path.parent.mkdir(parents=True, exist_ok=True)
@@ -107,6 +109,10 @@ ul.hl{margin:0;padding-left:18px}ul.hl li{margin:3px 0}
 .tbl{width:100%;border-collapse:collapse;font-size:13px}
 .tbl th,.tbl td{padding:6px 6px;border-bottom:1px solid var(--line);text-align:center;white-space:nowrap}
 .tbl th{color:var(--sub);font-weight:600;font-size:12px;background:var(--card);position:sticky;top:0}
+details.gd{background:var(--card);border:1px solid var(--line);border-radius:12px;margin-bottom:6px}
+details.gd summary{padding:10px 12px;cursor:pointer;font-weight:700}details.gd[open] summary{border-bottom:1px solid var(--line)}
+.gs{padding:8px 12px 4px;font-size:14px}.gs ul{margin:2px 0 10px;padding-left:18px}.gs li{margin:2px 0}
+.gs .h1{color:var(--navy)}.gs .h2{color:var(--ok)}.gs .h3{color:var(--urgent)}
 .tbl td.l,.tbl th.l{text-align:left}.tbl td.wrap{white-space:normal;text-align:left;min-width:180px}
 .tbl tr.click{cursor:pointer}.tbl tr.click:hover td{background:var(--sel)}
 .tbl th.sort{cursor:pointer}.tbl th.sort:after{content:" ↕";opacity:.4}
@@ -246,12 +252,24 @@ function detail(id){
   <h2>6. 최근 24시간 알림 (${f.alerts24.length}건)</h2>${f.alerts24.length?`<div class="scroll" style="max-height:320px;overflow:auto"><table class="tbl"><tr><th>발생</th><th class="l">개체</th><th class="l">알림</th><th>상태</th><th>코드</th></tr>
   ${f.alerts24.map(a=>`<tr><td>${a.t}</td><td class="l"><b>${esc(a.animal)}</b></td><td class="l">${esc(a.type)}</td><td>${esc(a.status)}</td><td style="color:var(--sub)">${esc(a.raw)}</td></tr>`).join("")}</table></div>`
   :`<div class="empty">없음</div>`}
-  <h2>7. 현장 점검 체크리스트</h2><div class="box">${f.checklist.map((c,i)=>`<label class="ck"><input type="checkbox" ${ck[i]?"checked":""}
+  <h2>7. 조치 가이드 — 지금 해당 신호 ${(f.guides||[]).length}개</h2>${guideSection(f.guides||[])}
+  <h2>8. 현장 점검 체크리스트</h2><div class="box">${f.checklist.map((c,i)=>`<label class="ck"><input type="checkbox" ${ck[i]?"checked":""}
    onchange="tick('${f.id}',${i},this.checked)"><div><b>${esc(c.topic)}</b><span>${esc(c.text)}</span></div></label>`).join("")}</div>
   <h2>메모</h2><textarea placeholder="농장주 의견·조치·다음 방문 (${CLOUD?"휴대폰·PC 모두에 자동 저장":"이 기기에만 저장"})" oninput="store.set('memo:${f.id}',this.value)">${esc(memo)}</textarea>
   <div class="note" id="syncst">${CLOUD?"휴대폰·PC 모두에 자동 저장됩니다":"이 기기에만 저장됩니다"}</div>
   <div class="foot">센서 알림·행동지표 기반 선별 자료(진단 아님) · 목장 데이터 외부 공유 금지</div>`;
 }
+const GD = Object.fromEntries((D.guides||[]).map(g=>[g.id,g]));
+const flagGuide = x => x.startsWith("누운 시간")?"lying":x.startsWith("함께 눕기")?"sync":x.startsWith("반추")?"group_rum":null;
+const gList = (cls, t, xs) => xs.length?`<b class="${cls}">${t}</b><ul>${xs.map(x=>`<li>${esc(x)}</li>`).join("")}</ul>`:"";
+function guideBox(id, open){ const g=GD[id]; if(!g) return "";
+  return `<details class="gd"${open?" open":""}><summary>${esc(g.title)}</summary><div class="gs">
+  ${gList("h1","① 먼저 확인",g.check)}${gList("h2","② 바로 할 조치 (사양·환경)",g.act)}${gList("h3","③ 수의사 연락 기준",g.vet)}</div></details>`; }
+function guideSection(ids){
+  const rest = (D.guides||[]).filter(g=>!ids.includes(g.id));
+  return `${ids.length?ids.map(id=>guideBox(id)).join(""):`<div class="empty">지금 해당하는 신호 없음</div>`}
+  ${rest.length?`<details class="gd"><summary style="color:var(--sub)">다른 알림 조치 가이드 보기 (${rest.length})</summary><div class="gs">${rest.map(g=>guideBox(g.id)).join("")}</div></details>`:""}
+  <div class="note">센서 알림은 의심 신호(진단 아님) · 약품 사용·치료는 반드시 수의사 진료·처방에 따름</div>`; }
 function tick(id,i,v){ const k=`ck:${id}:${day}`, o=store.get(k)||{}; o[i]=v; store.set(k,o); }
 
 /* ───── 7일추세 ───── */
@@ -287,7 +305,9 @@ function behTab(){
   ${show.map(({f,g})=>`<tr class="click" onclick="go('${f.id}')"><td class="l stick">${esc(f.name)}</td><td class="l">${esc(g.name)}</td><td>${g.n??""}</td>
   <td>${g.rum??"-"}</td><td>${g.rum7??"-"}</td><td class="${g.drum<0?'neg':''}">${sgn(g.drum)}</td><td>${g.lying_h??"-"}</td><td>${sgn(g.dlying)}</td>
   <td>${g.share??"-"}</td><td>${g.sync??"-"}</td><td class="wrap flag">${g.flags.map(esc).join(", ")}</td></tr>`).join("")}</table></div>`
-  : `<div class="empty">해당 그룹 없음</div>`}`;
+  : `<div class="empty">해당 그룹 없음</div>`}
+  ${(()=>{ const ids=[...new Set(show.flatMap(r=>r.g.flags.map(flagGuide)).filter(Boolean))].filter(id=>GD[id]);
+     return ids.length?`<h2>조치 가이드 — 위 판정 관련</h2>${ids.map(id=>guideBox(id)).join("")}<div class="note">약품 사용·치료는 반드시 수의사 진료·처방에 따름</div>`:""; })()}`;
 }
 
 /* ───── 누적·월별 ───── */

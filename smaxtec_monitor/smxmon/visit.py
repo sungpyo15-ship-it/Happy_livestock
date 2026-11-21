@@ -12,6 +12,7 @@ from openpyxl.chart import BarChart, Reference
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.workbook import Workbook
 
+from .actions import farm_guides, guides
 from .analysis import Analysis, FarmSummary
 from .normalize import AlertTypeMapper
 
@@ -114,6 +115,7 @@ def farm_payload(s: FarmSummary, an: Analysis, mapper: AlertTypeMapper, bench: d
         "animals": [{"label": a["label"], "status": a["status"], "n": a["n"], "types": a["types"],
                      "last": f"{a['last']:%m/%d %H:%M}"} for a in s.top_animals],
         "checklist": [{"topic": t, "text": x} for t, x in checklist(s)],
+        "guides": farm_guides(s),
         "row": {"surge": s.surge, "cluster_n": s.cluster.n_animals if s.cluster else 0, "long": s.long_active,
                 "per100": s.per100, "c": {c: s.counts_d0.get(c, 0) for c in KPI_TYPES}},
         "transition": _transition_payload(s.transition),
@@ -318,6 +320,20 @@ def add_visit_sheet(wb: Workbook, s: FarmSummary, an: Analysis, mapper: AlertTyp
         _merge_text(ws, row, text, size=8, col1=3, height=26 if len(text) > 60 else 15)
         row += 1
     row += 1
+    gd = {g["id"]: g for g in guides()}
+    ids = [i for i in farm_guides(s) if i in gd and i not in ("calving", "heat")][:5]   # 1장 유지: 번식 항목 제외
+    if ids:
+        row = _section(ws, row, "조치 가이드 (확인 → 조치 → 수의사 연락 기준 · 약품·치료는 수의사 처방에 따름)")
+        for i in ids:
+            g = gd[i]
+            text = " · ".join(x for x in (
+                ("확인: " + " / ".join(g["check"][:2])) if g["check"] else "",
+                ("조치: " + " / ".join(g["act"][:2])) if g["act"] else "",
+                ("수의사: " + " / ".join(g["vet"][:1])) if g["vet"] else "") if x)
+            _merge_text(ws, row, g["title"], bold=True, size=8.5, col2=2)
+            _merge_text(ws, row, text, size=7.5, col1=3, height=max(15, 12 * (len(text) // 70 + 1)))
+            row += 1
+        row += 1
     row = _section(ws, row, "메모 (농장주 의견·조치·다음 방문)")
     for _ in range(4):
         for col in range(1, COLS + 1):

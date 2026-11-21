@@ -136,3 +136,18 @@ def test_counts_are_animals_not_events(db, mapper):
     _seed(db, [(f"c{k}", "TEMP_HIGH", NOW - timedelta(hours=2 + k)) for k in range(5)])
     f = analyze(db.conn, NOW, mapper, rules).farms[0]
     assert f.health_d0 == 6 and f.surge
+
+
+def test_action_guides():
+    from types import SimpleNamespace as NS
+    from smxmon.actions import farm_guides, flag_guide, guides
+    gs = guides()
+    ids = {g["id"] for g in gs}
+    assert {"temp_high", "lying", "sync", "group_rum"} <= ids
+    assert all(g["check"] and g["act"] for g in gs)
+    lying = next(g for g in gs if g["id"] == "lying")
+    assert any("침파리" in x for x in lying["check"] + lying["act"])
+    g = NS(flags=["누운 시간 부족 8.4h(기준 9h)"], rum_flag=False)
+    s = NS(counts_72h={"TEMP_HIGH": 2, "PH_LOW": 0}, counts_d0={}, cluster=None, behaviour=[g])
+    assert farm_guides(s) == ["temp_high", "lying"]
+    assert flag_guide("함께 눕기 감소 -12%p") == "sync"
