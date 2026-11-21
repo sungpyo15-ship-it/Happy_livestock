@@ -138,3 +138,45 @@ def test_validate_backtest(tmp_path):
     g = {r[0].value: r for r in wb["등급·신호별"].iter_rows(min_row=2) if r[0].value}
     assert g["긴급"][3].value > g["정상"][3].value          # 진단두수/100두
     assert "오경보 표시 1건" in text and "진단" in text
+
+
+def test_dhi_upload_and_link(tmp_path):
+    """검정성적: 머리글 자동 인식(개/ml 체세포, 소수 유지방), 개체 연결, 알림 소 유량 차이·손실 추정."""
+    import sqlite3
+    from openpyxl import Workbook
+    from smxmon.dhi import farm_dhi, parse, store_rows
+    as_of = datetime(2026, 11, 20, 6, 0)
+    build_demo(tmp_path / "d.db", as_of)
+    c = sqlite3.connect(tmp_path / "d.db")
+    fid = "1001"
+    for aid in {r[0] for r in c.execute("SELECT animal_id FROM alerts WHERE farm_id=?", (fid,))}:   # 데모엔 개체표가 없어 만들어 넣음
+        c.execute("INSERT OR REPLACE INTO animals VALUES (?,?,?,?,?,?,?,?)", (fid, aid, f"KR00212{aid:0>7}", f"c{aid}", "착유우", "", 1, "x"))
+    animals = c.execute("SELECT animal_id, label FROM animals WHERE farm_id=? AND label IS NOT NULL", (fid,)).fetchall()
+    alerted = {r[0] for r in c.execute("SELECT DISTINCT animal_id FROM alerts WHERE farm_id=? AND alert_type IN "
+                                       "('TEMP_HIGH','RUMINATION_DROP') AND occurred_at > '2026-10-06' AND occurred_at <= '2026-11-06'", (fid,))}
+    wb = Workbook()
+    ws = wb.active
+    ws.append(["2026년 11월 검정성적표"])
+    ws.append(["관리번호", "산차", "비유일수", "305일유량", "유량(kg)", "유지방률", "유단백(%)", "체세포수", "MUN"])
+    for i, (aid, lab) in enumerate(animals):
+        milk = 30 if aid in alerted else 36
+        ws.append([lab, 2, 40 + (i % 4) * 80, 11000, milk, 0.040, 3.2, 150000 + i * 1000, 13])
+    ws.append(["합계", None, None, None, None])
+    wb.save(tmp_path / "dhi.xlsx")
+    p = parse(tmp_path / "dhi.xlsx", "2026-11-05")
+    assert p["found"]["milk"] == "유량(kg)" and p["found"]["label"] == "관리번호"       # 305일유량 무시
+    assert p["test_date"] == "2026-11-05" and len(p["rows"]) == len(animals)
+    assert abs(p["rows"][0]["fat"] - 4.0) < 0.01 and p["rows"][0]["scc"] == 150     # 0.04→4.0%, 개/ml→천
+    st = store_rows(c, fid, p)
+    assert st["matched"] == len(animals)
+    d = farm_dhi(c, fid, {"TEMP_HIGH", "RUMINATION_DROP"}, 1100)
+    t = d["tests"][-1]
+    assert t["alert_cows"] > 0 and t["milk_diff"] == -6.0 and t["loss_month"] > 0
+    c.row_factory = sqlite3.Row
+    an = analyze(c, as_of, AlertTypeMapper(load_toml("alert_types.toml")), load_toml("rules.toml"))
+    c.close()
+    f = next(s for s in an.farms if s.farm_id == fid)
+    assert f.dhi["tests"][-1]["n"] == len(animals)
+    from smxmon.report import build_excel
+    out = build_excel(an, AlertTypeMapper(load_toml("alert_types.toml")), load_toml("rules.toml"), tmp_path / "r.xlsx")
+    assert openpyxl.load_workbook(out)["검정성적"]["A5"].value

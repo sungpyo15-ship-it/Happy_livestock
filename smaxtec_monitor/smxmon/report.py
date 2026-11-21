@@ -217,6 +217,7 @@ def build_excel(an: Analysis, mapper: AlertTypeMapper, rules: dict[str, Any], ou
 
     # ───── 3-3. 전환기 ─────
     _transition_sheet(wb, an, rules)
+    _dhi_sheet(wb, an)
 
     # ───── 3-4. 투입비교 목록 ─────
     if getattr(an, "trials", None):
@@ -395,6 +396,30 @@ def _history_sheet(wb, an: Analysis) -> None:
     if rr > r + 2:
         ws.conditional_formatting.add(f"C{r + 2}:{get_column_letter(2 + len(labels))}{rr - 1}", ColorScaleRule(
             start_type="num", start_value=0, start_color="FFFFFF", end_type="percentile", end_value=98, end_color="F8696B"))
+
+
+def _dhi_sheet(wb, an: Analysis) -> None:
+    farms = [f for f in an.farms if f.dhi and f.dhi.get("tests")]
+    if not farms:
+        return
+    ws = wb.create_sheet("검정성적")
+    price = farms[0].dhi["milk_price"]
+    _title(ws, "검정성적·경제성 — 목장별 최근 검정",
+           f"알림 소 유량 차이 = 검정일 전 30일 안에 건강알림이 있던 소 − 없던 소(비유일수 구간별 비교). 월 손실 = 차이 × 해당 두수 × 30일 × {price:,.0f}원/kg (추정). "
+           "연관 관계이지 인과 아님 · F/P>1.5(분만 60일 내) 케토시스 위험, F/P<1.0 산독증 위험 지표")
+    hdr = ["목장", "검정일", "검정 두수", "센서 연결", "유량 kg", "유지방 %", "유단백 %", "F/P", "초기 F/P>1.5 %", "F/P<1.0 %",
+           "체세포 천", "체세포20만↑ %", "MUN", "알림 소", "알림 소 유량차 kg", "월 손실 추정(만원)", "직전 검정 대비 유량"]
+    _header(ws, 4, hdr, [18, 11, 8, 8, 8, 8, 8, 7, 10, 9, 9, 10, 7, 7, 11, 11, 11])
+    r = 5
+    for f in sorted(farms, key=lambda f: -(f.dhi["tests"][-1].get("loss_month") or 0)):
+        ts = f.dhi["tests"]
+        t, prev = ts[-1], (ts[-2] if len(ts) > 1 else None)
+        dm = round(t["milk"] - prev["milk"], 1) if prev and t["milk"] is not None and prev["milk"] is not None else None
+        _row(ws, r, [f.name, t["date"], t["n"], t["matched"], t["milk"], t["fat"], t["protein"], t["fp"], t["fp_high_early"],
+                     t["fp_low"], t["scc"], t["scc200"], t["mun"], t["alert_cows"], t["milk_diff"], t["loss_month"], dm])
+        ws.cell(row=r, column=1).alignment = Alignment(horizontal="left")
+        r += 1
+    ws.freeze_panes = "B5"
 
 
 def _transition_sheet(wb, an: Analysis, rules: dict[str, Any]) -> None:

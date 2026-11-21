@@ -250,6 +250,7 @@ function detail(id){
   :`<div class="empty">행동 데이터 없음</div>`}
   ${histSection(f)}
   ${trSection(f)}
+  ${dhiSection(f)}
   ${D.trials.filter(t=>t.farm_id==f.id).length?`<h2>투입 전후 비교</h2>${D.trials.filter(t=>t.farm_id==f.id).map(trialCard).join("")}`:""}
   <h2>5. 확인할 개체 (최근 72시간)</h2>${f.animals.length?`<div class="scroll"><table class="tbl"><tr><th class="l">개체</th><th>상태</th><th>알림수</th><th class="l">알림 종류</th><th>마지막</th></tr>
   ${f.animals.map(a=>`<tr><td class="l"><b>${esc(a.label)}</b></td><td>${esc(a.status||"-")}</td><td>${a.n}</td><td class="wrap">${esc(a.types)}</td><td>${a.last}</td></tr>`).join("")}</table></div>`
@@ -471,6 +472,30 @@ function trTab(){
    <td class="wrap flag">${t.flags.map(esc).join("<br>")}${t.small&&t.n?'<span style="color:var(--sub)">분만 적음(참고)</span>':""}</td></tr>`;}).join("")}
   </table></div>` : `<div class="empty">분만 기록 없음 (과거 1년 이력 수집 후 계산)</div>`}
   <div class="note">발생률 = 분만 후 21일 안에 해당 알림이 1번 이상 나온 두수 ÷ 분만 두수 · 작은 숫자 = 해당 두수/분만 두수 · 센서 '의심' 알림 기준(진단 아님) · 담당 목장 간 비교용</div>`;
+}
+function dhiSection(f){
+  const d=f.dhi;
+  if(!d) return `<h2>4-3. 검정성적·경제성</h2><div class="note">검정성적 엑셀을 올리면(${CLOUD?"계정 → 검정성적 올리기":"명령: python -m smxmon dhi 파일 --farm 목장이름"}) 유량·유성분·체세포를 알림과 연결해 유량 손실을 추정합니다.</div>`;
+  const T=d.tests, f1=(v,k=1)=>v==null?"-":(+v).toFixed(k);
+  const row=(l,fn,cls)=>`<tr><td class="l">${l}</td>${T.map(t=>`<td${cls?` class="${cls(t)||''}"`:""}>${fn(t)}</td>`).join("")}</tr>`;
+  const last=T[T.length-1];
+  return `<h2>4-3. 검정성적·경제성 <small style="color:var(--sub);font-weight:400">최근 ${T.length}회 · 원유 ${d.milk_price.toLocaleString()}원/kg 가정</small></h2>
+  <div class="scroll"><table class="tbl"><tr><th class="l">검정일</th>${T.map(t=>`<th>${t.date.slice(2)}</th>`).join("")}</tr>
+   ${row("검정 두수 (센서 연결)",t=>`${t.n} <small class="cn">${t.matched}</small>`)}
+   ${row("평균 유량 kg",t=>`<b>${f1(t.milk)}</b>`)}
+   ${row("유지방 %",t=>f1(t.fat,2))}${row("유단백 %",t=>f1(t.protein,2))}
+   ${row("유지방/유단백",t=>f1(t.fp,2))}
+   ${row("분만 60일 내 F/P>1.5 %",t=>f1(t.fp_high_early),t=>t.fp_high_early>=40?"neg":"")}
+   ${row("F/P<1.0 %",t=>f1(t.fp_low),t=>t.fp_low>=15?"neg":"")}
+   ${row("체세포 천/ml",t=>f1(t.scc,0))}${row("체세포 20만↑ %",t=>f1(t.scc200),t=>t.scc200>=20?"neg":"")}
+   ${row("MUN mg/dl",t=>f1(t.mun))}
+   ${row("검정 전 30일 알림 소",t=>t.alert_cows??"-")}
+   ${row("알림 소 유량 차이 kg",t=>t.milk_diff==null?"-":(t.milk_diff>0?"+":"")+t.milk_diff,t=>t.milk_diff<0?"neg":"")}
+   ${row("월 손실 추정 (만원)",t=>t.loss_month==null?"-":`<b>${t.loss_month}</b>`)}
+   ${row("체세포: 유방염알림 소 / 나머지",t=>t.scc_mastitis?`${t.scc_mastitis[0]} / ${t.scc_mastitis[1]}`:"-")}
+  </table></div>
+  <div class="note">${last.milk_diff!=null&&last.milk_diff<0?`최근 검정: 알림 소 ${last.alert_cows}두가 같은 비유 시기 소보다 하루 ${-last.milk_diff}kg 적음 → 월 약 ${last.loss_month}만원(추정). `:""}
+  유량 차이 = 검정일 전 30일 안에 건강알림이 있던 소 − 없던 소(비유일수 구간별로 맞춰 비교) · 원래 유량이 낮은 소가 알림도 많을 수 있어 인과가 아닌 연관 · F/P>1.5 = 케토시스 위험, F/P<1.0 = 산독증 위험 지표(참고 기준)</div>`;
 }
 function trSection(f){
   const t=f.transition, b=D.tbench; if(!t) return "";

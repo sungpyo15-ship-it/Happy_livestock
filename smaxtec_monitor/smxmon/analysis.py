@@ -93,11 +93,13 @@ class FarmSummary:
     grade: str = "정상"
     reasons: list[str] = field(default_factory=list)
     behaviour: list[GroupBehaviour] = field(default_factory=list)
+    dhi: dict | None = None            # 검정성적 연결(dhi.py)
     top_animals: list[dict[str, Any]] = field(default_factory=list)   # 최근 72h 건강알림 다발 개체
     # 7일 추세(두수): {구분: {날짜: 두수}}, {구분: 7일 합산 두수(중복 제외)}. 마지막 구분 = "건강 전체"
     trend_types: dict[str, dict[date, int]] = field(default_factory=dict)
     trend_types_total: dict[str, int] = field(default_factory=dict)
     transition: Any = None   # transition.TransitionStats
+    dhi: dict | None = None  # 검정성적 연결 (dhi.farm_dhi)
     history: Any = None      # history.FarmHistory (30·90일 누적, 12개월 월별)
     counts_72h: dict[str, int] = field(default_factory=dict)
 
@@ -492,6 +494,12 @@ def analyze(conn: sqlite3.Connection, as_of: datetime, mapper: AlertTypeMapper, 
                 s.grade = ("긴급" if s.score >= pr["urgent"] else "우선" if s.score >= pr["high"]
                            else "관찰" if s.score >= pr["watch"] else "정상")
                 s.reasons.append(s.transition.flags[0])
+
+    # 검정성적(올린 목장만)
+    from .dhi import farm_dhi
+    price = float(rules.get("economics", {}).get("milk_price", 1100))
+    for s in summaries:
+        s.dhi = farm_dhi(conn, s.farm_id, health, price)
 
     summaries.sort(key=lambda x: (-x.score, -x.health_d0, x.name))
 

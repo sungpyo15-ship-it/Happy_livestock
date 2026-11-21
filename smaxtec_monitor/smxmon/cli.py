@@ -253,6 +253,30 @@ def cmd_validate(s, args) -> int:
     return 0
 
 
+def cmd_dhi(s, args) -> int:
+    """검정성적 엑셀 올리기 (PC)."""
+    import sqlite3
+    from pathlib import Path
+    from .dhi import parse, store_rows
+    if not s.db_path.exists():
+        print("DB 가 없습니다 (먼저 collect)")
+        return 1
+    conn = sqlite3.connect(s.db_path, timeout=60)
+    farms = [r for r in conn.execute("SELECT farm_id, name FROM farms") if args.farm in r[1] or args.farm == r[0]]
+    if len(farms) != 1:
+        print("목장을 하나로 정할 수 없습니다:", [r[1] for r in farms] or "없음")
+        return 1
+    p = parse(Path(args.file), args.date)
+    if not p["rows"] or not p["test_date"]:
+        print("읽기 실패:", p["warnings"] or "검정일 없음(--date 로 입력)")
+        return 1
+    st = store_rows(conn, farms[0][0], p, args.date)
+    print(f"{farms[0][1]} · 검정일 {p['test_date']} · {st['rows']}두 저장(센서 개체 연결 {st['matched']}두) · 찾은 열 {p['found']}"
+          + (f" · 경고 {p['warnings']}" if p["warnings"] else ""))
+    print("다음 report 때 앱 목장 상세 '4-3. 검정성적·경제성'에 반영됩니다.")
+    return 0
+
+
 def cmd_demo(s, args) -> int:
     from .collector import now_local
     from .demo import build_demo
@@ -295,6 +319,10 @@ def main(argv: list[str] | None = None) -> int:
     ps.add_argument("--port", type=int, default=8765)
     sub.add_parser("trials-file", help="투입기록.xlsx 열기(사료·첨가제 투입 전후 비교 입력)")
     sub.add_parser("status")
+    pdh = sub.add_parser("dhi", help="검정성적 엑셀 올리기")
+    pdh.add_argument("file")
+    pdh.add_argument("--farm", required=True, help="목장 이름(일부) 또는 ID")
+    pdh.add_argument("--date", help="검정일 YYYY-MM-DD (파일에 없을 때)")
     pval = sub.add_parser("validate", help="판정 기준 검증(과거 판정 vs 이후 진단 기록)")
     pval.add_argument("--days", type=int, default=365)
     pval.add_argument("--anon", action="store_true")
@@ -307,7 +335,7 @@ def main(argv: list[str] | None = None) -> int:
     setup_logging(s.log_dir, s.secrets(), args.verbose)
     handler = {"api-test": cmd_api_test, "init": cmd_init, "inspect": cmd_inspect, "collect": cmd_collect, "report": cmd_report,
                "status": cmd_status, "visit": cmd_visit, "serve": cmd_serve,
-               "trials-file": cmd_trials_file, "demo": cmd_demo, "validate": cmd_validate}[args.cmd]
+               "trials-file": cmd_trials_file, "demo": cmd_demo, "validate": cmd_validate, "dhi": cmd_dhi}[args.cmd]
     try:
         return handler(s, args)
     except ConfigError as e:

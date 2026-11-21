@@ -116,6 +116,7 @@ def farm_payload(s: FarmSummary, an: Analysis, mapper: AlertTypeMapper, bench: d
                      "last": f"{a['last']:%m/%d %H:%M}"} for a in s.top_animals],
         "checklist": [{"topic": t, "text": x} for t, x in checklist(s)],
         "guides": farm_guides(s),
+        "dhi": s.dhi,
         "row": {"surge": s.surge, "cluster_n": s.cluster.n_animals if s.cluster else 0, "long": s.long_active,
                 "per100": s.per100, "c": {c: s.counts_d0.get(c, 0) for c in KPI_TYPES}},
         "transition": _transition_payload(s.transition),

@@ -97,8 +97,31 @@ def build_demo(db_path: Path, as_of: datetime, days: int = 10, seed: int = 7) ->
         _demo_behaviour(db, farms, as_of, 45, rnd)
         _demo_transition(db, farms, as_of, rnd)
         _demo_year_alerts(db, farms, as_of, rnd)
+        _demo_dhi(db, farms, as_of, rnd)
         db.commit()
     return db_path
+
+
+def _demo_dhi(db: Database, farms, as_of: datetime, rnd: random.Random) -> None:
+    """검정성적 데모: 매달 5일 검정 3회(가나·다라). 검정 전 30일 건강알림 소는 유량이 약간 낮게."""
+    from .dhi import ensure_schema
+    ensure_schema(db.conn)
+    for fid, *_ in farms[:2]:
+        ids = sorted({r[0] for r in db.conn.execute("SELECT animal_id FROM alerts WHERE farm_id=?", (fid,))})
+        for k in (2, 1, 0):
+            m = (as_of.replace(day=5) - timedelta(days=30 * k))
+            td = m.strftime("%Y-%m-05")
+            sick = {r[0] for r in db.conn.execute(
+                "SELECT animal_id FROM alerts WHERE farm_id=? AND alert_type IN ('TEMP_HIGH','RUMINATION_DROP','PH_LOW') "
+                "AND occurred_at > ? AND occurred_at <= ?", (fid, f"{m - timedelta(days=30):%Y-%m-%d} 00:00:00", f"{td} 23:59:59"))}
+            for aid in ids:
+                dim = rnd.randint(5, 380)
+                base = 40 - 0.03 * max(0, dim - 60) + rnd.gauss(0, 3)
+                milk = round(base - (rnd.uniform(1.5, 4) if aid in sick else 0), 1)
+                fat = round(rnd.gauss(4.4 if dim < 60 else 3.9, 0.35), 2)
+                db.conn.execute("INSERT OR REPLACE INTO dhi VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                                (fid, td, aid, aid, aid, rnd.randint(1, 5), dim, max(8, milk), fat, round(rnd.gauss(3.25, 0.15), 2),
+                                 round(max(20, rnd.lognormvariate(4.6, 0.9))), round(rnd.gauss(14, 2), 1), "demo"))
 
 
 def _demo_behaviour(db: Database, farms, as_of: datetime, days: int, rnd: random.Random) -> None:

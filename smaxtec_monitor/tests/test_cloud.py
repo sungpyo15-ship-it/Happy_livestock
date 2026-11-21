@@ -195,3 +195,27 @@ def test_action_records_excel(env):
     rows = [x for x in wb["전체 기록"].iter_rows(min_row=5, values_only=True) if x[0]]
     assert len(rows) == 1 and rows[0][0] == "가나목장" and rows[0][6] == "치료 후 회복"   # 지운 기록 제외
     assert wb["조치별 요약"]["A5"].value == "수의사 진료 의뢰"
+
+
+def test_dhi_upload_web(env, tmp_path):
+    import io
+    from openpyxl import Workbook
+    store, app = env
+    c = app.test_client()
+    c.post("/login", data={"username": USER, "password": "pw"})
+    _wait(store, USER)
+    acc = c.get("/account").get_data(as_text=True)
+    assert "검정성적 올리기" in acc and 'value="org1">가나목장' in acc
+    wb = Workbook()
+    ws = wb.active
+    ws.append(["검정일", "이표번호", "관리번호", "산차", "비유일수", "유량", "유지방", "유단백", "체세포", "MUN"])
+    ws.append(["2026-11-10", "002111111111", "101", 2, 30, 35.2, 4.1, 3.3, 90, 12])     # 이표 끝 9자리로 연결
+    ws.append(["2026-11-10", "", "102", 3, 200, 28.0, 3.8, 3.4, 420, 15])               # 관리번호로 연결
+    ws.append(["2026-11-10", "", "999", 1, 100, 30.0, 3.9, 3.2, 100, 14])               # 센서 없음
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    r = c.post("/dhi", data={"csrf": _csrf(acc), "farm": "org1", "file": (buf, "dhi.xlsx")},
+               content_type="multipart/form-data").get_data(as_text=True)
+    assert "검정일 2026-11-10 · 3두 저장 (센서 개체와 연결 2두)" in r
+    assert c.get("/files/dhi_template").status_code == 200

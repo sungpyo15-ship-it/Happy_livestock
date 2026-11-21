@@ -41,7 +41,7 @@ main{max-width:560px;margin:0 auto;padding:16px 16px 40px;display:grid;gap:14px}
 .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px;display:grid;gap:10px}
 h1{font-size:20px;margin:0}h2{font-size:16px;margin:0;color:var(--navy)}p{margin:0}
 label{font-size:14px;color:var(--sub);display:grid;gap:4px}
-input[type=text],input[type=password],input[type=email]{width:100%;padding:11px 12px;font-size:16px;border:1px solid var(--line);
+input[type=text],input[type=password],input[type=email],input[type=date],select{width:100%;padding:11px 12px;font-size:16px;border:1px solid var(--line);
 border-radius:10px;background:var(--card);color:var(--ink)}
 button,.btn{display:inline-block;text-align:center;border:0;border-radius:10px;padding:11px 14px;font-size:15px;
 background:var(--navy);color:#fff;text-decoration:none;cursor:pointer}
@@ -248,6 +248,16 @@ def create_app(store: CloudStore, base: Settings, *, secure_cookie: bool = True,
             <input type="hidden" name="csrf" value="{csrf}">
             <input type="file" name="file" id="trialfile" accept=".xlsx" required>
             <button type="submit">올리기</button></form></div>
+        <div class="card"><h2>검정성적 올리기</h2>
+          <p class="sub">검정 기관·목장 프로그램에서 받은 검정성적 엑셀(.xlsx)을 그대로 올리면 머리글(관리번호·이표·유량·유지방·체세포 등)로 열을 찾아
+          센서 개체와 연결합니다. 결과: 목장 상세 '4-3. 검정성적·경제성'(알림 소 유량 손실 추정).</p>
+          <form method="post" action="/dhi" enctype="multipart/form-data" class="row">
+            <input type="hidden" name="csrf" value="{csrf}">
+            <select name="farm" required><option value="">목장 선택</option>{farm_opts(user)}</select>
+            <input type="date" name="test_date" title="파일에 검정일이 없을 때만">
+            <input type="file" name="file" accept=".xlsx" required>
+            <button type="submit">올리기</button></form>
+          <a class="btn ghost" href="/files/dhi_template">직접 입력용 양식</a></div>
         <div class="card"><h2>로그아웃 · 연결 해제</h2>
           <form method="post" action="/logout"><input type="hidden" name="csrf" value="{csrf}">
             <button class="ghost" type="submit">로그아웃 (이 기기)</button></form>
@@ -258,6 +268,20 @@ def create_app(store: CloudStore, base: Settings, *, secure_cookie: bool = True,
             <button class="danger" type="submit">연결 해제</button></form></div>
         {admin_html(user, csrf) if store.admin and user.username == store.admin else ''}"""
         return _page("계정", body)
+
+    def farm_opts(user: User) -> str:
+        import sqlite3
+        dbp = store.user_dir(user.uid) / "data" / "smaxtec.db"
+        if not dbp.exists():
+            return ""
+        conn = sqlite3.connect(f"file:{dbp}?mode=ro", uri=True)
+        try:
+            rows = conn.execute("SELECT farm_id, name FROM farms ORDER BY name").fetchall()
+        except sqlite3.Error:
+            rows = []
+        finally:
+            conn.close()
+        return "".join(f'<option value="{html.escape(r[0])}">{html.escape(r[1])}</option>' for r in rows)
 
     def admin_html(user: User, csrf: str) -> str:
         allowed = store.allowed_list()
@@ -343,6 +367,10 @@ def create_app(store: CloudStore, base: Settings, *, secure_cookie: bool = True,
                     conn.close()
             p = build_workbook(rows, d / "reports" / "조치기록.xlsx")
             return send_file(p, as_attachment=True, download_name=f"조치기록_{date.today():%Y%m%d}.xlsx")
+        if kind == "dhi_template":
+            from ..dhi import template
+            p = template(d / "reports" / "검정성적_양식.xlsx")
+            return send_file(p, as_attachment=True, download_name="검정성적_양식.xlsx")
         if kind == "trials":
             from ..trials import ensure_template
             p = ensure_template(d / "투입기록.xlsx")
@@ -378,6 +406,46 @@ def create_app(store: CloudStore, base: Settings, *, secure_cookie: bool = True,
         tmp.replace(d / "투입기록.xlsx")
         runner.submit(user.uid)
         return account(ok="투입기록을 저장했습니다. 갱신이 끝나면 앱 '투입비교'에 반영됩니다.")
+
+    @app.post("/dhi")
+    def dhi_upload():
+        import sqlite3
+        from ..dhi import parse, store_rows
+        user, csrf = need_login()
+        check_csrf(csrf)
+        f, fid = request.files.get("file"), (request.form.get("farm") or "").strip()
+        td = (request.form.get("test_date") or "").strip() or None
+        if not f or not f.filename.lower().endswith(".xlsx"):
+            return account(msg="검정성적 엑셀(.xlsx) 파일을 선택하세요. (.xls 는 엑셀에서 .xlsx 로 다시 저장)")
+        dbp = store.user_dir(user.uid) / "data" / "smaxtec.db"
+        if not dbp.exists():
+            return account(msg="먼저 수집이 한 번 끝나야 올릴 수 있습니다.")
+        tmp = store.user_dir(user.uid) / "dhi.upload.xlsx"
+        f.save(tmp)
+        try:
+            p = parse(tmp, td)
+        except Exception:  # noqa: BLE001
+            return account(msg="엑셀을 읽지 못했습니다(.xlsx 인지, 암호가 걸려 있지 않은지 확인).")
+        finally:
+            tmp.unlink(missing_ok=True)
+        if not p["rows"]:
+            return account(msg="읽은 소가 없습니다. " + " ".join(p["warnings"]) + " — 머리글에 '유량'과 '관리번호' 또는 '이표'가 있어야 합니다.")
+        if not p["test_date"]:
+            return account(msg="파일에 검정일이 없습니다. 검정일을 입력하고 다시 올려 주세요.")
+        conn = sqlite3.connect(dbp, timeout=60)
+        try:
+            if not conn.execute("SELECT 1 FROM farms WHERE farm_id=?", (fid,)).fetchone():
+                return account(msg="목장을 선택하세요.")
+            st = store_rows(conn, fid, p, td)
+        finally:
+            conn.close()
+        runner.submit(user.uid)
+        names = {"official": "이표", "label": "관리번호", "test_date": "검정일", "parity": "산차", "dim": "비유일수",
+                 "milk": "유량", "fat": "유지방", "protein": "유단백", "scc": "체세포", "mun": "MUN"}
+        miss = ", ".join(names[k] for k in p["missing"] if k in names)
+        return account(ok=f"검정일 {p['test_date']} · {st['rows']}두 저장 (센서 개체와 연결 {st['matched']}두)"
+                          + (f" · 못 찾은 열: {miss}" if miss else "") + (" · " + " ".join(p["warnings"]) if p["warnings"] else "")
+                          + " — 갱신이 끝나면 목장 상세 '4-3. 검정성적'에 나옵니다.")
 
     @app.post("/delete")
     def delete():
