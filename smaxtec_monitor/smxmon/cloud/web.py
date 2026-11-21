@@ -229,6 +229,8 @@ def create_app(store: CloudStore, base: Settings, *, secure_cookie: bool = True,
                  ("trialrep", "투입비교 보고서(엑셀)", "투입비교_*.xlsx"), ("validate", "판정검증(엑셀)", "판정검증_2*.xlsx")]
         links = "".join(f'<a class="btn ghost" href="/files/{k}">{lbl}</a>' for k, lbl, pat in files
                         if any(d.glob(pat)))
+        if any(k.startswith("act:") for k in store.notes(user.uid)):
+            links += '<a class="btn ghost" href="/files/actions">조치 기록(엑셀)</a>'
         st = STATUS_TXT.get(user.status, user.status)
         body = f"""
         {f'<div class="msg">{html.escape(msg)}</div>' if msg else ''}{f'<div class="okmsg">{html.escape(ok)}</div>' if ok else ''}
@@ -325,6 +327,22 @@ def create_app(store: CloudStore, base: Settings, *, secure_cookie: bool = True,
     def files(kind: str):
         user, _ = need_login()
         d = store.user_dir(user.uid)
+        if kind == "actions":
+            import sqlite3
+            from datetime import date
+            from ..actions_report import build_workbook, evaluate, records_from_notes
+            from ..config import load_toml
+            from ..normalize import AlertTypeMapper
+            recs = records_from_notes(store.notes(user.uid))
+            dbp = d / "data" / "smaxtec.db"
+            conn = sqlite3.connect(f"file:{dbp}?mode=ro", uri=True) if dbp.exists() else None
+            try:
+                rows = evaluate(recs, conn, set(AlertTypeMapper(load_toml("alert_types.toml")).codes("health")), date.today())
+            finally:
+                if conn is not None:
+                    conn.close()
+            p = build_workbook(rows, d / "reports" / "조치기록.xlsx")
+            return send_file(p, as_attachment=True, download_name=f"조치기록_{date.today():%Y%m%d}.xlsx")
         if kind == "trials":
             from ..trials import ensure_template
             p = ensure_template(d / "투입기록.xlsx")
@@ -418,7 +436,7 @@ def create_app(store: CloudStore, base: Settings, *, secure_cookie: bool = True,
         return account(ok=f"{u} 를 삭제했습니다.")
 
     # ───────── 메모·체크리스트 동기화 ─────────
-    NOTE_KEY = re.compile(r"^(memo:[\w.-]{1,40}|ck:[\w.-]{1,40}:\d{4}-\d{2}-\d{2})$")
+    NOTE_KEY = re.compile(r"^(memo:[\w.-]{1,40}|ck:[\w.-]{1,40}:\d{4}-\d{2}-\d{2}|act:[\w.-]{1,40}:[\w-]{1,20})$")
 
     @app.get("/api/notes")
     def notes_get():
@@ -436,7 +454,7 @@ def create_app(store: CloudStore, base: Settings, *, secure_cookie: bool = True,
             abort(400)
         if k.startswith("memo:") and not (v is None or isinstance(v, str)):
             abort(400)
-        if k.startswith("ck:") and not (v is None or isinstance(v, dict)):
+        if k.startswith(("ck:", "act:")) and not (v is None or isinstance(v, dict)):
             abort(400)
         if len(json.dumps(v, ensure_ascii=False)) > 10000:
             abort(413)

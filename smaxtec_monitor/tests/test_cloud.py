@@ -171,3 +171,27 @@ def test_admin_validate_button(api, tmp_path, monkeypatch):  # noqa: F811
     u = app.test_client()
     u.post("/login", data={"username": OTHER, "password": "otherpw"})
     assert "판정 기준 검증" not in u.get("/account").get_data(as_text=True)
+
+
+def test_action_records_excel(env):
+    store, app = env
+    c = app.test_client()
+    c.post("/login", data={"username": USER, "password": "pw"})
+    _wait(store, USER)
+    csrf = _csrf(c.get("/account").get_data(as_text=True))
+    assert "조치 기록(엑셀)" not in c.get("/account").get_data(as_text=True)
+    rec = {"d": "2026-10-01", "target": "개체:101", "sig": "체온 상승", "acts": ["수의사 진료 의뢰"], "memo": "", "res": "치료 후 회복",
+           "rd": "2026-10-08"}
+    assert c.post("/api/notes", json={"key": "act:org1:abc1", "value": rec}, headers={"X-CSRF": csrf}).status_code == 200
+    assert c.post("/api/notes", json={"key": "act:org1:abc2", "value": "문자열"}, headers={"X-CSRF": csrf}).status_code == 400
+    c.post("/api/notes", json={"key": "act:org1:abc3", "value": {"del": 1, "d": "2026-10-02"}}, headers={"X-CSRF": csrf})
+    assert "조치 기록(엑셀)" in c.get("/account").get_data(as_text=True)
+    r = c.get("/files/actions")
+    assert r.status_code == 200
+    import io
+    import openpyxl
+    wb = openpyxl.load_workbook(io.BytesIO(r.data))
+    assert wb.sheetnames == ["조치별 요약", "전체 기록", "결과 현황"]
+    rows = [x for x in wb["전체 기록"].iter_rows(min_row=5, values_only=True) if x[0]]
+    assert len(rows) == 1 and rows[0][0] == "가나목장" and rows[0][6] == "치료 후 회복"   # 지운 기록 제외
+    assert wb["조치별 요약"]["A5"].value == "수의사 진료 의뢰"

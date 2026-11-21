@@ -109,6 +109,10 @@ ul.hl{margin:0;padding-left:18px}ul.hl li{margin:3px 0}
 .tbl{width:100%;border-collapse:collapse;font-size:13px}
 .tbl th,.tbl td{padding:6px 6px;border-bottom:1px solid var(--line);text-align:center;white-space:nowrap}
 .tbl th{color:var(--sub);font-weight:600;font-size:12px;background:var(--card);position:sticky;top:0}
+.af .afl{font-size:12px;color:var(--sub);margin:8px 0 2px}.af .afl:first-child{margin-top:0}
+button.ch{border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:999px;padding:4px 10px;font-size:13px;cursor:pointer;margin:2px 2px 0 0}
+button.ch.on{background:var(--navy);color:#fff;border-color:var(--navy)}
+input.afi{border:1px solid var(--line);border-radius:8px;padding:5px 8px;font-size:13px;background:var(--card);color:var(--ink);min-width:0}
 small.cn{color:var(--sub);font-size:11px;font-weight:400}
 details.gd{background:var(--card);border:1px solid var(--line);border-radius:12px;margin-bottom:6px}
 details.gd summary{padding:10px 12px;cursor:pointer;font-weight:700}details.gd[open] summary{border-bottom:1px solid var(--line)}
@@ -145,7 +149,7 @@ const sgn = v => v==null ? "-" : (v>0?"+":"")+v;
 const day = D.asOf.slice(0,10);
 // 클라우드 앱이면 서버가 window.SMX_CLOUD 를 넣어 줌 → 메모·체크리스트를 모든 기기에 동기화
 const CLOUD = window.SMX_CLOUD || null;
-const NOTE_KEY = /^(memo:[\w.-]+|ck:[\w.-]+:\d{4}-\d{2}-\d{2})$/;
+const NOTE_KEY = /^(memo:[\w.-]+|ck:[\w.-]+:\d{4}-\d{2}-\d{2}|act:[\w.-]+:[\w-]+)$/;
 const syncT = {};
 function pushNote(k, v){
   if(!CLOUD || !NOTE_KEY.test(k)) return;
@@ -256,7 +260,8 @@ function detail(id){
   <h2>7. 조치 가이드 — 지금 해당 신호 ${(f.guides||[]).length}개</h2>${guideSection(f.guides||[])}
   <h2>8. 현장 점검 체크리스트</h2><div class="box">${f.checklist.map((c,i)=>`<label class="ck"><input type="checkbox" ${ck[i]?"checked":""}
    onchange="tick('${f.id}',${i},this.checked)"><div><b>${esc(c.topic)}</b><span>${esc(c.text)}</span></div></label>`).join("")}</div>
-  <h2>메모</h2><textarea placeholder="농장주 의견·조치·다음 방문 (${CLOUD?"휴대폰·PC 모두에 자동 저장":"이 기기에만 저장"})" oninput="store.set('memo:${f.id}',this.value)">${esc(memo)}</textarea>
+  <h2>9. 조치·결과 기록</h2>${actSection(f)}
+  <h2>자유 메모</h2><textarea placeholder="농장주 의견·조치·다음 방문 (${CLOUD?"휴대폰·PC 모두에 자동 저장":"이 기기에만 저장"})" oninput="store.set('memo:${f.id}',this.value)">${esc(memo)}</textarea>
   <div class="note" id="syncst">${CLOUD?"휴대폰·PC 모두에 자동 저장됩니다":"이 기기에만 저장됩니다"}</div>
   <div class="foot">센서 알림·행동지표 기반 선별 자료(진단 아님) · 목장 데이터 외부 공유 금지</div>`;
 }
@@ -271,6 +276,60 @@ function guideSection(ids){
   return `${ids.length?ids.map(id=>guideBox(id)).join(""):`<div class="empty">지금 해당하는 신호 없음</div>`}
   ${rest.length?`<details class="gd"><summary style="color:var(--sub)">다른 알림 조치 가이드 보기 (${rest.length})</summary><div class="gs">${rest.map(g=>guideBox(g.id)).join("")}</div></details>`:""}
   <div class="note">센서 알림은 의심 신호(진단 아님) · 약품 사용·치료는 반드시 수의사 진료·처방에 따름</div>`; }
+/* ───── 조치·결과 기록 (act:<목장>:<id> 1건 = 1키, 기기 간 동기화) ───── */
+const ACTS = ["사료 배합 조정","급여·TMR 관리","조사료 교체·점검","첨가제 투입","음수 개선","우사 환경 개선","해충 방제",
+              "과밀 완화·그룹 재편","개체 격리·집중 관찰","수의사 진료 의뢰","삭제·발굽 관리","기타"];
+const RES_COW = ["회복","치료 후 회복","치료 중","도태","변화 없음"], RES_FARM = ["개선","변화 없음","악화"];
+const AF = {};   // 입력 중인 양식 (목장별)
+function actsOf(fid){
+  const out=[]; try { for(let i=0;i<localStorage.length;i++){ const k=localStorage.key(i);
+    if(k.startsWith(`act:${fid}:`)){ const v=store.get(k); if(v&&v.d&&!v.del) out.push({k,...v}); } } } catch(e){}
+  return out.sort((a,b)=>b.d.localeCompare(a.d)||b.k.localeCompare(a.k));
+}
+function allActs(){ const out=[]; for(const f of D.farms) actsOf(f.id).forEach(a=>out.push({...a, fid:f.id, fname:f.name})); return out; }
+const daysAgo = d => Math.round((new Date(day) - new Date(d)) / 864e5);
+const isCow = a => (a.target||"").startsWith("개체");
+const needResult = a => !a.res && daysAgo(a.d) >= 7;
+function keepY(fn){ const y=window.scrollY; fn(); render(); window.scrollTo(0,y); }
+function afTog(fid, key, v, multi){ const a=AF[fid]||(AF[fid]={target:"목장 전체",sig:"",acts:[],memo:"",d:day});
+  keepY(()=>{ if(multi){ const i=a[key].indexOf(v); i<0?a[key].push(v):a[key].splice(i,1); } else a[key]= a[key]===v&&key!=="target" ? "" : v; }); }
+function afSave(fid){ const a=AF[fid]; if(!a||!a.acts.length){ alert("조치를 하나 이상 고르세요"); return; }
+  const id = Date.now().toString(36);
+  store.set(`act:${fid}:${id}`, {d:a.d||day, target:a.target, sig:a.sig, acts:a.acts, memo:(a.memo||"").slice(0,300), res:null, rd:null});
+  delete AF[fid]; keepY(()=>{}); }
+function actRes(k, r){ const v=store.get(k); if(!v) return; v.res = v.res===r ? null : r; v.rd = v.res ? day : null; store.set(k, v); keepY(()=>{}); }
+function actDel(k){ if(!confirm("이 기록을 지울까요?")) return; store.set(k, {del:1, d:day}); keepY(()=>{}); }   // 지운 표시(다른 기기에서 되살아나지 않게)
+const chip = (on, txt, js) => `<button type="button" class="ch${on?' on':''}" onclick="${js}">${esc(txt)}</button>`;
+function actSection(f){
+  const a = AF[f.id] || {target:"목장 전체",sig:"",acts:[],memo:"",d:day}, fid=f.id.replace(/'/g,"");
+  const targets = ["목장 전체", ...f.groups.map(g=>"그룹:"+g.name), ...f.animals.slice(0,8).map(x=>"개체:"+x.label)];
+  if(a.target && !targets.includes(a.target)) targets.push(a.target);
+  const sigs = [...(f.guides||[]).map(g=>(GD[g]||{}).title).filter(Boolean), "정기 점검"];
+  const list = actsOf(f.id);
+  return `<div class="box af">
+   <div class="afl">대상</div><div class="chips">${targets.map(t=>chip(a.target==t,t,`afTog('${fid}','target',${esc(JSON.stringify(t))})`)).join("")}
+     <input class="afi" placeholder="다른 개체번호" onchange="afTog('${fid}','target','개체:'+this.value)"></div>
+   <div class="afl">관련 신호</div><div class="chips">${sigs.map(t=>chip(a.sig==t,t,`afTog('${fid}','sig',${esc(JSON.stringify(t))})`)).join("")}</div>
+   <div class="afl">한 조치 (여러 개 선택)</div><div class="chips">${ACTS.map(t=>chip(a.acts.includes(t),t,`afTog('${fid}','acts',${esc(JSON.stringify(t))},true)`)).join("")}</div>
+   <div class="row" style="gap:6px;margin-top:8px"><input type="date" class="afi" value="${a.d}" onchange="(AF['${fid}']||(AF['${fid}']={target:'목장 전체',sig:'',acts:[],memo:''})).d=this.value">
+     <input class="afi" style="flex:1" placeholder="내용 (예: 조사료 볏짚→티모시, 2kg 증량)" value="${esc(a.memo)}" oninput="(AF['${fid}']||(AF['${fid}']={target:'목장 전체',sig:'',acts:[],memo:'',d:day})).memo=this.value">
+     <button type="button" class="ch on" onclick="afSave('${fid}')">저장</button></div></div>
+  ${list.length?`<div class="scroll" style="margin-top:8px"><table class="tbl"><tr><th>날짜</th><th class="l">대상·신호</th><th class="l">조치</th><th class="l">결과</th><th></th></tr>
+   ${list.map(x=>`<tr><td>${x.d.slice(5)}<br><small class="cn">${daysAgo(x.d)}일 전</small></td>
+    <td class="l wrap">${esc(x.target)}${x.sig?`<br><small class="cn">${esc(x.sig)}</small>`:""}</td>
+    <td class="l wrap">${x.acts.map(esc).join(", ")}${x.memo?`<br><small class="cn">${esc(x.memo)}</small>`:""}</td>
+    <td class="l wrap">${(isCow(x)?RES_COW:RES_FARM).map(r=>chip(x.res==r,r,`actRes('${x.k}','${r}')`)).join("")}
+      ${needResult(x)?'<br><b class="neg" style="font-size:12px">결과 입력 필요</b>':x.res?`<br><small class="cn">${x.rd||""} 입력</small>`:""}</td>
+    <td><button type="button" class="ch" onclick="actDel('${x.k}')" title="지우기">×</button></td></tr>`).join("")}</table></div>`
+   :`<div class="note">아직 기록 없음 — 위에서 대상·신호·조치를 골라 저장하면, 7일 뒤 결과(회복·치료·도태 등)를 누르라고 알려 줍니다.</div>`}
+  ${CLOUD?`<div class="note">기록은 휴대폰·PC 모두에 저장 · 계정 → '조치 기록(엑셀)'에서 조치 전후 알림 변화와 함께 받기</div>`
+    :`<div class="note"><a href="#" onclick="actCsv();return false">조치 기록 CSV 받기(전체 목장)</a></div>`}`;
+}
+function actCsv(){
+  const rows=[["목장","날짜","대상","신호","조치","내용","결과","결과입력일"]].concat(allActs().map(a=>[a.fname,a.d,a.target,a.sig,a.acts.join("/"),a.memo,a.res||"",a.rd||""]));
+  const csv="\ufeff"+rows.map(r=>r.map(v=>`"${String(v??"").replace(/"/g,'""')}"`).join(",")).join("\n");
+  const u=URL.createObjectURL(new Blob([csv],{type:"text/csv"})), l=document.createElement("a"); l.href=u; l.download=`조치기록_${day}.csv`; l.click(); URL.revokeObjectURL(u);
+}
 function tick(id,i,v){ const k=`ck:${id}:${day}`, o=store.get(k)||{}; o[i]=v; store.set(k,o); }
 
 /* ───── 7일추세 ───── */
