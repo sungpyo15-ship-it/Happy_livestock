@@ -131,6 +131,6 @@ def test_api_behaviour(api, tmp_path, monkeypatch):
     g = an.behaviour[0]
     assert (g.group_name, g.rum, g.rum_7d) == ("착유우", 400, 500)
     assert g.rum_flag and g.lactating
-    assert any("횡와" in f and "h(" in f for f in g.flags)        # 8.7h < 9h
-    assert any("횡와동조" in f for f in g.flags)                   # 70% vs 88%
+    assert any("누운 시간" in f and "h(" in f for f in g.flags)        # 8.7h < 9h
+    assert any("함께 눕기" in f for f in g.flags)                   # 70% vs 88%
     assert "행동[" in " ".join(an.farms[0].reasons)

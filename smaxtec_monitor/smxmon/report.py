@@ -178,18 +178,18 @@ def build_excel(an: Analysis, mapper: AlertTypeMapper, rules: dict[str, Any], ou
     bc = rules.get("behaviour", {})
     _title(wb_, "그룹별 행동 지표 (smaXtec behaviour, 최신 완료일 그룹 평균)",
            f"반추 = 서서+누워 반추(분/일). 판정: 반추 7일평균 대비 −{bc.get('rum_drop_min', 30)}분 & −{bc.get('rum_drop_pct', 7)}% 이하, "
-           f"횡와 −{bc.get('lying_drop_min', 60)}분 이하, 착유그룹 횡와 <{bc.get('lying_min_hours_lactating', 9)}h, "
-           f"횡와동조 −{bc.get('lying_sync_drop_pp', 10)}%p 이하")
+           f"누운 시간 −{bc.get('lying_drop_min', 60)}분 이하, 착유그룹 누운 시간 <{bc.get('lying_min_hours_lactating', 9)}h, "
+           f"함께 눕기 −{bc.get('lying_sync_drop_pp', 10)}%p 이하")
     lac = [g for g in an.behaviour if g.lactating and g.rum is not None and g.lying is not None
            and "데이터 불완전(판정 제외)" not in g.flags]
     if lac:
         import statistics as _st
         wb_["A3"] = (f"담당 목장 착유그룹 기준값({len(lac)}개 그룹 중앙값): 반추 {_st.median(g.rum for g in lac):.0f}분, "
-                     f"횡와 {_st.median(g.lying for g in lac) / 60:.1f}h, "
+                     f"누운 시간 {_st.median(g.lying for g in lac) / 60:.1f}h, "
                      f"누워반추비율 {_st.median(g.rum_lying_share for g in lac if g.rum_lying_share):.0f}%")
         wb_["A3"].font = Font(name=FONT, size=9, bold=True, color="1F4E78")
-    hdr_b = ["목장", "그룹", "두수", "일자", "반추\n(분)", "전일", "7일평균", "Δ반추\n(분)", "횡와\n(h)", "Δ횡와\n(분)",
-             "기립\n(h)", "이동\n(h)", "누워반추\n비율%", "횡와동조\n%", "동조\n7일%", "판정"]
+    hdr_b = ["목장", "그룹", "두수", "일자", "반추\n(분)", "전일", "7일평균", "Δ반추\n(분)", "누운\n시간(h)", "Δ누운\n시간(분)",
+             "서있기\n(h)", "이동\n(h)", "누워반추\n비율%", "함께\n눕기%", "함께눕기\n7일%", "판정"]
     _header(wb_, 4, hdr_b, [18, 12, 6, 11, 7, 7, 7, 8, 7, 8, 7, 7, 9, 8, 7, 40])
     rnd = lambda v, k=0: "-" if v is None else round(v, k) if k else round(v)  # noqa: E731
     gbs = sorted(an.behaviour, key=lambda g: (not g.flags, not g.rum_flag, g.farm_name, not g.lactating))
@@ -274,7 +274,7 @@ def build_excel(an: Analysis, mapper: AlertTypeMapper, rules: dict[str, Any], ou
                     "장기미해제·평균지속은 web 모드 또는 향후 attentions 연동 시 계산."),
         ("해제시각", "사이트에 해제시각이 없으면 '목록에서 사라진 수집 시각'으로 추정(inferred) → 정밀도는 수집 간격(예: 2시간)."),
         ("그룹행동", "smaXtec behaviour KPI(그룹 평균, 일 단위). 반추는 서서+누워 합계. 그룹 반추 감소는 사료·급여 변화가 "
-                    "그룹 전체에 미친 영향을 개체 알림보다 먼저 보여줄 수 있음. 횡와시간 부족·동조율 저하는 우상·과밀·고온 등 "
+                    "그룹 전체에 미친 영향을 개체 알림보다 먼저 보여줄 수 있음. 누운 시간 부족·함께 눕는 비율 저하는 누울 자리 부족·과밀·고온 등 "
                     "환경 요인 신호. 착유 그룹 판별은 그룹명 키워드(rules.toml lactating_keywords)."),
         ("한계", "센서 알림 기반 선별 도구이며 진단 아님. 발정·분만 알림은 번식 관리용이며 건강점수에 반영하지 않음(분만은 소폭 가중)."),
         ("보안", "목장 데이터는 농장주 소유. 이 파일을 외부(타 목장·타사·SNS)에 공유하지 말 것."),

@@ -231,11 +231,11 @@ function detail(id){
   <div class="box" style="margin-top:8px">${bars(f.trend)}<div class="note">막대 = 건강알림 두수(일별, 같은 개체 반복은 1두)</div></div>
   ${f.cluster?`<h2>집단신호 (의심 — 진단 아님)</h2><div class="box warn"><b>${f.cluster.n}두</b> · ${f.cluster.from} ~ ${f.cluster.to}<br>${esc(f.cluster.text)}
     <div class="meta">개체: ${f.cluster.animals.map(esc).join(", ")}</div></div>`:""}
-  <h2>4. 그룹 행동</h2>${f.groups.length?`<div class="scroll"><table class="tbl"><tr><th class="l">그룹</th><th>두수</th><th>반추(분)</th><th>7일평균</th><th>Δ반추</th><th>횡와(h)</th><th>Δ횡와</th><th>누워반추%</th><th class="l">판정</th></tr>
+  <h2>4. 그룹 행동</h2>${f.groups.length?`<div class="scroll"><table class="tbl"><tr><th class="l">그룹</th><th>두수</th><th>반추(분)</th><th>7일평균</th><th>Δ반추</th><th>누운시간(h)</th><th>Δ누운시간</th><th>누워반추%</th><th class="l">판정</th></tr>
   ${f.groups.map(g=>`<tr><td class="l">${esc(g.name)}</td><td>${g.n??""}</td><td>${g.rum??"-"}</td><td>${g.rum7??"-"}</td>
   <td class="${g.drum<0?'neg':''}">${sgn(g.drum)}</td><td>${g.lying_h??"-"}</td><td>${sgn(g.dlying)}</td><td>${g.share??"-"}</td>
   <td class="wrap flag">${g.flags.map(esc).join(", ")}</td></tr>`).join("")}
-  </table></div>${D.bench?`<div class="note">비교 기준(담당목장 착유그룹 ${D.bench.n}개 중앙값): 반추 ${Math.round(D.bench.rum)}분 · 횡와 ${D.bench.lying_h}h · 누워반추 ${Math.round(D.bench.rum_lying_share)}%</div>`:""}`
+  </table></div>${D.bench?`<div class="note">비교 기준(담당목장 착유그룹 ${D.bench.n}개 중앙값): 반추 ${Math.round(D.bench.rum)}분 · 누운 시간 ${D.bench.lying_h}h · 누워반추 ${Math.round(D.bench.rum_lying_share)}%</div>`:""}`
   :`<div class="empty">행동 데이터 없음</div>`}
   ${histSection(f)}
   ${trSection(f)}
@@ -278,11 +278,12 @@ function behTab(){
   let show = st.behAll ? rows : rows.filter(ok);
   if(st.q) show = show.filter(r=>r.f.name.includes(st.q));
   const b = D.bench;
-  return `${b?`<div class="box">담당 목장 착유그룹 기준값 (${b.n}개 그룹 중앙값): 반추 <b>${Math.round(b.rum)}</b>분 · 횡와 <b>${b.lying_h}</b>h · 누워반추 <b>${Math.round(b.rum_lying_share)}</b>%</div>`:""}
+  return `${b?`<div class="box">담당 목장 착유그룹 기준값 (${b.n}개 그룹 중앙값): 반추 <b>${Math.round(b.rum)}</b>분 · 누운 시간 <b>${b.lying_h}</b>h · 누워반추 <b>${Math.round(b.rum_lying_share)}</b>%</div>`:""}
+  <div class="note">용어 · <b>누운 시간</b>: 하루 중 누워 쉰 시간 · <b>누워반추</b>: 되새김 중 누워서 한 비율(높을수록 편안) · <b>함께 눕기</b>: 같은 시간에 그룹 소들이 함께 누워 있는 비율(떨어지면 누울 자리 부족·과밀·더위 의심) · <b>Δ</b>: 7일 평균 대비 변화</div>
   <div class="filters" style="margin-top:10px"><button class="${!st.behAll?'on':''}" onclick="st.behAll=false;save();render()">이상 그룹 ${rows.filter(ok).length}</button>
   <button class="${st.behAll?'on':''}" onclick="st.behAll=true;save();render()">전체 그룹 ${rows.length}</button></div>
   <input type="search" placeholder="목장 검색" value="${esc(st.q)}" oninput="st.q=this.value;render(true)">
-  ${show.length?`<div class="scroll"><table class="tbl"><tr><th class="l stick">목장</th><th class="l">그룹</th><th>두수</th><th>반추</th><th>7일</th><th>Δ반추</th><th>횡와h</th><th>Δ횡와</th><th>누워반추%</th><th>동조%</th><th class="l">판정</th></tr>
+  ${show.length?`<div class="scroll"><table class="tbl"><tr><th class="l stick">목장</th><th class="l">그룹</th><th>두수</th><th>반추</th><th>7일</th><th>Δ반추</th><th>누운시간h</th><th>Δ누운시간</th><th>누워반추%</th><th>함께눕기%</th><th class="l">판정</th></tr>
   ${show.map(({f,g})=>`<tr class="click" onclick="go('${f.id}')"><td class="l stick">${esc(f.name)}</td><td class="l">${esc(g.name)}</td><td>${g.n??""}</td>
   <td>${g.rum??"-"}</td><td>${g.rum7??"-"}</td><td class="${g.drum<0?'neg':''}">${sgn(g.drum)}</td><td>${g.lying_h??"-"}</td><td>${sgn(g.dlying)}</td>
   <td>${g.share??"-"}</td><td>${g.sync??"-"}</td><td class="wrap flag">${g.flags.map(esc).join(", ")}</td></tr>`).join("")}</table></div>`

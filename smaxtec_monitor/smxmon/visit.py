@@ -40,8 +40,8 @@ def checklist(s: FarmSummary) -> list[tuple[str, str]]:
     c = s.counts_d0
     rum_groups = [g.group_name for g in s.behaviour if g.rum_flag]
     lying_groups = [g.group_name for g in s.behaviour
-                    if any(f.startswith("횡와") for f in g.flags) and INCOMPLETE not in g.flags]
-    sync_groups = [g.group_name for g in s.behaviour if any(f.startswith("횡와동조") for f in g.flags)]
+                    if any(f.startswith("누운 시간") for f in g.flags) and INCOMPLETE not in g.flags]
+    sync_groups = [g.group_name for g in s.behaviour if any(f.startswith("함께 눕기") for f in g.flags)]
     if (s.cluster and s.cluster.animals_by_type.get("RUMINATION_DROP")) or rum_groups:
         tgt = ", ".join(rum_groups) if rum_groups else "반추감소 개체 소속 그룹"
         items.append(("사료·급여", f"[{tgt}] 최근 배합·원료·조사료 로트 변경 여부, TMR 입자도(체 분석)·수분, "
@@ -58,7 +58,7 @@ def checklist(s: FarmSummary) -> list[tuple[str, str]]:
         items.append(("환경", "우사 THI·환기팬·안개분무·차광, 음수조 수량·청결"))
     if lying_groups or sync_groups:
         tgt = ", ".join(sorted(set(lying_groups + sync_groups)))
-        items.append(("우사 환경", f"[{tgt}] 우상·깔짚 상태(건조·두께), 과밀(두당 우상 수), 최근 이동·합사, "
+        items.append(("우사 환경", f"[{tgt}] 누울 자리(우상)·깔짚 상태(건조·두께), 과밀(두당 누울 자리 수), 최근 이동·합사, "
                                     "착유 대기시간·사양관리 작업 시간 변화"))
     if c.get("DRINKING_ABNORMAL"):
         items.append(("음수", "급수기 유량·위생, 수온, 음수 접근성(서열 경쟁)"))
@@ -255,7 +255,7 @@ def add_visit_sheet(wb: Workbook, s: FarmSummary, an: Analysis, mapper: AlertTyp
     row = _section(ws, row, "4. 그룹 행동 (smaXtec behaviour, 최신 완료일)")
     if bench:
         _merge_text(ws, row, f"비교 기준 — 담당 목장 착유그룹 {bench['n']:.0f}개 중앙값: 반추 {bench['rum']:.0f}분 · "
-                             f"횡와 {bench['lying_h']:.1f}h · 누워반추 {bench['rum_lying_share']:.0f}%",
+                             f"누운 시간 {bench['lying_h']:.1f}h · 누워반추 {bench['rum_lying_share']:.0f}%",
                     size=8, color="595959", height=14)
         row += 1
     gb = [g for g in s.behaviour]
@@ -263,7 +263,7 @@ def add_visit_sheet(wb: Workbook, s: FarmSummary, an: Analysis, mapper: AlertTyp
         rows = [[g.group_name, g.n_animals or "-", _n(g.rum), _n(g.rum_7d), _sgn(g.rum_delta),
                  _n(g.lying / 60 if g.lying is not None else None, 1), _sgn(g.lying_delta), _n(g.rum_lying_share),
                  ", ".join(g.flags) or "-"] for g in gb[:6]]
-        row = _table(ws, row, ["그룹", "두수", "반추(분)", "7일평균", "Δ반추", "횡와(h)", "Δ횡와(분)", "누워반추%", "판정"],
+        row = _table(ws, row, ["그룹", "두수", "반추(분)", "7일평균", "Δ반추", "누운시간(h)", "Δ누운시간(분)", "누워반추%", "판정"],
                      rows, [1, 1, 1, 1, 1, 1, 1, 1, 2])
     else:
         _merge_text(ws, row, "행동 데이터 없음(그룹 미설정 또는 3두 미만)", size=8, color="7F7F7F")

@@ -41,7 +41,7 @@ class ClusterSignal:
 
 @dataclass
 class GroupBehaviour:
-    """그룹 1개의 최신 일자 행동 요약 (단위: 분/일, 동조율은 %)."""
+    """그룹 1개의 최신 일자 행동 요약 (단위: 분/일, 함께 눕는 비율은 %)."""
     farm_id: str
     farm_name: str
     group_name: str
@@ -287,12 +287,12 @@ def load_behaviour(conn: sqlite3.Connection, farm_id: str, farm_name: str, as_of
             gb.flags.append(f"반추 {d:+.0f}분({d / gb.rum_7d * 100:+.0f}%)")
         ld = gb.lying_delta
         if ld is not None and ld <= -float(cfg.get("lying_drop_min", 60)):
-            gb.flags.append(f"횡와 {ld:+.0f}분")
+            gb.flags.append(f"누운 시간 감소 {ld:+.0f}분")
         lim = float(cfg.get("lying_min_hours_lactating", 9))
         if gb.lactating and gb.lying is not None and gb.lying / 60 < lim:
-            gb.flags.append(f"횡와 {gb.lying / 60:.1f}h(<{lim:g}h)")
+            gb.flags.append(f"누운 시간 부족 {gb.lying / 60:.1f}h(기준 {lim:g}h)")
         if gb.sync is not None and gb.sync_7d is not None and gb.sync_7d - gb.sync >= float(cfg.get("lying_sync_drop_pp", 10)):
-            gb.flags.append(f"횡와동조 {gb.sync - gb.sync_7d:+.0f}%p")
+            gb.flags.append(f"함께 눕기 감소 {gb.sync - gb.sync_7d:+.0f}%p")
         out.append(gb)
     out.sort(key=lambda x: (not x.lactating, x.group_name or ""))
     return out
