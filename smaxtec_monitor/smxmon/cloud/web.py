@@ -204,7 +204,7 @@ def create_app(store: CloudStore, base: Settings, *, secure_cookie: bool = True,
         user, csrf = need_login()
         f = store.user_dir(user.uid) / "reports" / "smaxtec_app.html"
         if f.exists():
-            nav = ' · <a href="/account" style="color:#fff">계정</a>'
+            nav = ' · <a href="/account" style="color:#fff">계정</a> · <a href="/guide" style="color:#fff">사용법</a>'
             if user.status in ("running", "pending"):
                 nav += " · 갱신 중"
             elif user.status == "login_failed":
@@ -235,7 +235,7 @@ def create_app(store: CloudStore, base: Settings, *, secure_cookie: bool = True,
         body = f"""
         {f'<div class="msg">{html.escape(msg)}</div>' if msg else ''}{f'<div class="okmsg">{html.escape(ok)}</div>' if ok else ''}
         <div class="card"><h1>계정</h1>
-          <p><b>{html.escape(user.username)}</b> · 담당 목장 {user.farms or '-'}곳</p>
+          <p><b>{html.escape(user.username)}</b> · 담당 목장 {user.farms or '-'}곳 · <a href="/guide">사용 설명서</a></p>
           <p class="sub">상태: <span class="st-{user.status}">{st}</span>{' — ' + html.escape(user.message) if user.message else ''}<br>
           마지막 정상 수집: {user.last_ok or '없음'} · 자동 갱신: 매일 06시 전, 낮 2시간마다</p>
           <form method="post" action="/refresh"><input type="hidden" name="csrf" value="{csrf}">
@@ -528,6 +528,16 @@ def create_app(store: CloudStore, base: Settings, *, secure_cookie: bool = True,
             abort(413)
         store.set_note(user.uid, k, v)
         return {"ok": True}
+
+    @app.get("/guide")
+    def guide():
+        from pathlib import Path
+        f = Path(__file__).resolve().parents[2] / "docs" / "manual.html"
+        body = f.read_text(encoding="utf-8") if f.exists() else "<p>설명서 파일이 없습니다</p>"
+        back = ('<p style="max-width:760px;margin:0 auto 12px;padding:0 16px"><a href="/" style="color:#1f4e78">‹ 앱으로</a></p>')
+        return Response('<!doctype html><html lang="ko"><head><meta charset="utf-8">'
+                        '<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">'
+                        '</head><body style="margin:0">' + back + body + "</body></html>", mimetype="text/html")
 
     @app.get("/healthz")
     def health():

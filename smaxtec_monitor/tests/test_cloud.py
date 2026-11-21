@@ -219,3 +219,10 @@ def test_dhi_upload_web(env, tmp_path):
                content_type="multipart/form-data").get_data(as_text=True)
     assert "검정일 2026-11-10 · 3두 저장 (센서 개체와 연결 2두)" in r
     assert c.get("/files/dhi_template").status_code == 200
+
+
+def test_guide_page(env):
+    store, app = env
+    c = app.test_client()
+    r = c.get("/guide")
+    assert r.status_code == 200 and "목장 모니터 사용 설명서" in r.get_data(as_text=True)

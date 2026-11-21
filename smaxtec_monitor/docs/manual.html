@@ -1,0 +1,296 @@
+<title>목장 모니터 사용 설명서</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@500;700&family=Noto+Sans+KR:wght@400;500;700&display=swap">
+<style>
+/* 레이아웃: 한 줄 기둥(760px) 안내서. 위쪽 바로가기 → 시작하기 → 하루 흐름(실제 순서라 번호) → 화면별 → 읽는 법 → 기능별 사용법 → 문제 해결 → 지킬 것 */
+:root{
+  --bg:#f3f6f9; --paper:#ffffff; --ink:#18232e; --sub:#566575; --line:#dbe3ea;
+  --navy:#1f4e78; --navy-soft:#e6eef6; --code:#edf1f5;
+  --urgent:#c62828; --high:#d9631e; --watch:#2f75b5; --ok:#4f8a2f;
+  --warn:#8a4a10; --warn-soft:#fbf0e3;
+  --display:"IBM Plex Sans KR","Apple SD Gothic Neo","Malgun Gothic",system-ui,sans-serif;
+  --body:"Noto Sans KR","Apple SD Gothic Neo","Malgun Gothic",system-ui,sans-serif;
+  --mono:ui-monospace,"Cascadia Mono",Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#10161c; --paper:#17212b; --ink:#e3eaf1; --sub:#9aabbb; --line:#2a3744;
+  --navy:#86b6e6; --navy-soft:#1c2d3e; --code:#202c38;
+  --urgent:#ef6b6b; --high:#f0915a; --watch:#6fa8e0; --ok:#86c06a;
+  --warn:#f0b070; --warn-soft:#33261a; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#10161c; --paper:#17212b; --ink:#e3eaf1; --sub:#9aabbb; --line:#2a3744;
+  --navy:#86b6e6; --navy-soft:#1c2d3e; --code:#202c38;
+  --urgent:#ef6b6b; --high:#f0915a; --watch:#6fa8e0; --ok:#86c06a;
+  --warn:#f0b070; --warn-soft:#33261a; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font:16px/1.75 var(--body);word-break:keep-all;overflow-wrap:anywhere;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:28px 64px}
+main{max-width:760px;margin:0 auto;display:grid;gap:36px}
+section{display:grid;gap:14px;min-width:0;scroll-margin-top:16px}
+h1,h2,h3{font-family:var(--display);text-wrap:balance;margin:0;line-height:1.35}
+h1{font-size:30px}
+h2{font-size:21px;color:var(--navy);padding-bottom:6px;border-bottom:2px solid var(--line)}
+h3{font-size:17px}
+p{margin:0}
+ul,ol{margin:0;padding-left:20px}
+li{margin:3px 0}
+.eyebrow{font-size:13px;font-weight:700;letter-spacing:.06em;color:var(--navy)}
+.lead{color:var(--sub);font-size:17px}
+.toc{display:flex;flex-wrap:wrap;gap:6px;padding:0;margin:0;list-style:none}
+.toc a{display:inline-block;padding:5px 11px;border:1px solid var(--line);border-radius:999px;background:var(--paper);
+  color:var(--ink);text-decoration:none;font-size:14px}
+.toc a:hover,.toc a:focus-visible{border-color:var(--navy);color:var(--navy);outline:none}
+.panel{background:var(--paper);border:1px solid var(--line);border-radius:12px;padding:16px 18px;display:grid;gap:8px;min-width:0}
+.quick{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px}
+.quick div{background:var(--navy-soft);border-radius:10px;padding:12px 14px;font-size:15px}
+.quick b{display:block;color:var(--navy);font-family:var(--display)}
+ol.flow{list-style:none;padding:0;display:grid;gap:10px;counter-reset:f}
+ol.flow>li{counter-increment:f;display:grid;grid-template-columns:34px minmax(0,1fr);gap:12px;margin:0;
+  background:var(--paper);border:1px solid var(--line);border-radius:12px;padding:14px 16px}
+ol.flow>li::before{content:counter(f);width:30px;height:30px;border-radius:50%;background:var(--navy);color:var(--paper);
+  display:grid;place-items:center;font-weight:700;font-variant-numeric:tabular-nums}
+ol.flow b{font-family:var(--display)}
+.tw{overflow-x:auto;background:var(--paper);border:1px solid var(--line);border-radius:12px}
+table{border-collapse:collapse;width:100%;font-size:15px;min-width:520px}
+th,td{padding:9px 12px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+th{background:var(--navy-soft);color:var(--navy);font-size:13px;font-weight:700;white-space:nowrap}
+tr:last-child td{border-bottom:0}
+td:first-child{white-space:nowrap;font-weight:500}
+td.num{text-align:right;font-variant-numeric:tabular-nums}
+.grade{display:inline-block;color:#fff;border-radius:6px;padding:1px 8px;font-size:13px;font-weight:700}
+.g1{background:var(--urgent)}.g2{background:var(--high)}.g3{background:var(--watch)}.g4{background:var(--ok)}
+code,.ui{font-family:var(--mono);font-size:.9em;background:var(--code);padding:1px 6px;border-radius:4px}
+.ui{font-family:var(--body);font-weight:500}
+.note{color:var(--sub);font-size:14px}
+.warn{background:var(--warn-soft);border:1px solid var(--line);border-radius:12px;padding:14px 18px;display:grid;gap:6px}
+.warn b:first-child{color:var(--warn)}
+details{background:var(--paper);border:1px solid var(--line);border-radius:12px}
+details summary{padding:12px 16px;cursor:pointer;font-weight:700;font-family:var(--display)}
+details summary:focus-visible{outline:2px solid var(--navy);outline-offset:2px;border-radius:12px}
+details>div{padding:0 16px 14px;display:grid;gap:6px}
+dl{margin:0;display:grid;grid-template-columns:max-content minmax(0,1fr);gap:8px 16px}
+dt{font-weight:700;font-family:var(--display)}dd{margin:0}
+@media (max-width:560px){dl{grid-template-columns:1fr;gap:2px}dd{margin-bottom:10px}h1{font-size:25px}}
+footer{color:var(--sub);font-size:13px;text-align:center}
+</style>
+
+<main>
+<header style="display:grid;gap:10px">
+  <div class="eyebrow">smaXtec 목장 모니터 · 팀원용</div>
+  <h1>목장 모니터 사용 설명서</h1>
+  <p class="lead">담당 목장의 smaXtec 알림을 모아 <b>오늘 어느 목장에 가서, 어떤 소를 보고, 무엇을 할지</b>를 알려 주는 앱입니다. 휴대폰과 PC에서 같은 화면을 봅니다.</p>
+  <ul class="toc" aria-label="바로가기">
+    <li><a href="#start">시작하기</a></li><li><a href="#flow">하루 사용 흐름</a></li><li><a href="#screens">화면별 설명</a></li>
+    <li><a href="#grade">등급·점수</a></li><li><a href="#terms">용어 풀이</a></li><li><a href="#act">조치·결과 기록</a></li>
+    <li><a href="#dhi">검정성적</a></li><li><a href="#trial">투입비교</a></li><li><a href="#files">엑셀 받기</a></li>
+    <li><a href="#faq">문제 해결</a></li><li><a href="#rules">꼭 지킬 것</a></li>
+  </ul>
+</header>
+
+<section id="start">
+  <h2>시작하기</h2>
+  <div class="quick">
+    <div><b>1. 등록 요청</b>관리자에게 본인 <b>smaXtec 아이디(이메일)</b>를 알려 주고 등록을 받습니다.</div>
+    <div><b>2. 로그인</b>관리자가 보낸 앱 주소를 열고 smaXtec 아이디·비밀번호로 로그인합니다.</div>
+    <div><b>3. 첫 준비</b>처음에는 담당 목장의 1년치 기록을 받느라 <b>15~30분</b> 걸립니다. 화면이 알아서 바뀝니다.</div>
+  </div>
+  <div class="panel">
+    <h3>휴대폰 홈 화면에 추가 (앱처럼 쓰기)</h3>
+    <ul>
+      <li><b>아이폰</b>: Safari 로 주소 열기 → 아래 <span class="ui">공유</span> 버튼 → <span class="ui">홈 화면에 추가</span></li>
+      <li><b>안드로이드</b>: Chrome 으로 주소 열기 → 오른쪽 위 <span class="ui">⋮</span> → <span class="ui">홈 화면에 추가</span></li>
+      <li><b>PC</b>: 같은 주소를 브라우저 즐겨찾기에 넣으면 됩니다.</li>
+    </ul>
+  </div>
+  <div class="panel">
+    <h3>언제 새 자료가 들어오나</h3>
+    <ul>
+      <li>자동: 매일 <b>05:30</b>(출근 전 완료), 이후 <b>08:10~20:10 두 시간마다</b>. 밤에는 쉬고 다음 날 아침에 한꺼번에 들어옵니다.</li>
+      <li>바로 보고 싶으면 오른쪽 위 <span class="ui">계정</span> → <span class="ui">지금 새로고침</span> (20분에 한 번). 몇 분 뒤 반영됩니다.</li>
+      <li>smaXtec 앱의 푸시 알림은 실시간이고, 이 앱은 <b>추세·목장 비교·방문 계획</b>용입니다. 급한 개체는 smaXtec 앱을 그대로 보세요.</li>
+    </ul>
+  </div>
+</section>
+
+<section id="flow">
+  <h2>하루 사용 흐름</h2>
+  <ol class="flow">
+    <li><div><b>아침: 오늘 할 일 보기</b><br>앱을 열면 첫 화면이 <span class="ui">오늘 할 일</span>입니다. 오늘 가볼 목장 3곳과 이유, 볼 개체, 할 조치 하나가 나옵니다.</div></li>
+    <li><div><b>방문 전: 목장 상세 확인</b><br><span class="ui">목장 상세 ›</span> 를 눌러 7일 추세·그룹 행동·전환기 성적·조치 가이드를 봅니다. 엑셀 <b>방문요약 1장</b>을 뽑아 가도 됩니다.</div></li>
+    <li><div><b>목장에서: 점검·조치</b><br>목장 상세 <b>7. 조치 가이드</b>(확인 → 바로 할 조치 → 수의사 연락 기준)와 <b>8. 현장 점검 체크리스트</b>를 보며 확인합니다.</div></li>
+    <li><div><b>방문 후: 조치 기록</b><br><span class="ui">조치 기록하기</span> → 대상·신호·한 조치를 버튼으로 고르고 저장합니다. 1분이면 됩니다.</div></li>
+    <li><div><b>7일 뒤: 결과 입력</b><br>첫 화면 <b>결과 입력 대기</b>에 뜬 기록에 회복·치료·도태 또는 개선·변화 없음·악화를 누릅니다.</div></li>
+  </ol>
+</section>
+
+<section id="screens">
+  <h2>화면별 설명</h2>
+  <div class="tw"><table>
+    <tr><th>화면(위쪽 탭)</th><th>무엇을 보나</th><th>언제 쓰나</th></tr>
+    <tr><td>오늘 할 일</td><td>오늘 가볼 목장 3곳(가는 이유·볼 개체·할 조치), 결과 입력이 밀린 조치</td><td>매일 아침, 이동 중</td></tr>
+    <tr><td>요약표</td><td>담당 목장 전체를 점수 순으로. 종류별 알림 두수, 100두당, 전일·7일평균, 급증·집단신호</td><td>주간 계획, 목장 비교</td></tr>
+    <tr><td>목장별</td><td>한 목장의 모든 것(아래 1~9번). 왼쪽 목록에서 목장을 누릅니다</td><td>방문 준비, 농장주와 상담</td></tr>
+    <tr><td>7일추세</td><td>목장 × 날짜 표. 위 버튼으로 체온·반추·음수·pH·활동 등 종류를 바꿔 봅니다</td><td>며칠째 이어지는지 확인</td></tr>
+    <tr><td>누적·월별</td><td>30·90일 누적과 12개월 월별 추이. <b>목장 줄을 누르면 종류별 내역</b>이 펼쳐지고, 월 숫자를 누르면 그 달이 강조됩니다</td><td>계절·장기 경향, 담당 목장 순위</td></tr>
+    <tr><td>전환기</td><td>분만 후 21일 성적: 무사통과율, 케토시스·유열·유방염 등 발생률. 작은 숫자 = <b>해당 두수/분만 두수</b></td><td>건유·분만 전후 사양 점검</td></tr>
+    <tr><td>투입비교</td><td>사료·첨가제 투입 전후 반추·누운 시간·건강알림 비교와 판정</td><td>제품·배합 효과 확인</td></tr>
+    <tr><td>그룹행동</td><td>그룹별 반추·누운 시간·함께 눕기. 아래쪽에 판정에 맞는 조치 가이드</td><td>사료·우사 환경 문제 조기 발견</td></tr>
+    <tr><td>집단신호</td><td>짧은 시간에 여러 마리가 동시에 체온·반추 알림 → 사료·환경·전염병 같은 공통 원인 의심</td><td>바로 전화 확인할 목장 찾기</td></tr>
+  </table></div>
+  <details>
+    <summary>목장 상세 1~9번 구성</summary>
+    <div><ol>
+      <li><b>핵심 요약</b>: 집단신호·급증·그룹행동 한 줄 요약</li>
+      <li><b>알림 현황</b>: 종류별 24시간·72시간 두수</li>
+      <li><b>7일 추세</b>: 종류별 두수 표와 막대그래프</li>
+      <li><b>그룹 행동</b>: 그룹별 반추·누운 시간 / 누적·월별 / 4-2 전환기 / 4-3 검정성적·경제성 / 투입 전후 비교</li>
+      <li><b>확인할 개체</b>: 최근 72시간 알림이 많은 소</li>
+      <li><b>최근 24시간 알림</b>: 알림 원본 목록</li>
+      <li><b>조치 가이드</b>: 지금 걸린 신호별 ① 먼저 확인 ② 바로 할 조치 ③ 수의사 연락 기준</li>
+      <li><b>현장 점검 체크리스트</b>: 체크하면 휴대폰·PC에 함께 저장(날짜별)</li>
+      <li><b>조치·결과 기록</b>: 아래 <a href="#act">조치·결과 기록</a> 참고. 그 아래 자유 메모 칸</li>
+    </ol></div>
+  </details>
+</section>
+
+<section id="grade">
+  <h2>등급·점수 읽는 법</h2>
+  <div class="tw"><table>
+    <tr><th>등급</th><th>점수</th><th>뜻</th></tr>
+    <tr><td><span class="grade g1">긴급</span></td><td class="num">40 이상</td><td>오늘·내일 안에 전화 또는 방문 권장</td></tr>
+    <tr><td><span class="grade g2">우선</span></td><td class="num">20 이상</td><td>이번 주 방문 일정에 넣기</td></tr>
+    <tr><td><span class="grade g3">관찰</span></td><td class="num">8 이상</td><td>추세만 지켜보기</td></tr>
+    <tr><td><span class="grade g4">정상</span></td><td class="num">8 미만</td><td>정기 방문대로</td></tr>
+  </table></div>
+  <details>
+    <summary>점수는 이렇게 더해집니다</summary>
+    <div>
+      <div class="tw"><table>
+        <tr><th>항목</th><th>점수</th></tr>
+        <tr><td>건강알림 1두(최근 24시간)</td><td class="num">1</td></tr>
+        <tr><td>pH 저하 1두(추가)</td><td class="num">2</td></tr>
+        <tr><td>케토시스 의심 1두</td><td class="num">2</td></tr>
+        <tr><td>급증</td><td class="num">15</td></tr>
+        <tr><td>집단신호</td><td class="num">30</td></tr>
+        <tr><td>smaXtec 그룹 경보(그룹 체온·반추)</td><td class="num">15</td></tr>
+        <tr><td>그룹 반추 감소(그룹당, 최대 2)</td><td class="num">12</td></tr>
+        <tr><td>누운 시간·함께 눕기 이상(건당, 최대 3)</td><td class="num">4</td></tr>
+        <tr><td>전환기 성적 부진</td><td class="num">8</td></tr>
+        <tr><td>분만 임박 1두</td><td class="num">0.5</td></tr>
+      </table></div>
+      <p class="note">기준은 담당 목장 1년치 자료로 검증하며 조정 중입니다. 바뀌면 이 설명서도 함께 고칩니다.</p>
+    </div>
+  </details>
+  <dl class="panel">
+    <dt>두수 기준</dt><dd>같은 소가 여러 번 울려도 <b>1두</b>로 셉니다. smaXtec 앱의 알림 '건수'보다 숫자가 작을 수 있습니다.</dd>
+    <dt>급증</dt><dd>오늘 건강알림 두수가 전날 또는 7일 평균의 2배 이상이고, 2두 이상 늘었을 때.</dd>
+    <dt>집단신호</dt><dd>몇 시간 안에 여러 마리가 체온 상승·반추 감소를 함께 보일 때. 사료 변경, 더위, 전염성 질병 같은 공통 원인을 의심합니다.</dd>
+  </dl>
+</section>
+
+<section id="terms">
+  <h2>용어 풀이</h2>
+  <dl class="panel">
+    <dt>100두당</dt><dd>알림 두수 ÷ 센서 단 두수 × 100. 목장 크기가 달라도 비교할 수 있게 맞춘 값.</dd>
+    <dt>7일평균</dt><dd>직전 7일 각각의 하루 두수 평균. 오늘이 평소보다 많은지 보는 기준.</dd>
+    <dt>누운 시간</dt><dd>하루 중 누워 쉰 시간. 착유우 9시간 미만이면 누울 자리·과밀·더위·해충을 점검.</dd>
+    <dt>누워반추</dt><dd>되새김 가운데 누워서 한 비율. 높을수록 편안한 상태.</dd>
+    <dt>함께 눕기</dt><dd>같은 시간에 그룹 소들이 함께 누워 있는 비율. 떨어지면 누울 자리 경쟁·과밀·더위·침파리를 의심.</dd>
+    <dt>Δ (델타)</dt><dd>7일 평균 대비 변화. Δ반추 −40 = 평소보다 하루 40분 적게 되새김.</dd>
+    <dt>무사통과</dt><dd>분만 후 21일 동안 건강알림이 한 번도 없었던 소의 비율. 전환기 사양의 성적표.</dd>
+    <dt>발생률(전환기)</dt><dd>분만 후 21일 안에 그 알림이 한 번이라도 나온 두수 ÷ 분만 두수. 센서 '의심' 기준이라 진단 발생률과 다름.</dd>
+    <dt>F/P</dt><dd>검정성적의 유지방 ÷ 유단백. 분만 60일 안에 1.5 초과 = 케토시스 위험, 1.0 미만 = 산독증 위험 지표(참고 기준).</dd>
+    <dt>알림 지속</dt><dd>판정 뒤 7일 동안 알림이 그 목장 평소보다 높게 이어졌는지(평소 = 1.0). 판정 검증에서 씁니다.</dd>
+  </dl>
+</section>
+
+<section id="act">
+  <h2>조치·결과 기록</h2>
+  <p>현장에서 한 일과 그 결과를 버튼으로 남기는 칸입니다. 쌓이면 <b>"이 조치를 하면 알림이 얼마나 줄었나"</b>를 보여 주는 컨설팅 성과 자료가 됩니다.</p>
+  <ol class="flow">
+    <li><div><b>들어가기</b>: 첫 화면 <span class="ui">조치 기록하기</span>, 또는 목장 상세 맨 아래 <b>9. 조치·결과 기록</b></div></li>
+    <li><div><b>대상</b>: 목장 전체 / 그룹 / 개체 중 하나. 목록에 없는 소는 <span class="ui">다른 개체번호</span> 칸에 적기</div></li>
+    <li><div><b>관련 신호</b>: 지금 그 목장에 걸린 신호가 버튼으로 나옵니다. 정기 방문이면 <span class="ui">정기 점검</span></div></li>
+    <li><div><b>한 조치</b>(여러 개 가능): 사료 배합 조정, 급여·TMR 관리, 첨가제 투입, 우사 환경 개선, 해충 방제, 수의사 진료 의뢰 등</div></li>
+    <li><div><b>날짜·내용</b>을 적고 <span class="ui">저장</span>. 예) "조사료 볏짚→티모시 2kg", "끈끈이 트랩 20개"</div></li>
+    <li><div><b>7일 뒤 결과</b>: 개체는 회복 / 치료 후 회복 / 치료 중 / 도태 / 변화 없음, 목장·그룹은 개선 / 변화 없음 / 악화</div></li>
+  </ol>
+  <p class="note">휴대폰과 PC에 함께 저장됩니다. 잘못 넣은 기록은 오른쪽 <span class="ui">×</span> 로 지웁니다. 모아 보기: <span class="ui">계정</span> → <span class="ui">조치 기록(엑셀)</span> — 조치별 결과와 조치 전후 건강알림 변화가 자동 계산됩니다(대조군 없는 전후 비교라 여러 건의 경향으로 판단).</p>
+</section>
+
+<section id="dhi">
+  <h2>검정성적 올리기</h2>
+  <ol class="flow">
+    <li><div>검정 기관이나 목장 프로그램에서 받은 <b>검정성적 엑셀(.xlsx)</b>을 준비합니다. .xls 파일은 엑셀에서 <b>.xlsx 로 다시 저장</b>하세요.</div></li>
+    <li><div><span class="ui">계정</span> → <b>검정성적 올리기</b> → 목장 선택 → 파일 선택 → <span class="ui">올리기</span>. 파일에 검정일이 없으면 날짜 칸에 넣습니다.</div></li>
+    <li><div>올린 뒤 나오는 메시지에서 <b>저장 두수 · 센서 개체와 연결된 두수 · 못 찾은 열</b>을 확인합니다. 연결이 너무 적으면 관리번호·이표 열 이름을 확인하세요.</div></li>
+    <li><div>갱신이 끝나면 목장 상세 <b>4-3. 검정성적·경제성</b>에 최근 6회 검정이 나옵니다.</div></li>
+  </ol>
+  <div class="panel">
+    <h3>4-3에서 보는 것</h3>
+    <ul>
+      <li>평균 유량·유지방·유단백, F/P, 체세포·체세포 20만 이상 비율, MUN</li>
+      <li><b>알림 소 유량 차이</b>: 검정 전 30일 안에 건강알림이 있던 소와 없던 소를 같은 비유 시기끼리 비교</li>
+      <li><b>월 손실 추정(만원)</b>: 유량 차이 × 두수 × 30일 × 원유 단가(기본 1,100원/kg 가정)</li>
+    </ul>
+    <p class="note">원래 유량이 낮은 소가 알림도 많을 수 있어 <b>연관 관계이지 원인이라고 단정할 수 없습니다.</b> 농장주에게 설명할 때 "추정"이라고 말해 주세요.</p>
+  </div>
+</section>
+
+<section id="trial">
+  <h2>사료·첨가제 투입비교</h2>
+  <ol class="flow">
+    <li><div><span class="ui">계정</span> → <span class="ui">투입기록 양식/현재 파일 받기</span></div></li>
+    <li><div>한 줄에 투입 한 건: 목장(이름 일부), 시작일, 제품·변경 내용, 구분, 대상그룹(비우면 착유우), 비교기간(기본 21일), 적응기간(기본 7일)</div></li>
+    <li><div>저장한 파일을 <span class="ui">올리기</span>. 다음 갱신 때 <b>투입비교</b> 탭에 결과가 나옵니다.</div></li>
+  </ol>
+  <dl class="panel">
+    <dt>비교 방법</dt><dd>투입 전 N일 vs 투입 후 N일(적응기간 제외). 같은 시기 다른 목장 변화로 계절 영향을 빼서 봅니다.</dd>
+    <dt>개선(유의)</dt><dd>통계적으로 분명한 개선(p&lt;0.05).</dd>
+    <dt>개선 경향</dt><dd>개선 쪽이지만 아직 확실하지 않음(p&lt;0.2). 기간을 더 두고 봅니다.</dd>
+    <dt>차이 불분명</dt><dd>전후 차이를 말하기 어려움.</dd>
+  </dl>
+</section>
+
+<section id="files">
+  <h2>엑셀 파일 받기</h2>
+  <p><span class="ui">계정</span> → <b>파일 받기</b>에서 최신 파일을 받습니다.</p>
+  <div class="tw"><table>
+    <tr><th>파일</th><th>내용</th><th>쓰임</th></tr>
+    <tr><td>일일 리포트</td><td>요약·7일추세·누적·월별·전환기·검정성적·그룹행동·조치가이드 등 전체 시트</td><td>사무실 분석, 주간 보고</td></tr>
+    <tr><td>방문요약</td><td>긴급·우선 목장마다 A4 1장(신호·확인할 개체·조치 가이드·메모 칸)</td><td>인쇄해서 방문</td></tr>
+    <tr><td>투입비교 보고서</td><td>투입 건별 전후 비교표</td><td>제품 효과 설명</td></tr>
+    <tr><td>조치 기록</td><td>조치·결과 전체와 조치 전후 알림 변화</td><td>컨설팅 성과 정리</td></tr>
+  </table></div>
+</section>
+
+<section id="faq">
+  <h2>문제 해결</h2>
+  <details><summary>로그인하면 '등록 안 됨'이 나와요</summary><div><p>관리자가 아직 등록하지 않았거나 아이디 철자가 다릅니다. smaXtec 로그인에 쓰는 이메일 그대로 관리자에게 보내 주세요.</p></div></details>
+  <details><summary>'비밀번호 거절'이 나와요</summary><div><p>smaXtec 이 비밀번호를 거절한 경우입니다. web.smaxtec.com 에 같은 아이디로 로그인되는지 먼저 확인하세요. 웹은 되는데 앱만 안 되면 관리자에게 알려 주세요.</p></div></details>
+  <details><summary>'데이터 준비 중'에서 넘어가지 않아요</summary><div><p>처음에는 1년치 기록을 받느라 15~30분 걸립니다. 1시간이 넘으면 관리자에게 알려 주세요.</p></div></details>
+  <details><summary>화면이 예전 그대로예요</summary><div><p>휴대폰 앱은 완전히 닫았다가 다시 열고, PC는 <code>Ctrl+F5</code>. 그래도 같으면 <span class="ui">계정</span> → <span class="ui">지금 새로고침</span>.</p></div></details>
+  <details><summary>smaXtec 앱과 숫자가 달라요</summary><div><p>이 앱은 같은 소의 반복 알림을 1두로 세고, '최근 24시간'을 앱 갱신 시각 기준으로 자릅니다. 개체별 원본은 목장 상세 <b>6. 최근 24시간 알림</b>에서 확인할 수 있습니다.</p></div></details>
+  <details><summary>담당 목장이 안 보여요</summary><div><p>smaXtec 에서 내 계정에 그 목장 조회 권한이 있어야 보입니다. smaXtec 웹에서 목장이 보이는지 확인하고, 권한이 생긴 뒤 <span class="ui">지금 새로고침</span>을 누르세요.</p></div></details>
+  <details><summary>메모·체크·조치 기록이 다른 기기에 안 보여요</summary><div><p>인터넷이 끊긴 상태에서 입력하면 그 기기에만 남을 수 있습니다. 연결된 상태에서 앱을 다시 열면 서버로 올라갑니다. 메모 아래 '모든 기기에 저장됨'이 보이면 저장된 것입니다.</p></div></details>
+  <details><summary>그만 쓰고 싶어요</summary><div><p><span class="ui">계정</span> → <b>연결 해제</b>. 서버에 저장된 비밀번호와 수집 자료가 모두 지워집니다.</p></div></details>
+</section>
+
+<section id="rules">
+  <h2>꼭 지킬 것</h2>
+  <div class="warn">
+    <b>진단 도구가 아닙니다</b>
+    <p>센서 알림은 '의심 신호'입니다. 약품 사용과 치료는 반드시 <b>수의사 진료·처방</b>에 따르고, 앱의 조치 가이드에는 약품명·용량을 넣지 않았습니다.</p>
+  </div>
+  <div class="warn">
+    <b>목장 자료는 농장주 것입니다</b>
+    <p>화면 캡처·엑셀을 다른 목장, 다른 회사, 단체 대화방, SNS 에 올리지 마세요. 자료를 쓸 때는 목장 이름을 가립니다.</p>
+  </div>
+  <div class="warn">
+    <b>계정 관리</b>
+    <p>비밀번호는 암호화해서 서버에 보관하며, 서버 관리자는 기술적으로 접근할 수 있습니다. 공용 PC에서는 쓴 뒤 <span class="ui">계정</span> → <span class="ui">로그아웃</span>.</p>
+  </div>
+</section>
+
+<footer>문의·건의는 관리자에게 · 기능이 바뀌면 이 설명서도 함께 고칩니다</footer>
+</main>
