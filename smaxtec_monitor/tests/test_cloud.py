@@ -132,3 +132,42 @@ def test_notes_sync_across_devices(env):
     # 빈 메모 = 삭제
     phone.post("/api/notes", json={"key": "memo:1001", "value": ""}, headers={"X-CSRF": csrf})
     assert "memo:1001" not in pc.get("/api/notes").json
+
+
+def test_admin_validate_button(api, tmp_path, monkeypatch):  # noqa: F811
+    key = Fernet.generate_key()
+    store = CloudStore(tmp_path / "cloud", key, ADMIN)
+    base = dataclasses.replace(load_settings(env_file=tmp_path / "none.env"), mode="api", api_base=api, api_token="",
+                               username="", password="", min_delay=0, max_delay=0, max_retries=1, log_dir=tmp_path / "logs")
+    store.allow(OTHER)
+    valid = {(ADMIN, "adminpw"): 0, (OTHER, "otherpw"): 0}
+
+    def verify(u, pw):
+        from smxmon.common import LoginError
+        if (u, pw) not in valid:
+            raise LoginError("bad")
+        return valid[(u, pw)]
+    app = create_app(store, base, secure_cookie=False, runner=Runner(base, store), verify_login=verify)
+    app.testing = True
+    monkeypatch.setenv("SMX_CLOUD_KEY", key.decode())
+    monkeypatch.setenv("SMX_CLOUD_DATA", str(store.root))
+    monkeypatch.setenv("SMX_CLOUD_ADMIN", ADMIN)
+    c = app.test_client()
+    c.post("/login", data={"username": ADMIN, "password": "adminpw"})
+    _wait(store, ADMIN)
+    acc = c.get("/account").get_data(as_text=True)
+    assert "판정 기준 검증" in acc and "아직 실행 안 함" in acc
+    r = c.post("/admin/validate", data={"csrf": _csrf(acc)}).get_data(as_text=True)
+    assert "검증을 시작했습니다" in r
+    t0 = time.time()
+    while "실행 중" in c.get("/account").get_data(as_text=True) and time.time() - t0 < 90:
+        time.sleep(0.5)
+    acc = c.get("/account").get_data(as_text=True)
+    log = (store.user_dir(store.get_by_username(ADMIN).uid) / "reports" / "판정검증_log.txt").read_text(encoding="utf-8")
+    assert "마지막 결과" in acc, log
+    assert "판정 기준 검증 —" in acc                 # 요약
+    assert c.get("/files/validate").status_code == 200
+    # 팀원 화면에는 없음
+    u = app.test_client()
+    u.post("/login", data={"username": OTHER, "password": "otherpw"})
+    assert "판정 기준 검증" not in u.get("/account").get_data(as_text=True)

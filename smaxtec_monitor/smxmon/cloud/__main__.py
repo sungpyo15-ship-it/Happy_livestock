@@ -94,6 +94,7 @@ def main(argv=None) -> int:
         out, text = run(sources, out_dir / f"판정검증_{datetime.now():%Y%m%d_%H%M}.xlsx", days=args.days,
                         anon=args.anon, progress=print)
         print(text)
+        (out_dir / "판정검증_요약.txt").write_text(text, encoding="utf-8")
         print(f"\n엑셀: {out}\n앱 → 계정 → '판정검증(엑셀)' 에서 받을 수 있습니다 (관리자 계정).")
     elif args.cmd == "users":
         print("허용:", [r["username"] for r in store.allowed_list()], "관리자:", store.admin or "-")

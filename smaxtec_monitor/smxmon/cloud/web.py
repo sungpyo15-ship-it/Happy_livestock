@@ -285,7 +285,29 @@ def create_app(store: CloudStore, base: Settings, *, secure_cookie: bool = True,
           <table><tr><th>아이디</th><th>상태</th><th>목장</th><th>마지막 수집</th></tr>{rows}</table>
           <h2>최근 로그인 기록</h2>
           <table><tr><th>시각</th><th>아이디</th><th>결과</th></tr>{events}</table>
-          <p class="sub">등록 안 됨 = 허용 목록에 없음(철자 확인) · 비밀번호 거절 = smaXtec 이 거절(웹 로그인 확인, 웹은 되면 리얼팜에 API 조회 권한 문의)</p></div>"""
+          <p class="sub">등록 안 됨 = 허용 목록에 없음(철자 확인) · 비밀번호 거절 = smaXtec 이 거절(웹 로그인 확인, 웹은 되면 리얼팜에 API 조회 권한 문의)</p></div>
+        {validate_html(user, csrf)}"""
+
+    def validate_html(user: User, csrf: str) -> str:
+        d = store.user_dir(user.uid) / "reports"
+        fs = sorted(d.glob("판정검증_2*.xlsx"), key=lambda p: p.stat().st_mtime)
+        summ = d / "판정검증_요약.txt"
+        running = validate_job.get("p") is not None and validate_job["p"].poll() is None
+        last = time.strftime("%m/%d %H:%M", time.localtime(fs[-1].stat().st_mtime)) if fs else None
+        failed = (not running and validate_job.get("p") is not None and validate_job["p"].returncode not in (0, None))
+        st = ("<b>실행 중</b> — 몇 분 걸립니다. 잠시 뒤 이 화면을 새로고침하세요." if running else
+              "<span class='st-failed'>지난 실행 실패</span> — 서버 로그 확인(sudo journalctl -u smxmon-web -n 50)" if failed else
+              f"마지막 결과: {last}" if last else "아직 실행 안 함")
+        text = html.escape(summ.read_text(encoding="utf-8")) if summ.exists() and fs else ""
+        return f"""<div class="card"><h2>관리자 — 판정 기준 검증</h2>
+          <p class="sub">지난 1년 매일 06시 판정(긴급·우선 등)을 다시 계산해, 그 뒤 7일 동안의 진단 기록(농장 입력)·알림 지속과 비교합니다.
+          모든 팀원 DB 사용(목장 중복 제외). 결과 엑셀은 팀원 전체 목장 포함 → 외부 공유 금지.</p>
+          <p>{st}</p>
+          <div class="row"><form method="post" action="/admin/validate"><input type="hidden" name="csrf" value="{csrf}">
+            <button type="submit" {'disabled' if running else ''}>검증 실행</button></form>
+          {'<a class="btn ghost" href="/files/validate">결과 엑셀 받기</a>' if fs and not running else ''}</div>
+          {f'<details><summary>요약 보기 (목장 이름 없음 — 그대로 복사해 공유 가능)</summary><pre style="white-space:pre-wrap;font-size:12px">{text}</pre></details>' if text else ''}
+        </div>"""
 
     @app.post("/refresh")
     def refresh():
@@ -366,6 +388,26 @@ def create_app(store: CloudStore, base: Settings, *, secure_cookie: bool = True,
             return account(msg="아이디(이메일)를 확인하세요.")
         store.allow(u, (request.form.get("note") or "").strip()[:40])
         return account(ok=f"{u} 를 등록했습니다. 이제 이 아이디로 로그인할 수 있습니다.")
+
+    validate_job: dict = {}
+
+    @app.post("/admin/validate")
+    def admin_validate():
+        import os
+        import subprocess
+        import sys
+        from pathlib import Path
+        user = need_admin()
+        p = validate_job.get("p")
+        if p is not None and p.poll() is None:
+            return account(msg="이미 실행 중입니다.")
+        d = store.user_dir(user.uid) / "reports"
+        d.mkdir(parents=True, exist_ok=True)
+        logf = open(d / "판정검증_log.txt", "w", encoding="utf-8")   # noqa: SIM115 (자식 프로세스가 사용)
+        validate_job["p"] = subprocess.Popen(
+            [sys.executable, "-m", "smxmon.cloud", "validate"], cwd=str(Path(__file__).resolve().parents[2]),
+            stdout=logf, stderr=subprocess.STDOUT, start_new_session=True, preexec_fn=lambda: os.nice(10))
+        return account(ok="검증을 시작했습니다. 몇 분 뒤 이 화면을 새로고침하면 결과가 보입니다.")
 
     @app.post("/admin/remove")
     def admin_remove():
