@@ -226,6 +226,21 @@ def cmd_status(s, args) -> int:
     return 0
 
 
+def cmd_validate(s, args) -> int:
+    """판정 기준 검증 (PC 용: 내 DB)."""
+    import sqlite3
+    from .validate import run
+    if not s.db_path.exists():
+        print("DB 가 없습니다 (먼저 collect 또는 demo)")
+        return 1
+    out, text = run([("내 DB", sqlite3.connect(f"file:{s.db_path}?mode=ro", uri=True))],
+                    s.report_dir / f"판정검증_{datetime.now():%Y%m%d_%H%M}.xlsx", days=args.days, anon=args.anon,
+                    progress=print)
+    print(text)
+    print(f"\n엑셀: {out}")
+    return 0
+
+
 def cmd_demo(s, args) -> int:
     from .collector import now_local
     from .demo import build_demo
@@ -268,6 +283,9 @@ def main(argv: list[str] | None = None) -> int:
     ps.add_argument("--port", type=int, default=8765)
     sub.add_parser("trials-file", help="투입기록.xlsx 열기(사료·첨가제 투입 전후 비교 입력)")
     sub.add_parser("status")
+    pval = sub.add_parser("validate", help="판정 기준 검증(과거 판정 vs 이후 진단 기록)")
+    pval.add_argument("--days", type=int, default=365)
+    pval.add_argument("--anon", action="store_true")
     pd = sub.add_parser("demo")
     pd.set_defaults(db=None, out=None)
     args = p.parse_args(argv)
@@ -276,7 +294,7 @@ def main(argv: list[str] | None = None) -> int:
     setup_logging(s.log_dir, s.secrets(), args.verbose)
     handler = {"api-test": cmd_api_test, "init": cmd_init, "inspect": cmd_inspect, "collect": cmd_collect, "report": cmd_report,
                "status": cmd_status, "visit": cmd_visit, "serve": cmd_serve,
-               "trials-file": cmd_trials_file, "demo": cmd_demo}[args.cmd]
+               "trials-file": cmd_trials_file, "demo": cmd_demo, "validate": cmd_validate}[args.cmd]
     try:
         return handler(s, args)
     except ConfigError as e:

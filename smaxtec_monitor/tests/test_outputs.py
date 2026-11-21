@@ -97,3 +97,34 @@ def test_history_cumulative_monthly(tmp_path):
     assert rum["2026-09"] > rum["2026-04"]                               # 데모: 9~10월 사료 변경 후 반추감소 증가
     assert {r for r in (x.history.rank.get(90) for x in an.farms) if r} == set(range(1, h.ranked_of + 1))
     assert an.history_bench[90]["건강 전체"] > 0
+
+
+def test_validate_backtest(tmp_path):
+    """진단이 건강알림 뒤에 따라오는 가상 자료 → 긴급 판정 뒤 진단이 정상보다 많아야 함."""
+    import random
+    import sqlite3
+    from datetime import timedelta
+    from smxmon.validate import run
+    as_of = datetime(2026, 11, 20, 6, 0)
+    build_demo(tmp_path / "d.db", as_of)
+    c = sqlite3.connect(tmp_path / "d.db")
+    random.seed(3)
+    rows = c.execute("SELECT farm_id, animal_id, occurred_at FROM alerts WHERE alert_type IN ('TEMP_HIGH','RUMINATION_DROP')").fetchall()
+    for f, a, t in rows:
+        if random.random() < 0.1:
+            tt = (datetime.strptime(t, "%Y-%m-%d %H:%M:%S") + timedelta(hours=30)).strftime("%Y-%m-%d %H:%M:%S")
+            c.execute("INSERT INTO alerts(farm_id,animal_id,alert_type,alert_type_raw,occurred_at,first_seen_at,last_seen_at,"
+                      "status,detail) VALUES(?,?,?,?,?,?,?,?,?)",
+                      (f, a, "MANAGEMENT", "diagnosis", tt, tt, tt, "event", json.dumps({"diagnosis_key": "MASTITIS"})))
+    c.execute("INSERT INTO alerts(farm_id,animal_id,alert_type,alert_type_raw,occurred_at,first_seen_at,last_seen_at,status,detail)"
+              " VALUES('1001','x','MANAGEMENT','false_positive','2026-10-01 10:00:00','2026-10-01 10:00:00','2026-10-01 10:00:00','event','{}')")
+    c.commit()
+    c.close()
+    out, text = run([("t", sqlite3.connect(f"file:{tmp_path / 'd.db'}?mode=ro", uri=True))], tmp_path / "v.xlsx",
+                    days=200, anon=True, now=as_of + timedelta(days=10))
+    wb = openpyxl.load_workbook(out)
+    assert wb.sheetnames == ["결론", "등급·신호별", "기준값 시험", "놓침(재현율)", "목장별", "자료 점검"]
+    assert wb["목장별"]["A2"].value == "목장01"            # 익명
+    g = {r[0].value: r for r in wb["등급·신호별"].iter_rows(min_row=2) if r[0].value}
+    assert g["긴급"][3].value > g["정상"][3].value          # 진단두수/100두
+    assert "오경보 표시 1건" in text and "진단" in text

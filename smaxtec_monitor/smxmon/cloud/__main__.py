@@ -5,6 +5,7 @@
   collect-all       모든 사용자 수집·리포트 (서버 타이머가 실행)
   allow 아이디 [메모]  팀원 허용 (관리자 화면에서도 가능)
   users             사용자·상태 목록
+  validate [--days N] [--anon]  판정 기준 검증(모든 사용자 DB, 목장 중복 제외) → 관리자 '파일 받기'에 판정검증 엑셀
 
 환경변수 (/etc/smxmon/env)
   SMX_CLOUD_DATA   데이터 폴더 (기본 /var/lib/smxmon)
@@ -51,6 +52,9 @@ def main(argv=None) -> int:
     a.add_argument("username")
     a.add_argument("note", nargs="?", default="")
     sub.add_parser("users")
+    v = sub.add_parser("validate")
+    v.add_argument("--days", type=int, default=365)
+    v.add_argument("--anon", action="store_true", help="엑셀 목장 이름을 목장01… 로")
     args = p.parse_args(argv)
 
     if args.cmd == "genkey":
@@ -71,6 +75,26 @@ def main(argv=None) -> int:
     elif args.cmd == "allow":
         store.allow(args.username, args.note)
         print("허용:", args.username.lower())
+    elif args.cmd == "validate":
+        import sqlite3
+        from datetime import datetime
+        from ..validate import run
+        users = store.users()
+        adm = store.get_by_username(store.admin) if store.admin else None
+        users.sort(key=lambda u: (adm is None or u.uid != adm.uid, u.username))   # 관리자 DB 먼저
+        sources = []
+        for u in users:
+            p = store.user_dir(u.uid) / "data" / "smaxtec.db"
+            if p.exists():
+                sources.append((f"사용자{len(sources) + 1}", sqlite3.connect(f"file:{p}?mode=ro", uri=True)))
+        if not sources:
+            print("DB 가 없습니다")
+            return 1
+        out_dir = store.user_dir((adm or users[0]).uid) / "reports"
+        out, text = run(sources, out_dir / f"판정검증_{datetime.now():%Y%m%d_%H%M}.xlsx", days=args.days,
+                        anon=args.anon, progress=print)
+        print(text)
+        print(f"\n엑셀: {out}\n앱 → 계정 → '판정검증(엑셀)' 에서 받을 수 있습니다 (관리자 계정).")
     elif args.cmd == "users":
         print("허용:", [r["username"] for r in store.allowed_list()], "관리자:", store.admin or "-")
         for u in store.users():

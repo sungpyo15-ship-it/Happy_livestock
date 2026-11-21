@@ -226,7 +226,7 @@ def create_app(store: CloudStore, base: Settings, *, secure_cookie: bool = True,
         user, csrf = need_login()
         d = store.user_dir(user.uid) / "reports"
         files = [("daily", "일일 리포트(엑셀)", "smaxtec_daily_*.xlsx"), ("visit", "방문요약(엑셀)", "방문요약_*.xlsx"),
-                 ("trialrep", "투입비교 보고서(엑셀)", "투입비교_*.xlsx")]
+                 ("trialrep", "투입비교 보고서(엑셀)", "투입비교_*.xlsx"), ("validate", "판정검증(엑셀)", "판정검증_*.xlsx")]
         links = "".join(f'<a class="btn ghost" href="/files/{k}">{lbl}</a>' for k, lbl, pat in files
                         if any(d.glob(pat)))
         st = STATUS_TXT.get(user.status, user.status)
@@ -306,7 +306,8 @@ def create_app(store: CloudStore, base: Settings, *, secure_cookie: bool = True,
             from ..trials import ensure_template
             p = ensure_template(d / "투입기록.xlsx")
             return send_file(p, as_attachment=True, download_name="투입기록.xlsx")
-        pat = {"daily": "smaxtec_daily_*.xlsx", "visit": "방문요약_*.xlsx", "trialrep": "투입비교_*.xlsx"}.get(kind)
+        pat = {"daily": "smaxtec_daily_*.xlsx", "visit": "방문요약_*.xlsx", "trialrep": "투입비교_*.xlsx",
+               "validate": "판정검증_*.xlsx"}.get(kind)
         if not pat:
             abort(404)
         fs = sorted((d / "reports").glob(pat), key=lambda p: p.stat().st_mtime)

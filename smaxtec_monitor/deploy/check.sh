@@ -11,6 +11,7 @@ echo "[1] 프로그램 버전"
 if grep -q '^long_days' "$APP/config/rules.toml" 2>/dev/null; then ok "최신(12개월 전환기 포함)"; else ng "예전 버전 → sudo smxmon-update"; fi
 if grep -q 'monthTable' "$APP/smxmon/dashboard.py" 2>/dev/null; then ok "누적·월별 종류별 펼침 포함"; else ng "종류별 펼침 없음 → sudo smxmon-update"; fi
 if [ -f "$APP/config/actions.toml" ]; then ok "조치 가이드 포함"; else ng "조치 가이드 없음 → sudo smxmon-update"; fi
+if [ -f "$APP/smxmon/validate.py" ]; then ok "판정 검증 도구 포함 (sudo smxmon-validate)"; else ng "판정 검증 없음 → sudo smxmon-update 두 번"; fi
 echo "    코드 설치 시각: $(stat -c %y "$APP/config/rules.toml" 2>/dev/null | cut -d. -f1)"
 
 B=$(ls -t /var/backups/smxmon/smxmon_*.tar.gz 2>/dev/null | head -1)

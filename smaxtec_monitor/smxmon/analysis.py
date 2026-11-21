@@ -299,7 +299,8 @@ def load_behaviour(conn: sqlite3.Connection, farm_id: str, farm_name: str, as_of
 
 
 def analyze(conn: sqlite3.Connection, as_of: datetime, mapper: AlertTypeMapper, rules: dict[str, Any],
-            overrides: dict[str, dict[str, Any]] | None = None) -> Analysis:
+            overrides: dict[str, dict[str, Any]] | None = None, light: bool = False) -> Analysis:
+    """light=True: 판정 검증(과거 날짜 반복 계산)용 — 장기 누적·전환기·최근목록 생략(전환기 가중치 미반영)."""
     overrides = overrides or {}
     health = set(mapper.codes("health"))
     trend_days = int(rules.get("report", {}).get("trend_days", 7))
@@ -469,6 +470,9 @@ def analyze(conn: sqlite3.Connection, as_of: datetime, mapper: AlertTypeMapper, 
     from .history import farm_history, rank_and_bench
     hcats = [(c["label"], set(c["types"])) for c in rules.get("report", {}).get("trend_categories", [])]
     hcats.append(("건강 전체", health))
+    if light:
+        summaries.sort(key=lambda x: (-x.score, -x.health_d0, x.name))
+        return Analysis(as_of, summaries, clusters, [], [], [], hist, [], {}, history_bench={})
     for s in summaries:
         s.history = farm_history(conn, s.farm_id, as_of, hcats, s.herd_size)
     hbench = rank_and_bench([(s, s.history, s.herd_size) for s in summaries])

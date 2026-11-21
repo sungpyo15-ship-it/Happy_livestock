@@ -4,6 +4,15 @@ set -euo pipefail
 D=/opt/smxmon/app/smaxtec_monitor/deploy
 install -m 755 "$D/backup.sh" /usr/local/bin/smxmon-backup
 install -m 755 "$D/restore.sh" /usr/local/bin/smxmon-restore
+cat > /usr/local/bin/smxmon-validate <<'SH'
+#!/usr/bin/env bash
+# 판정 기준 검증 — 사용법: sudo smxmon-validate [--days 365] [--anon]
+[ "$(id -u)" = 0 ] || { echo "sudo smxmon-validate 로 실행하세요"; exit 1; }
+cd /opt/smxmon/app/smaxtec_monitor
+set -a; . /etc/smxmon/env; set +a
+exec nice -n 10 runuser -u smxmon -- /opt/smxmon/venv/bin/python -m smxmon.cloud validate "$@"
+SH
+chmod 755 /usr/local/bin/smxmon-validate
 cat > /etc/systemd/system/smxmon-backup.service <<UNIT
 [Unit]
 Description=smaXtec monitor daily backup
