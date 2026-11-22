@@ -414,8 +414,12 @@ const me = () => ({body:COLORS[S.color].body, belly:COLORS[S.color].belly, featu
 const look = () => S.dragon ? {...me(), feature:'dragon'} : me();
 const friend = id => FRIENDS.find(f => f.id === id);
 const nextEgg = () => FRIENDS.find(f => !S.found[f.id]);
-const PARTY_MAX = 3;
-const party = () => (S.party||[]).filter(id=>S.awake[id]).map(friend);
+/* 레벨에 따라 데려갈 수 있는 친구 수: [레벨, 마리] */
+const PARTY_STEPS = [[1,1],[3,2],[5,3]];
+const partyMax = (lv=lvOf(S.xp)) => PARTY_STEPS.filter(([l])=>lv>=l).pop()[1];
+const lvJosa = n => [2,4,5,9].includes(n%10) ? '가' : '이';  // Lv.5가, Lv.3이
+const nextPartyStep = () => PARTY_STEPS.find(([l])=>lvOf(S.xp)<l);
+const party = () => (S.party||[]).filter(id=>S.awake[id]).slice(0,partyMax()).map(friend);
 const POWER_NAME = {shield:'방패', heart:'하트 +1', magnet:'코인 자석', triple:'3단 점프', double:'코인 2배', slow:'느긋한 속도'};
 const $ = id => document.getElementById(id);
 const rand = (a,b) => a + Math.random()*(b-a);
@@ -639,7 +643,7 @@ $('hatchCv').addEventListener('pointerdown', () => {
     HT.done=true; HT.t=0; SFX.hatch();
     for(let i=0;i<40;i++) HT.parts.push({x:220,y:250,vx:rand(-260,260),vy:rand(-420,-80),life:rand(.8,1.6),col:['#FFC93C','#FF7B54','#5DBB63','#4AA8D8','#E77FA6'][i%5]});
     if(HT.mode==='me'){ S.created=true; save(); $('hatchTitle').textContent=`${HT.name} 탄생!`; $('hatchMsg').textContent='안녕! 같이 여행 가자!'; }
-    else { S.awake[HT.id]=true; if(!Array.isArray(S.party)) S.party=[]; if(S.party.length<PARTY_MAX) S.party.push(HT.id); save(); const f=friend(HT.id); $('hatchTitle').textContent=`${f.name}가 깨어났어요!`; $('hatchMsg').textContent=`${f.kind} · ${f.powerText}`; }
+    else { S.awake[HT.id]=true; if(!Array.isArray(S.party)) S.party=[]; if(S.party.length<partyMax()) S.party.push(HT.id); save(); const f=friend(HT.id); $('hatchTitle').textContent=`${f.name}가 깨어났어요!`; $('hatchMsg').textContent=`${f.kind} · ${f.powerText}`; }
     $('hatchOk').hidden=false;
   } else $('hatchMsg').textContent = HT.taps===1 ? '꿈틀꿈틀... 한 번 더!' : '거의 다 됐어요! 한 번 더!';
 });
@@ -742,7 +746,7 @@ function levelCheck(before){
   const now=lvOf(S.xp); if(now<=before) return '';
   SFX.level();
   const z=ZONES.find(z=>z.lv===now);
-  const msg=`레벨 업! 이제 ${STAGES[now-1]}예요` + (z?` · ${z.name}에 갈 수 있어요!`:'') + (now===4?' · 하트 +1':'');
+  const msg=`레벨 업! 이제 ${STAGES[now-1]}이에요` + (z?` · ${z.name}에 갈 수 있어요!`:'') + (now===4?' · 하트 +1':'') + (partyMax(now)>partyMax(before)?` · 친구를 ${partyMax(now)}마리까지 데려갈 수 있어요!`:'');
   if(screen==='home') toast(msg);
   return msg;
 }
@@ -1051,7 +1055,7 @@ function renderMap(){
   ZONES.forEach(z=>{
     const open=z.lv<=lv, b=document.createElement('button'); b.className='zone'+(open?'':' locked'); b.setAttribute('aria-pressed',String(S.zone===z.id));
     const cv=document.createElement('canvas'); cv.width=320; cv.height=200; drawZoneThumb(cv.getContext('2d'),320,200,z);
-    const tx=document.createElement('div'); tx.className='zt'; tx.innerHTML=`<b>${z.name}</b><span>${open?'갈 수 있어요':`Lv.${z.lv}이 되면 열려요`}</span>`;
+    const tx=document.createElement('div'); tx.className='zt'; tx.innerHTML=`<b>${z.name}</b><span>${open?'갈 수 있어요':`Lv.${z.lv}${lvJosa(z.lv)} 되면 열려요`}</span>`;
     b.append(cv,tx);
     b.addEventListener('click',()=>{ if(!open){ toast(`${z.name}는 Lv.${z.lv}부터 갈 수 있어요. 먹이를 주거나 여행해서 경험치를 모아요!`); return; } S.zone=z.id; save(); SFX.tap(); renderMap(); });
     box.appendChild(b);
@@ -1060,9 +1064,12 @@ function renderMap(){
   const awake=FRIENDS.filter(f=>S.awake[f.id]);
   if(!awake.length){ pl.innerHTML='<div class="empty">아직 친구가 없어요. 여행하다가 반짝이는 알을 찾아 보세요!</div>'; return; }
   S.party=(S.party||[]).filter(id=>S.awake[id]);
-  $('partyCount').textContent=`${S.party.length}/${PARTY_MAX}`;
+  const pm=partyMax(), nx=nextPartyStep();
+  S.party=S.party.slice(0,pm);
+  $('partyCount').textContent=`${S.party.length}/${pm}`;
   const pw=party().map(f=>POWER_NAME[f.power]);
-  $('partyPowers').textContent = pw.length ? `함께 쓰는 능력: ${pw.join(' · ')}` : `친구를 ${PARTY_MAX}마리까지 고를 수 있어요. 고른 친구의 능력을 모두 함께 써요.`;
+  $('partyPowers').textContent = pw.length ? `함께 쓰는 능력: ${pw.join(' · ')}` : `친구를 ${pm}마리까지 고를 수 있어요. 고른 친구의 능력을 모두 함께 써요.`;
+  if(nx) $('partyPowers').textContent += ` (Lv.${nx[0]}${lvJosa(nx[0])} 되면 ${nx[1]}마리까지)`;
   const opts=[{id:null,name:'혼자 가기',powerText:'나 혼자 씩씩하게'}].concat(awake);
   opts.forEach(f=>{
     const b=document.createElement('button'); b.className='pal'; b.setAttribute('aria-pressed',String(f.id ? S.party.includes(f.id) : !S.party.length));
@@ -1073,7 +1080,9 @@ function renderMap(){
     b.addEventListener('click',()=>{
       if(!f.id) S.party=[];
       else if(S.party.includes(f.id)) S.party=S.party.filter(x=>x!==f.id);
-      else if(S.party.length>=PARTY_MAX){ toast(`친구는 ${PARTY_MAX}마리까지 데려갈 수 있어요. 다른 친구를 먼저 빼 주세요.`); SFX.hit(); return; }
+      else if(S.party.length>=pm){
+        if(pm===1){ S.party=[f.id]; }
+        else { toast(`지금은 친구를 ${pm}마리까지 데려갈 수 있어요.` + (nx?` Lv.${nx[0]}${lvJosa(nx[0])} 되면 ${nx[1]}마리!`:' 다른 친구를 먼저 빼 주세요.')); SFX.hit(); return; } }
       else S.party.push(f.id);
       save(); SFX.tap(); renderMap(); });
     pl.appendChild(b);
