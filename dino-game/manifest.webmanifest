@@ -1,0 +1,16 @@
+{
+  "name": "공룡 친구 여행",
+  "short_name": "공룡친구여행",
+  "description": "공룡을 키우고, 여행하며 코인을 모아 친구 알을 깨우는 게임",
+  "lang": "ko",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#8ED3F5",
+  "theme_color": "#8ED3F5",
+  "icons": [
+    {"src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable"},
+    {"src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable"}
+  ]
+}
