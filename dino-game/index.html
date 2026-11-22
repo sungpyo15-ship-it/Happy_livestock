@@ -264,7 +264,8 @@ h1,h2,h3{font-family:var(--display);font-weight:400;margin:0;text-wrap:balance}
   <div class="page-inner">
     <div class="pagehead"><button class="back" data-go="home">← 집</button><h2>어디로 갈까?</h2></div>
     <div class="zones" id="zoneList"></div>
-    <span class="label">같이 갈 친구</span>
+    <div class="pagehead" style="gap:8px"><span class="label" style="flex:1">같이 갈 친구</span><span class="tag" id="partyCount">0/3</span></div>
+    <p class="lead" id="partyPowers" style="font-size:13px"></p>
     <div class="pals" id="palList"></div>
     <button class="btn go" id="btnGo" style="font-size:24px;min-height:64px">출발!</button>
   </div>
@@ -401,7 +402,7 @@ const TALK = ['여행 가자!','배고파~','친구 보고 싶어!','나 점프 
 
 /* ---------- 저장 ---------- */
 const SAVE_KEY = 'dino-trip-v1';
-const fresh = () => ({created:false, name:'', color:0, coins:0, xp:0, best:0, trips:0, found:{}, awake:{}, companion:null, zone:'forest', muted:false,
+const fresh = () => ({created:false, name:'', color:0, coins:0, xp:0, best:0, trips:0, found:{}, awake:{}, companion:null, party:[], zone:'forest', muted:false,
   care:{hunger:80, fun:80, energy:80, clean:90}, asleep:false, sick:false, lastTick:Date.now(),
   dragon:false, hall:[], tv:[]});
 let S = fresh();
@@ -413,7 +414,9 @@ const me = () => ({body:COLORS[S.color].body, belly:COLORS[S.color].belly, featu
 const look = () => S.dragon ? {...me(), feature:'dragon'} : me();
 const friend = id => FRIENDS.find(f => f.id === id);
 const nextEgg = () => FRIENDS.find(f => !S.found[f.id]);
-const pal = () => (S.companion && S.awake[S.companion]) ? friend(S.companion) : null;
+const PARTY_MAX = 3;
+const party = () => (S.party||[]).filter(id=>S.awake[id]).map(friend);
+const POWER_NAME = {shield:'방패', heart:'하트 +1', magnet:'코인 자석', triple:'3단 점프', double:'코인 2배', slow:'느긋한 속도'};
 const $ = id => document.getElementById(id);
 const rand = (a,b) => a + Math.random()*(b-a);
 const TAU = Math.PI*2;
@@ -636,7 +639,7 @@ $('hatchCv').addEventListener('pointerdown', () => {
     HT.done=true; HT.t=0; SFX.hatch();
     for(let i=0;i<40;i++) HT.parts.push({x:220,y:250,vx:rand(-260,260),vy:rand(-420,-80),life:rand(.8,1.6),col:['#FFC93C','#FF7B54','#5DBB63','#4AA8D8','#E77FA6'][i%5]});
     if(HT.mode==='me'){ S.created=true; save(); $('hatchTitle').textContent=`${HT.name} 탄생!`; $('hatchMsg').textContent='안녕! 같이 여행 가자!'; }
-    else { S.awake[HT.id]=true; if(!S.companion) S.companion=HT.id; save(); const f=friend(HT.id); $('hatchTitle').textContent=`${f.name}가 깨어났어요!`; $('hatchMsg').textContent=`${f.kind} · ${f.powerText}`; }
+    else { S.awake[HT.id]=true; if(!Array.isArray(S.party)) S.party=[]; if(S.party.length<PARTY_MAX) S.party.push(HT.id); save(); const f=friend(HT.id); $('hatchTitle').textContent=`${f.name}가 깨어났어요!`; $('hatchMsg').textContent=`${f.kind} · ${f.powerText}`; }
     $('hatchOk').hidden=false;
   } else $('hatchMsg').textContent = HT.taps===1 ? '꿈틀꿈틀... 한 번 더!' : '거의 다 됐어요! 한 번 더!';
 });
@@ -1056,14 +1059,23 @@ function renderMap(){
   const pl=$('palList'); pl.innerHTML='';
   const awake=FRIENDS.filter(f=>S.awake[f.id]);
   if(!awake.length){ pl.innerHTML='<div class="empty">아직 친구가 없어요. 여행하다가 반짝이는 알을 찾아 보세요!</div>'; return; }
+  S.party=(S.party||[]).filter(id=>S.awake[id]);
+  $('partyCount').textContent=`${S.party.length}/${PARTY_MAX}`;
+  const pw=party().map(f=>POWER_NAME[f.power]);
+  $('partyPowers').textContent = pw.length ? `함께 쓰는 능력: ${pw.join(' · ')}` : `친구를 ${PARTY_MAX}마리까지 고를 수 있어요. 고른 친구의 능력을 모두 함께 써요.`;
   const opts=[{id:null,name:'혼자 가기',powerText:'나 혼자 씩씩하게'}].concat(awake);
   opts.forEach(f=>{
-    const b=document.createElement('button'); b.className='pal'; b.setAttribute('aria-pressed',String((S.companion||null)===f.id));
+    const b=document.createElement('button'); b.className='pal'; b.setAttribute('aria-pressed',String(f.id ? S.party.includes(f.id) : !S.party.length));
     const cv=document.createElement('canvas'); cv.width=144; cv.height=120; const c=cv.getContext('2d');
     if(f.id) drawDino(c,80,112,f.feature==='neck'?72:88,{...f}); else drawDino(c,80,112,88,{...me(),happy:true});
     const n=document.createElement('b'); n.textContent=f.name; const p=document.createElement('span'); p.textContent=f.powerText;
     b.append(cv,n,p);
-    b.addEventListener('click',()=>{ S.companion=f.id; save(); SFX.tap(); renderMap(); });
+    b.addEventListener('click',()=>{
+      if(!f.id) S.party=[];
+      else if(S.party.includes(f.id)) S.party=S.party.filter(x=>x!==f.id);
+      else if(S.party.length>=PARTY_MAX){ toast(`친구는 ${PARTY_MAX}마리까지 데려갈 수 있어요. 다른 친구를 먼저 빼 주세요.`); SFX.hit(); return; }
+      else S.party.push(f.id);
+      save(); SFX.tap(); renderMap(); });
     pl.appendChild(b);
   });
 }
@@ -1085,7 +1097,7 @@ function renderNest(){
     if(S.awake[f.id]){
       drawDino(c,160,228,f.feature==='neck'?150:180,{...f,happy:true});
       h.textContent=f.name; p.textContent=`${f.kind} · ${f.powerText}`;
-      const tag=document.createElement('span'); tag.className='tag'+(S.companion===f.id?' on':''); tag.textContent=S.companion===f.id?'여행 짝꿍':'친구';
+      const on=(S.party||[]).includes(f.id); const tag=document.createElement('span'); tag.className='tag'+(on?' on':''); tag.textContent=on?'여행 짝꿍':'친구';
       card.append(cv,h,p,tag);
     } else if(S.found[f.id]){
       drawEgg(c,150,228,190,f.body,{}); zzz(c,215,90,130,0.4);
@@ -1118,11 +1130,11 @@ const GRAV=2300, JUMP1=760, JUMP2=660;
 let R = null;
 function startRun(){
   const why=canTravel(); if(why){ $('resultBox').hidden=true; R=null; show('home'); toast(why); return; }
-  const z=ZONES.find(z=>z.id===S.zone)||ZONES[0], p=pal(), lv=lvOf(S.xp);
+  const z=ZONES.find(z=>z.id===S.zone)||ZONES[0], P=party(), lv=lvOf(S.xp), has=pw=>P.some(f=>f.power===pw);
   const egg=nextEgg();
-  R = {zone:z, pal:p, lv, t:0, dist:0, speed:z.speed*(p&&p.power==='slow'?0.85:1), y:0, vy:0, jumps:0,
-    maxJumps: (p&&p.power==='triple'?3:2)+(S.dragon?1:0), maxHearts: 3+(lv>=4?1:0)+(p&&p.power==='heart'?1:0),
-    shield: !!(p&&p.power==='shield'), inv:0, coins:0, obs:[], items:[], parts:[], nextAt:420,
+  R = {zone:z, party:P, has, lv, t:0, dist:0, speed:z.speed*(has('slow')?0.85:1), y:0, vy:0, jumps:0,
+    maxJumps: (has('triple')?3:2)+(S.dragon?1:0), maxHearts: 3+(lv>=4?1:0)+(has('heart')?1:0),
+    shield: has('shield'), inv:0, coins:0, obs:[], items:[], parts:[], nextAt:420,
     egg, eggAt: egg ? rand(120,260) : Infinity, eggSpawned:false, eggGot:false, hist:[], over:false, overT:0, paused:false, shake:0, run:0};
   R.hearts=R.maxHearts; R.baseSpeed=R.speed;
   $('rHint').style.opacity=1; $('rHint').hidden=false;
@@ -1231,7 +1243,7 @@ function stepRun(dt){
   const cv=$('runCv'), {w,h,d}=fitCanvas(cv), c=cv.getContext('2d');
   const sc=Math.min(h/400, w/440), WW=w/sc, WH=h/sc;
   const G = Math.min(WH-70, WH*0.5+180); R.G=G;
-  const s = 58 + R.lv*2; R.s=s; const DX = Math.min(120, WW*0.22); R.DX=DX;
+  const s = 58 + R.lv*2; R.s=s; const DX = Math.min(WW*0.4, Math.max(Math.min(120, WW*0.22), s*(R.party.length ? 1.06+0.62*R.party.length : 0))); R.DX=DX;
   if(!R.paused && !R.done){
     R.t+=dt;
     if(R.over){ R.overT+=dt; if(R.overT>0.8) endRun(false); }
@@ -1253,7 +1265,7 @@ function stepRun(dt){
         else if(bx2>o.x+6 && bx1<o.x+o.w-6 && by2>G-o.h+6){ o.hitDone=true; hit(); }
       });
       R.obs=R.obs.filter(o=>o.x+o.w>-60);
-      const magnet = R.pal && R.pal.power==='magnet', mult = R.pal && R.pal.power==='double' ? 2 : 1;
+      const magnet = R.has('magnet'), mult = R.has('double') ? 2 : 1;
       const cx=DX+s*0.05, cy=G+R.y-s*0.5;
       R.items.forEach(it=>{
         it.x-=v; if(it.taken) return;
@@ -1289,8 +1301,10 @@ function stepRun(dt){
     else drawEgg(c,it.x,by+24,52,R.egg.body,{glow:true,wob:Math.sin(t*6)*0.12});
   });
   // 짝꿍
-  if(R.pal){ const py=R.hist.length>8?R.hist[R.hist.length-8]:R.y; const ps=s*(R.pal.feature==='neck'?0.6:0.72);
-    drawDino(c,DX-s*1.05,G+py,ps,{...R.pal,t,run:R.run+1.5,air:py<-2,happy:true}); }
+  // 줄지어 따라오는 친구들 (뒤에 있는 친구일수록 조금 늦게 점프해요)
+  for(let i=R.party.length-1;i>=0;i--){ const f=R.party[i], lag=7+i*6;
+    const py=R.hist.length>lag?R.hist[R.hist.length-lag]:R.y, ps=s*(f.feature==='neck'?0.6:0.72);
+    drawDino(c,DX-s*(1.0+i*0.62),G+py,ps,{...f,t:t+i,run:R.run+1.5+i*1.3,air:py<-2,happy:true}); }
   // 내 공룡
   const blinkOn = !R.over && R.inv>0 && Math.floor(R.inv*12)%2===0;
   if(!blinkOn){
@@ -1335,6 +1349,8 @@ function boot(data){
   load();
   if(data && data.S) S = Object.assign(fresh(), data.S);
   try{ window.claude?.hot?.snapshot?.(() => ({S})); }catch(e){}
+  if(!Array.isArray(S.party)) S.party=[];
+  if(S.companion){ if(!S.party.length && S.awake[S.companion]) S.party=[S.companion]; S.companion=null; }
   if(S.created){
     const away=Math.min(12, Math.max(0,(Date.now()-(S.lastTick||Date.now()))/3.6e6));
     if(away>0.005) decay(away);
