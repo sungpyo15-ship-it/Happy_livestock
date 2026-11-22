@@ -179,6 +179,27 @@ h1,h2,h3{font-family:var(--display);font-weight:400;margin:0;text-wrap:balance}
 .hud .grow{flex:1}
 .hud .iconbtn{pointer-events:auto}
 .shield{font-family:var(--display);font-size:14px;background:#DDF0FF;color:#2A6FA8;border-radius:999px;padding:6px 10px}
+/* 여행은 늘 가로로: 폰이 세로이면 여행 화면을 90도 돌려서 보여 줘요 */
+@media (orientation:portrait){
+  #run{inset:auto;top:0;left:100vw;width:100vh;width:100dvh;height:100vw;transform-origin:0 0;transform:rotate(90deg)}
+  #run .hud{padding-top:10px;padding-left:max(12px,env(safe-area-inset-top,0px));padding-right:max(12px,env(safe-area-inset-bottom,0px))}
+  #run .panel{padding:14px 18px;gap:8px;max-width:460px}
+  #run .panel h2{font-size:22px}
+  #run .stats div{padding:6px}
+  #run .stats b{font-size:18px}
+  #run .eggbox{padding:6px 10px}
+  #run .eggbox canvas{width:48px;height:48px}
+  #run .row .btn{padding:10px 14px;font-size:18px}
+}
+@media (orientation:landscape) and (max-height:520px){
+  #run .panel{padding:14px 18px;gap:8px;max-width:460px}
+  #run .panel h2{font-size:22px}
+  #run .stats div{padding:6px}
+  #run .stats b{font-size:18px}
+  #run .eggbox{padding:6px 10px}
+  #run .eggbox canvas{width:48px;height:48px}
+  #run .row .btn{padding:10px 14px;font-size:18px}
+}
 .hint{position:absolute;left:50%;top:38%;transform:translate(-50%,-50%);background:rgba(46,42,54,.78);color:#fff;font-family:var(--display);
   font-size:20px;padding:14px 18px;border-radius:18px;text-align:center;line-height:1.4;pointer-events:none;width:max-content;max-width:calc(100% - 32px);transition:opacity .6s}
 
@@ -299,32 +320,31 @@ h1,h2,h3{font-family:var(--display);font-weight:400;margin:0;text-wrap:balance}
     <span class="grow"></span>
     <button class="iconbtn" id="btnPause" aria-label="잠깐 멈추기">⏸</button>
   </div>
-  <div class="hint" id="rHint">화면을 톡! 누르면 점프<br>공중에서 한 번 더 누르면 더 높이!</div>
-</section>
-
-<div class="overlay" id="pauseBox" hidden>
-  <div class="panel">
-    <h2>잠깐 쉬어요</h2>
-    <p>지금까지 모은 코인은 집으로 가져갈 수 있어요.</p>
-    <div class="row"><button class="btn" id="btnQuit">집으로 가기</button><button class="btn go" id="btnResume">계속 가기</button></div>
-  </div>
-</div>
-
-<div class="overlay" id="resultBox" hidden>
-  <div class="panel">
-    <h2 id="resTitle">여행 끝!</h2>
-    <div class="stats">
-      <div><span>간 거리</span><b id="resDist">0m</b></div>
-      <div><span>코인</span><b id="resCoins">0</b></div>
-      <div><span>경험치</span><b id="resXp">0</b></div>
+  <div class="hint" id="rHint"></div>
+  <div class="overlay" id="pauseBox" hidden>
+    <div class="panel">
+      <h2>잠깐 쉬어요</h2>
+      <p>지금까지 모은 코인은 집으로 가져갈 수 있어요.</p>
+      <div class="row"><button class="btn" id="btnQuit">집으로 가기</button><button class="btn go" id="btnResume">계속 가기</button></div>
     </div>
-    <div class="eggbox" id="resEgg" hidden><canvas id="resEggCv" width="140" height="140"></canvas><p id="resEggTxt"></p></div>
-    <div class="levelup" id="resLv" hidden></div>
-    <p id="resCare"></p>
-    <p id="resBest"></p>
-    <div class="row"><button class="btn" id="btnHome">집으로</button><button class="btn go" id="btnAgain">또 가기</button></div>
   </div>
-</div>
+
+  <div class="overlay" id="resultBox" hidden>
+    <div class="panel">
+      <h2 id="resTitle">여행 끝!</h2>
+      <div class="stats">
+        <div><span>간 거리</span><b id="resDist">0m</b></div>
+        <div><span>코인</span><b id="resCoins">0</b></div>
+        <div><span>경험치</span><b id="resXp">0</b></div>
+      </div>
+      <div class="eggbox" id="resEgg" hidden><canvas id="resEggCv" width="140" height="140"></canvas><p id="resEggTxt"></p></div>
+      <div class="levelup" id="resLv" hidden></div>
+      <p id="resCare"></p>
+      <p id="resBest"></p>
+      <div class="row"><button class="btn" id="btnHome">집으로</button><button class="btn go" id="btnAgain">또 가기</button></div>
+    </div>
+  </div>
+</section>
 
 <div class="overlay" id="hatchBox" hidden>
   <div class="panel">
@@ -649,7 +669,7 @@ function zzz(c, x, y, s, t){
 function cloud(c,x,y,s){ c.fillStyle='rgba(255,255,255,.9)'; ell(c,x,y,s,s*0.55); c.fill(); ell(c,x+s*0.7,y+s*0.1,s*0.7,s*0.45); c.fill(); ell(c,x-s*0.7,y+s*0.15,s*0.6,s*0.38); c.fill(); }
 
 function fitCanvas(cv){
-  const r = cv.getBoundingClientRect(), d = Math.min(2, window.devicePixelRatio||1);
+  const b = cv.getBoundingClientRect(), r = {width: cv.clientWidth || b.width, height: cv.clientHeight || b.height}, d = Math.min(2, window.devicePixelRatio||1);
   const w = Math.max(1, Math.round(r.width*d)), h = Math.max(1, Math.round(r.height*d));
   if(cv.width!==w || cv.height!==h){ cv.width=w; cv.height=h; }
   return {w:r.width, h:r.height, d};
@@ -658,7 +678,12 @@ function fitCanvas(cv){
 /* ---------- 화면 전환 ---------- */
 const SCREENS = ['setup','home','map','nestPage','run'];
 let screen = '';
+function lockLandscape(on){
+  try{ const o=window.screen && window.screen.orientation; if(!o) return;
+    if(on){ if(o.lock) o.lock('landscape').catch(()=>{}); } else if(o.unlock) o.unlock(); }catch(e){}
+}
 function show(id){
+  if((id==='run') !== (screen==='run')) lockLandscape(id==='run');
   SCREENS.forEach(s => $(s).hidden = s!==id); screen = id;
   if(id==='home') renderHome();
   if(id==='map') renderMap();
@@ -1205,12 +1230,16 @@ function startRun(){
     shield: has('shield'), inv:0, coins:0, obs:[], items:[], parts:[], nextAt:420,
     egg, eggAt: egg ? rand(...TIERS[egg.tier].dist) : Infinity, revive:has('revive'), bonus:has('start')?20:0, starT:0, starOn:0, eggSpawned:false, eggGot:false, hist:[], over:false, overT:0, paused:false, shake:0, run:0};
   R.hearts=R.maxHearts; R.baseSpeed=R.speed; R.coins=R.bonus;
-  $('rHint').style.opacity=1; $('rHint').hidden=false;
+  R.ready=false; $('rHint').style.opacity=1; $('rHint').hidden=false;
+  $('rHint').innerHTML = (window.matchMedia && matchMedia('(orientation: portrait)').matches ? '폰을 옆으로 돌려요<br>' : '') + '준비되면 화면을 톡!';
   hudHearts(); show('run'); $('resultBox').hidden=true; $('pauseBox').hidden=true;
 }
 function hudHearts(){ const el=$('rHearts'); el.innerHTML=''; for(let i=0;i<R.maxHearts;i++){ const h=document.createElement('i'); h.textContent='♥'; if(i>=R.hearts) h.className='off'; el.appendChild(h);} $('rShield').hidden=!R.shield; }
 function jump(){
   if(!R || R.over || R.paused) return;
+  if(!R.ready){ R.ready=true; SFX.tap(); const me2=R;
+    $('rHint').innerHTML='톡 누르면 점프<br>공중에서 한 번 더 누르면 더 높이!';
+    setTimeout(()=>{ if(R===me2) $('rHint').style.opacity=0; }, 2500); return; }
   if(R.jumps < R.maxJumps){ R.vy = -(R.jumps===0?JUMP1:JUMP2); R.jumps++; SFX.jump();
     if(R.jumps>1) for(let i=0;i<6;i++) R.parts.push({x:R.DX,y:R.G+R.y,vx:rand(-80,20),vy:rand(-40,60),life:.4,col:'#fff'}); }
   if(R.t>0.3) $('rHint').style.opacity=0;
@@ -1315,7 +1344,7 @@ function stepRun(dt){
   const sc=Math.min(h/400, w/440), WW=w/sc, WH=h/sc;
   const G = Math.min(WH-70, WH*0.5+180); R.G=G;
   const s = 58 + R.lv*2; R.s=s; const DX = Math.min(WW*0.4, Math.max(Math.min(120, WW*0.22), s*(R.party.length ? 1.06+0.62*R.party.length : 0))); R.DX=DX;
-  if(!R.paused && !R.done){
+  if(!R.paused && !R.done && R.ready){
     R.t+=dt;
     if(R.over){ R.overT+=dt; if(R.overT>0.8) endRun(false); }
     else {
