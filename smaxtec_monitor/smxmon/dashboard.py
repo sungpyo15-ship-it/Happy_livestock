@@ -120,6 +120,7 @@ small.cn{color:var(--sub);font-size:11px;font-weight:400}
 details.gd{background:var(--card);border:1px solid var(--line);border-radius:12px;margin-bottom:6px}
 details.gd summary{padding:10px 12px;cursor:pointer;font-weight:700}details.gd[open] summary{border-bottom:1px solid var(--line)}
 .gs{padding:8px 12px 4px;font-size:14px}.gs ul{margin:2px 0 10px;padding-left:18px}.gs li{margin:2px 0}
+.gs .gref{font-size:12px;color:var(--sub);margin:0 0 8px}
 .gs .h1{color:var(--navy)}.gs .h2{color:var(--ok)}.gs .h3{color:var(--urgent)}
 .tbl td.l,.tbl th.l{text-align:left}.tbl td.wrap{white-space:normal;text-align:left;min-width:180px}
 .tbl tr.click{cursor:pointer}.tbl tr.click:hover td{background:var(--sel)}
@@ -280,12 +281,13 @@ const flagGuide = x => x.startsWith("누운 시간")?"lying":x.startsWith("함�
 const gList = (cls, t, xs) => xs.length?`<b class="${cls}">${t}</b><ul>${xs.map(x=>`<li>${esc(x)}</li>`).join("")}</ul>`:"";
 function guideBox(id, open){ const g=GD[id]; if(!g) return "";
   return `<details class="gd"${open?" open":""}><summary>${esc(g.title)}</summary><div class="gs">
-  ${gList("h1","① 먼저 확인",g.check)}${gList("h2","② 바로 할 조치 (사양·환경)",g.act)}${gList("h3","③ 수의사 연락 기준",g.vet)}</div></details>`; }
+  ${gList("h1","① 먼저 확인",g.check)}${gList("h2","② 바로 할 조치 (사양·환경)",g.act)}${gList("h3","③ 수의사 연락 기준",g.vet)}
+  ${(g.ref||[]).length?`<div class="gref"><b>근거</b> ${g.ref.map(esc).join(" · ")}</div>`:""}</div></details>`; }
 function guideSection(ids){
   const rest = (D.guides||[]).filter(g=>!ids.includes(g.id));
   return `${ids.length?ids.map(id=>guideBox(id)).join(""):`<div class="empty">지금 해당하는 신호 없음</div>`}
   ${rest.length?`<details class="gd"><summary style="color:var(--sub)">다른 알림 조치 가이드 보기 (${rest.length})</summary><div class="gs">${rest.map(g=>guideBox(g.id)).join("")}</div></details>`:""}
-  <div class="note">센서 알림은 의심 신호(진단 아님) · 약품 사용·치료는 반드시 수의사 진료·처방에 따름</div>`; }
+  <div class="note">센서 알림은 의심 신호(진단 아님) · [문헌] = 논문·공식 지침 근거, [관행] = 현장 경험 기준(목장마다 조정) · 약품 사용·치료는 반드시 수의사 진료·처방에 따름</div>`; }
 /* ───── 오늘 할 일 (첫 화면) ───── */
 const G_PRI = ["group_rum","ph_low","heat_stress","lying","sync","temp_high","rumination","ketosis","mastitis","milk_fever","drinking","activity","temp_low"];
 function oneAction(f){

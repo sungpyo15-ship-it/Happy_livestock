@@ -226,3 +226,44 @@ def test_guide_page(env):
     c = app.test_client()
     r = c.get("/guide")
     assert r.status_code == 200 and "목장 모니터 사용 설명서" in r.get_data(as_text=True)
+
+
+def test_admin_guides_excel(env, tmp_path, monkeypatch):
+    import io
+    import openpyxl
+    from smxmon import actions
+    monkeypatch.setenv("SMX_ACTIONS_OVERRIDE", str(tmp_path / "ov.json"))
+    actions._cache.clear()
+    store, app = env
+    c = app.test_client()
+    c.post("/login", data={"username": ADMIN, "password": "adminpw"})
+    acc = c.get("/account").get_data(as_text=True)
+    assert "조치 가이드 편집" in acc and "기본 내용 사용 중" in acc
+    r = c.get("/admin/guides.xlsx")
+    assert r.status_code == 200
+    wb = openpyxl.load_workbook(io.BytesIO(r.data))
+    ws = wb["조치가이드"]
+    assert ws["A2"].value == "temp_high" and "Sheldon" in ws["G2"].value
+    ws["D2"] = "직장 체온 재측정\n분만 후 일수 확인"
+    buf = io.BytesIO()
+    wb.save(buf)
+    # 잘못된 신호 코드 → 반영 안 됨
+    ws["C3"] = "TEMP_LOW, NOPE"
+    bad = io.BytesIO()
+    wb.save(bad)
+    r = c.post("/admin/guides", data={"csrf": _csrf(acc), "file": (io.BytesIO(bad.getvalue()), "g.xlsx")},
+               content_type="multipart/form-data").get_data(as_text=True)
+    assert "반영하지 않았습니다" in r and "NOPE" in r
+    assert not actions.is_custom()
+    r = c.post("/admin/guides", data={"csrf": _csrf(acc), "file": (io.BytesIO(buf.getvalue()), "g.xlsx")},
+               content_type="multipart/form-data").get_data(as_text=True)
+    assert "반영했습니다" in r
+    g = next(x for x in actions.guides() if x["id"] == "temp_high")
+    assert g["check"] == ["직장 체온 재측정", "분만 후 일수 확인"] and g["ref"]
+    # 팀원은 못 받음
+    u = app.test_client()
+    u.post("/login", data={"username": OTHER, "password": "otherpw"})
+    assert u.get("/admin/guides.xlsx").status_code == 403
+    acc = c.get("/account").get_data(as_text=True)
+    c.post("/admin/guides/reset", data={"csrf": _csrf(acc)})
+    assert not actions.is_custom() and next(x for x in actions.guides() if x["id"] == "temp_high")["check"][0].startswith("직장 체온 재측정 —")

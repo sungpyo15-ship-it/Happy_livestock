@@ -307,20 +307,21 @@ def _guide_sheet(wb, an: Analysis) -> None:
         return
     ws = wb.create_sheet("조치가이드")
     ws.cell(row=1, column=1, value="알림별 조치 가이드 — 확인 → 바로 할 조치(사양·환경) → 수의사 연락 기준").font = Font(name=FONT, bold=True, size=13)
-    ws.cell(row=2, column=1, value="센서 알림은 의심 신호(진단 아님). 약품 사용·치료는 수의사 진료·처방에 따름. "
-            "내용 수정: config/actions.toml").font = Font(name=FONT, size=9, color="7F7F7F")
+    ws.cell(row=2, column=1, value="센서 알림은 의심 신호(진단 아님). [문헌]=논문·공식 지침 근거, [관행]=현장 경험 기준. 약품 사용·치료는 수의사 진료·처방에 따름. "
+            "내용 수정: 관리자 화면 '조치 가이드 편집'(엑셀) 또는 config/actions.toml").font = Font(name=FONT, size=9, color="7F7F7F")
     hits = {g["id"]: [] for g in gs}
     for f in an.farms:
         for i in farm_guides(f):
             hits.setdefault(i, []).append(f.name)
-    _header(ws, 4, ["알림", "① 먼저 확인", "② 바로 할 조치 (사양·환경)", "③ 수의사 연락 기준", "지금 해당 목장"],
-            [16, 52, 46, 36, 22])
+    _header(ws, 4, ["알림", "① 먼저 확인", "② 바로 할 조치 (사양·환경)", "③ 수의사 연락 기준", "지금 해당 목장", "근거·출처"],
+            [16, 52, 46, 36, 22, 40])
     for r, g in enumerate(gs, 5):
         _row(ws, r, [g["title"], "\n".join("· " + x for x in g["check"]), "\n".join("· " + x for x in g["act"]),
-                     "\n".join("· " + x for x in g["vet"]) or "-", ", ".join(hits.get(g["id"], [])) or "-"],
-             wrap_cols={2, 3, 4, 5})
+                     "\n".join("· " + x for x in g["vet"]) or "-", ", ".join(hits.get(g["id"], [])) or "-",
+                     "\n".join(g.get("ref") or []) or "-"],
+             wrap_cols={2, 3, 4, 5, 6})
         ws.cell(row=r, column=1).font = Font(name=FONT, bold=True, size=10)
-        for c in (2, 3, 4, 5):
+        for c in (2, 3, 4, 5, 6):
             ws.cell(row=r, column=c).alignment = Alignment(vertical="top", wrap_text=True)
         lines = max(sum(-(-len("· " + x) * 18 // (w * 10)) for x in xs) or 1
                     for xs, w in ((g["check"], 52), (g["act"], 46), (g["vet"], 36)))

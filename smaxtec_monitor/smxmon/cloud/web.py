@@ -312,7 +312,23 @@ def create_app(store: CloudStore, base: Settings, *, secure_cookie: bool = True,
           <h2>최근 로그인 기록</h2>
           <table><tr><th>시각</th><th>아이디</th><th>결과</th></tr>{events}</table>
           <p class="sub">등록 안 됨 = 허용 목록에 없음(철자 확인) · 비밀번호 거절 = smaXtec 이 거절(웹 로그인 확인, 웹은 되면 리얼팜에 API 조회 권한 문의)</p></div>
+        {guides_html(csrf)}
         {validate_html(user, csrf)}"""
+
+    def guides_html(csrf: str) -> str:
+        from ..actions import guides, is_custom
+        st = (f"<b>관리자가 올린 내용</b> 사용 중 ({len(guides())}개)" if is_custom()
+              else f"기본 내용 사용 중 ({len(guides())}개)")
+        return f"""<div class="card"><h2>관리자 — 조치 가이드 편집</h2>
+          <p class="sub">알림별 '먼저 확인 → 바로 할 조치 → 수의사 연락 기준 → 근거' 문구를 엑셀로 받아 고친 뒤 올리면 팀원 전체 앱·방문요약·엑셀에 반영됩니다.</p>
+          <p>{st}</p>
+          <div class="row"><a class="btn ghost" href="/admin/guides.xlsx">조치 가이드 엑셀 받기</a></div>
+          <form method="post" action="/admin/guides" enctype="multipart/form-data" class="row">
+            <input type="hidden" name="csrf" value="{csrf}">
+            <input type="file" name="file" id="guidefile" accept=".xlsx" required>
+            <button type="submit">올리기</button></form>
+          {f'<form method="post" action="/admin/guides/reset"><input type="hidden" name="csrf" value="{csrf}"><button class="ghost" type="submit">기본 내용으로 되돌리기</button></form>' if is_custom() else ''}
+        </div>"""
 
     def validate_html(user: User, csrf: str) -> str:
         d = store.user_dir(user.uid) / "reports"
@@ -475,6 +491,53 @@ def create_app(store: CloudStore, base: Settings, *, secure_cookie: bool = True,
             return account(msg="아이디(이메일)를 확인하세요.")
         store.allow(u, (request.form.get("note") or "").strip()[:40])
         return account(ok=f"{u} 를 등록했습니다. 이제 이 아이디로 로그인할 수 있습니다.")
+
+    def _codes() -> dict[str, str]:
+        from ..config import load_toml
+        from ..normalize import AlertTypeMapper
+        m = AlertTypeMapper(load_toml("alert_types.toml"))
+        return {c: t.label for c, t in m.types.items() if c not in ("OTHER", "MANAGEMENT")}
+
+    @app.get("/admin/guides.xlsx")
+    def admin_guides_get():
+        from datetime import date
+        from ..actions import export_xlsx
+        user, _ = need_login()
+        if not store.admin or user.username != store.admin:
+            abort(403)
+        p = export_xlsx(store.user_dir(user.uid) / "reports" / "조치가이드_편집.xlsx", _codes())
+        return send_file(p, as_attachment=True, download_name=f"조치가이드_{date.today():%Y%m%d}.xlsx")
+
+    @app.post("/admin/guides")
+    def admin_guides_put():
+        from ..actions import import_xlsx, save_override
+        user = need_admin()
+        f = request.files.get("file")
+        if not f or not f.filename.lower().endswith(".xlsx"):
+            return account(msg="엑셀(.xlsx) 파일을 선택하세요.")
+        tmp = store.user_dir(user.uid) / "guides.upload.xlsx"
+        f.save(tmp)
+        try:
+            items, errs = import_xlsx(tmp, set(_codes()))
+        except Exception:  # noqa: BLE001
+            items, errs = [], ["엑셀을 읽지 못했습니다(.xlsx 인지 확인)"]
+        finally:
+            tmp.unlink(missing_ok=True)
+        if errs:
+            return account(msg="반영하지 않았습니다 — " + " / ".join(errs[:6]) + (f" 외 {len(errs) - 6}건" if len(errs) > 6 else ""))
+        save_override(items)
+        for u in store.users():
+            runner.submit(u.uid)
+        return account(ok=f"조치 가이드 {len(items)}개를 반영했습니다. 팀원 화면은 새로고침이 끝나면(몇 분) 바뀝니다.")
+
+    @app.post("/admin/guides/reset")
+    def admin_guides_reset():
+        from ..actions import reset_override
+        need_admin()
+        reset_override()
+        for u in store.users():
+            runner.submit(u.uid)
+        return account(ok="조치 가이드를 기본 내용으로 되돌렸습니다.")
 
     validate_job: dict = {}
 
