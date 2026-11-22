@@ -295,7 +295,7 @@ function oneAction(f){
   const ct = f.cluster ? f.cluster.text : "", pri = [];
   if(/고온|THI/.test(ct)) pri.push("heat_stress");
   if(/체온|감염/.test(ct)) pri.push("temp_high");
-  if(/SARA|pH|반추/.test(ct)) pri.push("group_rum","ph_low","rumination");
+  if(/SARA|pH|반추/.test(ct)) pri.push("group_rum","rumination");
   const gid = [...pri, ...G_PRI].find(g=>(f.guides||[]).includes(g));
   const g = gid && GD[gid];
   if(g && g.act.length) return {title:g.title, text:g.act[0], check:g.check[0]||""};

@@ -163,13 +163,14 @@ def build_excel(an: Analysis, mapper: AlertTypeMapper, rules: dict[str, Any], ou
     _title(wc, "단시간 다두수 알림 (사료문제·산독증·집단질병 의심 신호)",
            f"기준: {rules['cluster']['window_hours']}시간 내 서로 다른 개체 {rules['cluster']['min_animals']}두 이상"
            f" (두수 정보 있으면 {rules['cluster']['min_herd_pct']}% 이상)")
-    _header(wc, 4, ["목장", "시작", "끝", "개체수", "두수대비%", "체온상승", "반추감소", "pH저하(±6h)", "해석·점검 항목", "개체번호"],
-            [18, 12, 12, 7, 9, 8, 8, 10, 60, 40])
+    ph_on = rules.get("features", {}).get("ph", True)
+    _header(wc, 4, ["목장", "시작", "끝", "개체수", "두수대비%", "체온상승", "반추감소", "pH저하(±6h)" if ph_on else "-",
+                    "해석·점검 항목", "개체번호"], [18, 12, 12, 7, 9, 8, 8, 10 if ph_on else 2, 60, 40])
     for i, c in enumerate(sorted(an.clusters, key=lambda x: -x.n_animals), 1):
         _row(wc, 4 + i, [c.farm_name, f"{c.window_start:%m/%d %H:%M}", f"{c.window_end:%m/%d %H:%M}",
                          c.n_animals, c.herd_pct if c.herd_pct is not None else "-",
                          c.animals_by_type.get("TEMP_HIGH", 0), c.animals_by_type.get("RUMINATION_DROP", 0),
-                         c.ph_low_count, c.interpretation, ", ".join(c.animals)], wrap_cols={9, 10})
+                         c.ph_low_count if ph_on else "", c.interpretation, ", ".join(c.animals)], wrap_cols={9, 10})
     if not an.clusters:
         wc["A5"] = "해당 없음"
 
@@ -260,16 +261,18 @@ def build_excel(an: Analysis, mapper: AlertTypeMapper, rules: dict[str, Any], ou
     # ───── 7. 기준설명 ─────
     wg = wb.create_sheet("기준설명")
     sg, pr = rules["surge"], rules["priority"]
+    ph_on = rules.get("features", {}).get("ph", True)
     lines = [
         ("집계 기준", "리포트 시각 기준 최근 24시간(D0), 그 전 24시간(D-1), 그 전 7개 24시간 평균. 알림 '발생시각' 기준."),
-        ("건강알림", "alert_types.toml 에서 category=health 인 알림(체온상승·하강, 반추감소, 음수이상, pH저하, 활동감소)."),
+        ("건강알림", "alert_types.toml 에서 category=health 인 알림(체온상승·하강, 반추감소, 음수이상, 활동감소"
+                   + (", pH저하" if rules.get("features", {}).get("ph", True) else "") + ")."),
         ("두수 기준", "모든 숫자는 '두수' = 기간 안에 알림이 1번 이상 나온 개체 수(같은 개체 반복은 1두). "
                    "요약표 '참고: 알림 건수'만 반복 포함 건수. 급증·점수도 두수로 판정."),
         ("급증", f"건강알림 두수(24h) ≥ {sg['min_count']}두 이고, 전일 대비 {sg['ratio_vs_prev_day']}배·+{sg['min_increase']}두 이상 "
                 f"또는 7일평균 대비 {sg['ratio_vs_7d_avg']}배·+{sg['min_increase']}두 이상."),
         ("집단신호", "짧은 시간 창 안에 여러 개체가 체온상승/반추감소 → 공통 원인(사료·급여·환경·전염성 질병) 의심. "
-                  "반추감소+pH저하 동반 시 SARA 의심 문구."),
-        ("점수", f"건강알림 두수×{pr['w_health_alert']} + pH저하×{pr['w_ph_low']} + 급증 {pr['w_surge']} + 집단 {pr['w_cluster']} "
+                  + ("반추감소+pH저하 동반 시 SARA 의심 문구." if ph_on else "")),
+        ("점수", f"건강알림 두수×{pr['w_health_alert']}" + (f" + pH저하×{pr['w_ph_low']}" if ph_on else "") + f" + 급증 {pr['w_surge']} + 집단 {pr['w_cluster']} "
                f"+ 장기미해제×{pr['w_long_active']} + 분만임박×{pr['w_calving']}  → 긴급≥{pr['urgent']}, 우선≥{pr['high']}, 관찰≥{pr['watch']}"),
         ("API 모드", "공식 API 이벤트는 '발생 시점' 기록이라 해제·지속시간이 없음(상태=이벤트). "
                     "장기미해제·평균지속은 web 모드 또는 향후 attentions 연동 시 계산."),

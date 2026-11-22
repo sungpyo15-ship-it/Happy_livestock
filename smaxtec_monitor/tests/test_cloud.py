@@ -266,4 +266,4 @@ def test_admin_guides_excel(env, tmp_path, monkeypatch):
     assert u.get("/admin/guides.xlsx").status_code == 403
     acc = c.get("/account").get_data(as_text=True)
     c.post("/admin/guides/reset", data={"csrf": _csrf(acc)})
-    assert not actions.is_custom() and next(x for x in actions.guides() if x["id"] == "temp_high")["check"][0].startswith("직장 체온 재측정 —")
+    assert not actions.is_custom() and next(x for x in actions.guides() if x["id"] == "temp_high")["check"][0].startswith("직장 체온으로 재확인")

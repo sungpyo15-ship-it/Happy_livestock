@@ -32,6 +32,19 @@ ALERT_METRICS = [("RUMINATION_DROP", "반추감소 알림"), ("TEMP_HIGH", "체�
                  ("PH_LOW", "pH저하 알림"), ("_HEALTH", "건강알림 전체")]
 
 
+
+def _ph_on() -> bool:
+    from .config import load_toml
+    try:
+        return bool(load_toml("rules.toml", required=False).get("features", {}).get("ph", True))
+    except Exception:  # noqa: BLE001
+        return True
+
+
+if not _ph_on():   # pH 볼루스를 안 쓰면 pH 지표 제외
+    ALERT_METRICS = [m for m in ALERT_METRICS if m[0] != "PH_LOW"]
+
+
 # ───────────────────────── 통계 ─────────────────────────
 def _betacf(a, b, x):
     qab, qap, qam = a + b, a + 1, a - 1
@@ -329,7 +342,7 @@ def compute_trial(conn: sqlite3.Connection, t: Trial, as_of: datetime, mapper: A
         return res
     res.status = "완료" if (a2 - a1).days + 1 >= t.days else f"진행중 — 투입 후 {(a2 - a1).days + 1}/{t.days}일 반영"
     lact = [k.lower() for k in rules.get("behaviour", {}).get("lactating_keywords", ["착유"])]
-    health = set(mapper.codes("health"))
+    health = set(mapper.codes("health")) - (set() if rules.get("features", {}).get("ph", True) else {"PH_LOW"})
 
     # 이 목장 행동
     daily, res.groups = _group_daily(conn, t.farm_id, b1, a2, t.groups, lact)

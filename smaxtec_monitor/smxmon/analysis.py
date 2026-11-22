@@ -304,7 +304,8 @@ def analyze(conn: sqlite3.Connection, as_of: datetime, mapper: AlertTypeMapper, 
             overrides: dict[str, dict[str, Any]] | None = None, light: bool = False) -> Analysis:
     """light=True: 판정 검증(과거 날짜 반복 계산)용 — 장기 누적·전환기·최근목록 생략(전환기 가중치 미반영)."""
     overrides = overrides or {}
-    health = set(mapper.codes("health"))
+    ph_on = bool(rules.get("features", {}).get("ph", True))   # pH 볼루스 안 쓰면 pH 알림 전부 제외
+    health = set(mapper.codes("health")) - (set() if ph_on else {"PH_LOW"})
     trend_days = int(rules.get("report", {}).get("trend_days", 7))
     cl_types = set(rules["cluster"].get("types", ["TEMP_HIGH", "RUMINATION_DROP"]))
     W = timedelta(hours=float(rules["cluster"].get("window_hours", 12)))
@@ -315,6 +316,8 @@ def analyze(conn: sqlite3.Connection, as_of: datetime, mapper: AlertTypeMapper, 
                                                            datetime.min.time()) - timedelta(seconds=1))
     lookback_start = min(lookback_start, as_of - H24 - W)
     rows = _alerts_between(conn, lookback_start, as_of)
+    if not ph_on:
+        rows = [r for r in rows if r["alert_type"] != "PH_LOW"]
     by_farm: dict[str, list[sqlite3.Row]] = defaultdict(list)
     for r in rows:
         by_farm[r["farm_id"]].append(r)

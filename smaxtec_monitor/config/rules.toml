@@ -5,7 +5,7 @@
 
 [report]
 # 리포트 표에 나란히 표시할 알림 종류(순서대로)
-columns = ["TEMP_HIGH", "RUMINATION_DROP", "DRINKING_ABNORMAL", "PH_LOW", "KETOSIS", "MASTITIS", "HEAT", "CALVING"]
+columns = ["TEMP_HIGH", "RUMINATION_DROP", "DRINKING_ABNORMAL", "TEMP_LOW", "KETOSIS", "MASTITIS", "HEAT", "CALVING"]   # 8개 유지(방문요약 칸 배치)
 trend_days = 7
 # 7일 추세: 종류별 '두수'(같은 날 같은 개체는 1두). 마지막 행은 건강알림 전체 두수
 trend_categories = [
@@ -13,10 +13,13 @@ trend_categories = [
   { label = "체온 하강", types = ["TEMP_LOW"] },
   { label = "반추 감소", types = ["RUMINATION_DROP"] },
   { label = "음수 이상", types = ["DRINKING_ABNORMAL"] },
-  { label = "pH 저하",   types = ["PH_LOW"] },
   { label = "활동 감소", types = ["ACTIVITY_DROP"] },
   { label = "질병 의심", types = ["KETOSIS", "MASTITIS", "MILK_FEVER"] },
 ]
+
+[features]
+# pH 측정(프리미엄 볼루스) 사용 여부. false = pH 저하 알림을 집계·점수·화면에서 모두 뺌 (다시 쓰면 true 로)
+ph = false
 
 [surge]
 # 급증 판정(두수 기준 — 같은 개체 반복은 1두): 건강알림 두수(D0) ≥ min_count 이고

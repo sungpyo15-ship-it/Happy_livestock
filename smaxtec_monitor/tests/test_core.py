@@ -93,6 +93,7 @@ def _seed(db, items):
 
 def test_surge_and_sara_cluster(db, mapper):
     rules = load_toml("rules.toml")
+    rules.setdefault("features", {})["ph"] = True   # pH 볼루스 쓰는 목장 기준 시험
     items = [("x1", "TEMP_HIGH", NOW - timedelta(days=d, hours=3)) for d in range(2, 9)]  # 평소 하루 1건
     items += [(f"c{k}", "RUMINATION_DROP", NOW - timedelta(hours=10) + timedelta(minutes=60 * k)) for k in range(6)]
     items += [("p1", "PH_LOW", NOW - timedelta(hours=8))]
@@ -151,3 +152,19 @@ def test_action_guides():
     s = NS(counts_72h={"TEMP_HIGH": 2, "PH_LOW": 0}, counts_d0={}, cluster=None, behaviour=[g])
     assert farm_guides(s) == ["temp_high", "lying"]
     assert flag_guide("함께 눕기 감소 -12%p") == "sync"
+
+
+
+def test_ph_off_hides_ph(tmp_path):
+    """pH 볼루스 안 쓰는 설정: pH 알림이 점수·사유·요약 칸에서 빠짐."""
+    from smxmon.analysis import analyze as an_
+    from smxmon.demo import build_demo
+    from smxmon.visit import KPI_TYPES
+    from datetime import datetime as dt
+    build_demo(tmp_path / "d.db", dt(2026, 11, 20, 6, 0))
+    rules, mapper = load_toml("rules.toml"), AlertTypeMapper(load_toml("alert_types.toml"))
+    assert rules["features"]["ph"] is False and "PH_LOW" not in KPI_TYPES and "TEMP_LOW" in KPI_TYPES
+    with Database(tmp_path / "d.db") as db:
+        an = an_(db.conn, dt(2026, 11, 20, 6, 0), mapper, rules)
+    assert all("pH" not in r for f in an.farms for r in f.reasons)
+    assert all(not f.counts_d0.get("PH_LOW") for f in an.farms)

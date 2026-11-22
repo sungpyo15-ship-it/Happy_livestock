@@ -17,7 +17,18 @@ from .analysis import Analysis, FarmSummary
 from .normalize import AlertTypeMapper
 
 INCOMPLETE = "데이터 불완전(판정 제외)"
-KPI_TYPES = ["TEMP_HIGH", "RUMINATION_DROP", "DRINKING_ABNORMAL", "PH_LOW", "KETOSIS", "MASTITIS", "HEAT", "CALVING"]
+def _kpi_types() -> list[str]:
+    """요약 칸 8개 = rules.toml [report] columns (방문요약 배치상 8개)."""
+    from .config import load_toml
+    try:
+        cols = list(load_toml("rules.toml", required=False).get("report", {}).get("columns", []))
+    except Exception:  # noqa: BLE001
+        cols = []
+    return cols if len(cols) == 8 else ["TEMP_HIGH", "RUMINATION_DROP", "DRINKING_ABNORMAL", "TEMP_LOW", "KETOSIS",
+                                        "MASTITIS", "HEAT", "CALVING"]
+
+
+KPI_TYPES = _kpi_types()
 
 
 # ───────────────────────── 공통 내용 ─────────────────────────
