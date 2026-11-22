@@ -206,6 +206,23 @@ def farm_dhi(conn: sqlite3.Connection, farm_id: str, health: set[str], milk_pric
                                    max(1, sum(1 for _, d in fp if d is not None and d <= 60)) * 100, 1)
                              if any(d is not None and d <= 60 for _, d in fp) else None,
             "fp_low": round(sum(1 for x, _ in fp if x < 1.0) / len(fp) * 100, 1) if fp else None}
+        early = [(x, d) for x, d in fp if d is not None and d <= 60]
+        early_rows = [r for r in rows if r[1] is not None and r[1] <= 60 and r[3] and r[4]]
+        t["fp_early_n"] = [sum(1 for x, _ in early if x > 1.5), len(early)]      # [해당, 분만 60일 내 두수]
+        t["fp_low_n"] = [sum(1 for x, _ in fp if x < 1.0), len(fp)]
+        t["scc200_n"] = [sum(1 for x in sccs if x >= 200), len(sccs)]
+        t["early_fat"] = mean([r[3] for r in early_rows])
+        t["early_protein"] = mean([r[4] for r in early_rows])
+        t["no_dim"] = sum(1 for r in rows if r[1] is None)
+        # 읽기 점검: 평균값이 상식 범위를 벗어나면 열을 잘못 읽었을 가능성
+        w = []
+        if t["fat"] is not None and not 2.5 <= t["fat"] <= 6.0:
+            w.append(f"평균 유지방 {t['fat']}% — 유지방 열을 잘못 읽었을 수 있음")
+        if t["protein"] is not None and not 2.6 <= t["protein"] <= 4.5:
+            w.append(f"평균 유단백 {t['protein']}% — 유단백 열을 잘못 읽었을 수 있음")
+        if t["no_dim"] > len(rows) / 2:
+            w.append(f"비유일수 없는 소 {t['no_dim']}두 — 분만 60일 내 지표는 일부 소만으로 계산")
+        t["warn"] = w
         # 알림 소 vs 없는 소 — 비유일수 구간별 유량 차이의 가중 평균
         matched = [r for r in rows if r[0]]
         a_rows = [r for r in matched if al.get(r[0])]

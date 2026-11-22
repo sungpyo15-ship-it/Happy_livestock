@@ -408,15 +408,15 @@ def _dhi_sheet(wb, an: Analysis) -> None:
            f"알림 소 유량 차이 = 검정일 전 30일 안에 건강알림이 있던 소 − 없던 소(비유일수 구간별 비교). 월 손실 = 차이 × 해당 두수 × 30일 × {price:,.0f}원/kg (추정). "
            "연관 관계이지 인과 아님 · F/P>1.5(분만 60일 내) 케토시스 위험, F/P<1.0 산독증 위험 지표")
     hdr = ["목장", "검정일", "검정 두수", "센서 연결", "유량 kg", "유지방 %", "유단백 %", "F/P", "초기 F/P>1.5 %", "F/P<1.0 %",
-           "체세포 천", "체세포20만↑ %", "MUN", "알림 소", "알림 소 유량차 kg", "월 손실 추정(만원)", "직전 검정 대비 유량"]
-    _header(ws, 4, hdr, [18, 11, 8, 8, 8, 8, 8, 7, 10, 9, 9, 10, 7, 7, 11, 11, 11])
+           "초기 F/P>1.5 두수(해당/대상)", "체세포 천", "체세포20만↑ %", "MUN", "알림 소", "알림 소 유량차 kg", "월 손실 추정(만원)", "직전 검정 대비 유량"]
+    _header(ws, 4, hdr, [18, 11, 8, 8, 8, 8, 8, 7, 10, 9, 12, 9, 10, 7, 7, 11, 11, 11])
     r = 5
     for f in sorted(farms, key=lambda f: -(f.dhi["tests"][-1].get("loss_month") or 0)):
         ts = f.dhi["tests"]
         t, prev = ts[-1], (ts[-2] if len(ts) > 1 else None)
         dm = round(t["milk"] - prev["milk"], 1) if prev and t["milk"] is not None and prev["milk"] is not None else None
         _row(ws, r, [f.name, t["date"], t["n"], t["matched"], t["milk"], t["fat"], t["protein"], t["fp"], t["fp_high_early"],
-                     t["fp_low"], t["scc"], t["scc200"], t["mun"], t["alert_cows"], t["milk_diff"], t["loss_month"], dm])
+                     t["fp_low"], "/".join(map(str, t["fp_early_n"])) if t.get("fp_early_n") else "-", t["scc"], t["scc200"], t["mun"], t["alert_cows"], t["milk_diff"], t["loss_month"], dm])
         ws.cell(row=r, column=1).alignment = Alignment(horizontal="left")
         r += 1
     ws.freeze_panes = "B5"

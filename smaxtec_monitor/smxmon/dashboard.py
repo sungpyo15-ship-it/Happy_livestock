@@ -115,6 +115,7 @@ ul.hl{margin:0;padding-left:18px}ul.hl li{margin:3px 0}
 button.ch{border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:999px;padding:4px 10px;font-size:13px;cursor:pointer;margin:2px 2px 0 0}
 button.ch.on{background:var(--navy);color:#fff;border-color:var(--navy)}
 input.afi{border:1px solid var(--line);border-radius:8px;padding:5px 8px;font-size:13px;background:var(--card);color:var(--ink);min-width:0}
+td.few{opacity:.5}
 small.cn{color:var(--sub);font-size:11px;font-weight:400}
 details.gd{background:var(--card);border:1px solid var(--line);border-radius:12px;margin-bottom:6px}
 details.gd summary{padding:10px 12px;cursor:pointer;font-weight:700}details.gd[open] summary{border-bottom:1px solid var(--line)}
@@ -526,23 +527,27 @@ function dhiSection(f){
   const T=d.tests, f1=(v,k=1)=>v==null?"-":(+v).toFixed(k);
   const row=(l,fn,cls)=>`<tr><td class="l">${l}</td>${T.map(t=>`<td${cls?` class="${cls(t)||''}"`:""}>${fn(t)}</td>`).join("")}</tr>`;
   const last=T[T.length-1];
+  const cnt = c => c&&c[1] ? ` <small class="cn">${c[0]}/${c[1]}두</small>` : "";
+  const warns = [...new Set(T.flatMap(t=>(t.warn||[]).map(w=>`${t.date.slice(2)} ${w}`)))];
   return `<h2>4-3. 검정성적·경제성 <small style="color:var(--sub);font-weight:400">최근 ${T.length}회 · 원유 ${d.milk_price.toLocaleString()}원/kg 가정</small></h2>
   <div class="scroll"><table class="tbl"><tr><th class="l">검정일</th>${T.map(t=>`<th>${t.date.slice(2)}</th>`).join("")}</tr>
    ${row("검정 두수 (센서 연결)",t=>`${t.n} <small class="cn">${t.matched}</small>`)}
    ${row("평균 유량 kg",t=>`<b>${f1(t.milk)}</b>`)}
    ${row("유지방 %",t=>f1(t.fat,2))}${row("유단백 %",t=>f1(t.protein,2))}
    ${row("유지방/유단백",t=>f1(t.fp,2))}
-   ${row("분만 60일 내 F/P>1.5 %",t=>f1(t.fp_high_early),t=>t.fp_high_early>=40?"neg":"")}
-   ${row("F/P<1.0 %",t=>f1(t.fp_low),t=>t.fp_low>=15?"neg":"")}
-   ${row("체세포 천/ml",t=>f1(t.scc,0))}${row("체세포 20만↑ %",t=>f1(t.scc200),t=>t.scc200>=20?"neg":"")}
+   ${row("분만 60일 내 F/P>1.5 %",t=>`${f1(t.fp_high_early)}${cnt(t.fp_early_n)}`,t=>t.fp_early_n&&t.fp_early_n[1]<5?"few":t.fp_high_early>=40?"neg":"")}
+   ${row("&nbsp;&nbsp;└ 분만 60일 내 유지방/유단백",t=>t.early_fat==null?"-":`${f1(t.early_fat,2)} / ${f1(t.early_protein,2)}`)}
+   ${row("F/P<1.0 %",t=>`${f1(t.fp_low)}${cnt(t.fp_low_n)}`,t=>t.fp_low>=15?"neg":"")}
+   ${row("체세포 천/ml",t=>f1(t.scc,0))}${row("체세포 20만↑ %",t=>`${f1(t.scc200)}${cnt(t.scc200_n)}`,t=>t.scc200>=20?"neg":"")}
    ${row("MUN mg/dl",t=>f1(t.mun))}
    ${row("검정 전 30일 알림 소",t=>t.alert_cows??"-")}
    ${row("알림 소 유량 차이 kg",t=>t.milk_diff==null?"-":(t.milk_diff>0?"+":"")+t.milk_diff,t=>t.milk_diff<0?"neg":"")}
    ${row("월 손실 추정 (만원)",t=>t.loss_month==null?"-":`<b>${t.loss_month}</b>`)}
    ${row("체세포: 유방염알림 소 / 나머지",t=>t.scc_mastitis?`${t.scc_mastitis[0]} / ${t.scc_mastitis[1]}`:"-")}
   </table></div>
+  ${warns.length?`<div class="box warn" style="margin-top:6px">⚠ 읽기 점검: ${warns.map(esc).join(" · ")}</div>`:""}
   <div class="note">${last.milk_diff!=null&&last.milk_diff<0?`최근 검정: 알림 소 ${last.alert_cows}두가 같은 비유 시기 소보다 하루 ${-last.milk_diff}kg 적음 → 월 약 ${last.loss_month}만원(추정). `:""}
-  유량 차이 = 검정일 전 30일 안에 건강알림이 있던 소 − 없던 소(비유일수 구간별로 맞춰 비교) · 원래 유량이 낮은 소가 알림도 많을 수 있어 인과가 아닌 연관 · F/P>1.5 = 케토시스 위험, F/P<1.0 = 산독증 위험 지표(참고 기준)</div>`;
+  유량 차이 = 검정일 전 30일 안에 건강알림이 있던 소 − 없던 소(비유일수 구간별로 맞춰 비교) · 원래 유량이 낮은 소가 알림도 많을 수 있어 인과가 아닌 연관 · F/P>1.5 = 케토시스 위험, F/P<1.0 = 산독증 위험 지표(참고 기준) · 작은 숫자 = 해당 두수/대상 두수, 흐린 값 = 대상 5두 미만(참고만)</div>`;
 }
 function trSection(f){
   const t=f.transition, b=D.tbench; if(!t) return "";
