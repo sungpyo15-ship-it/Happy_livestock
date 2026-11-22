@@ -79,7 +79,7 @@ h1,h2,h3{font-family:var(--display);font-weight:400;margin:0;text-wrap:balance}
 .iconbtn{border:0;background:rgba(255,251,241,.92);border-radius:999px;width:44px;height:44px;font-size:18px;display:grid;place-items:center}
 .dock{position:absolute;left:0;right:0;bottom:0;display:flex;flex-direction:column;gap:10px;
   padding:0 max(16px,env(safe-area-inset-right,0px)) calc(env(safe-area-inset-bottom,0px) + 16px) max(16px,env(safe-area-inset-left,0px))}
-.care{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+.care{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px}
 .care .btn{flex-direction:column;min-height:62px;font-size:16px;padding:8px 4px;gap:3px}
 .care .ic{font-size:22px;line-height:1}
 .care .btn.on{background:#3B3F78;color:#fff;box-shadow:0 5px 0 #262955}
@@ -90,6 +90,15 @@ h1,h2,h3{font-family:var(--display);font-weight:400;margin:0;text-wrap:balance}
 .dim{opacity:.5}
 .sick{display:flex;align-items:center;gap:10px;background:#FFE3E3;border-radius:18px;padding:8px 8px 8px 14px;font-family:var(--display);font-size:17px;color:#B23A3A}
 .sick span{flex:1}
+.evo{display:flex;align-items:center;gap:10px;background:#FFF1BF;border-radius:18px;padding:8px 8px 8px 14px;font-family:var(--display);font-size:16px;color:#8A5A00;line-height:1.3}
+.evo span{flex:1}
+.evo .btn{font-size:17px;padding:10px 14px;white-space:nowrap}
+.hall{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.dcard{background:linear-gradient(#BFE6FF,#EAF6FF);border-radius:18px;padding:8px;display:flex;flex-direction:column;align-items:center;gap:2px;text-align:center;min-width:0}
+.dcard canvas{width:100%;max-width:110px;aspect-ratio:11/8}
+.dcard b{font-family:var(--display);font-weight:400;font-size:16px}
+.dcard span{font-size:11px;color:var(--muted)}
+#byeCv{width:260px;height:180px;margin:0 auto;display:block;max-width:100%}
 .sick .btn{font-size:17px;padding:10px 16px}
 .meters{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;margin-top:10px}
 .meter{display:flex;flex-direction:column;gap:3px;min-width:0}
@@ -199,7 +208,7 @@ h1,h2,h3{font-family:var(--display);font-weight:400;margin:0;text-wrap:balance}
   <div class="page-inner">
     <h2 style="font-size:30px;text-align:center">공룡 친구 여행</h2>
     <div class="hero-egg"><canvas id="setupEgg" width="360" height="360"></canvas></div>
-    <p class="lead" style="text-align:center">알 속에서 아기 공룡이 기다리고 있어요.<br>이름과 색을 골라 주고 알을 깨워 주세요.</p>
+    <p class="lead" style="text-align:center" id="setupLead">알 속에서 아기 공룡이 기다리고 있어요.<br>이름과 색을 골라 주고 알을 깨워 주세요.</p>
     <div class="field">
       <label class="label" for="nameIn">내 공룡 이름</label>
       <input id="nameIn" maxlength="8" placeholder="예: 초록이" autocomplete="off">
@@ -234,11 +243,13 @@ h1,h2,h3{font-family:var(--display);font-weight:400;margin:0;text-wrap:balance}
     </div>
   </div>
   <div class="dock">
+    <div class="evo" id="evoBar" hidden><span id="evoTxt"></span><button class="btn sun" id="btnEvo">변신!</button></div>
     <div class="sick" id="sickBar" hidden><span>아파요! 약을 먹여 주세요</span><button class="btn go" id="btnMed">약 주기</button></div>
     <div class="care">
       <button class="btn" id="btnFeed"><span class="ic">🍖</span>먹이</button>
       <button class="btn" id="btnPlay"><span class="ic">⚽</span>놀기</button>
       <button class="btn" id="btnWash"><span class="ic">🛁</span>씻기</button>
+      <button class="btn" id="btnTV"><span class="ic">📺</span>TV</button>
       <button class="btn" id="btnSleep"><span class="ic" id="sleepIc">🌙</span><span id="sleepLbl">재우기</span></button>
     </div>
     <div class="mainrow">
@@ -265,6 +276,7 @@ h1,h2,h3{font-family:var(--display);font-weight:400;margin:0;text-wrap:balance}
     <div class="pagehead"><button class="back" data-go="home">← 집</button><h2>친구 둥지</h2>
       <div class="chip" style="font-size:18px"><span class="coin-i"></span><span id="nCoins">0</span></div></div>
     <p class="lead">여행하다 보면 반짝이는 알을 찾을 수 있어요. 코인을 모아 알을 깨우면 새 친구가 생겨요.</p>
+    <div id="hallSec" hidden style="display:flex;flex-direction:column;gap:10px"><span class="label">드래곤 하늘</span><div class="hall" id="hallList"></div></div>
     <div class="nest" id="nestList"></div>
     <button class="btn" id="btnReset" style="font-size:15px;margin-top:20px;box-shadow:none;background:transparent;color:var(--muted)">처음부터 다시 하기</button>
   </div>
@@ -326,6 +338,23 @@ h1,h2,h3{font-family:var(--display);font-weight:400;margin:0;text-wrap:balance}
   </div>
 </div>
 
+<div class="overlay" id="flyBox" hidden>
+  <div class="panel">
+    <h2>하늘로 날려 보낼까요?</h2>
+    <p id="flyTxt"></p>
+    <div class="row"><button class="btn" id="btnFlyNo">조금 더 같이 놀래</button><button class="btn go" id="btnFlyGo">날려 보내기</button></div>
+  </div>
+</div>
+
+<div class="overlay" id="byeBox" hidden>
+  <div class="panel">
+    <h2 id="byeTitle">잘 가!</h2>
+    <canvas id="byeCv" width="520" height="360"></canvas>
+    <p id="byeTxt"></p>
+    <button class="btn go" id="btnNewEgg">새 알 보러 가기</button>
+  </div>
+</div>
+
 <div class="overlay" id="confirmBox" hidden>
   <div class="panel">
     <h2>처음부터 할까요?</h2>
@@ -373,13 +402,15 @@ const TALK = ['여행 가자!','배고파~','친구 보고 싶어!','나 점프 
 /* ---------- 저장 ---------- */
 const SAVE_KEY = 'dino-trip-v1';
 const fresh = () => ({created:false, name:'', color:0, coins:0, xp:0, best:0, trips:0, found:{}, awake:{}, companion:null, zone:'forest', muted:false,
-  care:{hunger:80, fun:80, energy:80, clean:90}, asleep:false, sick:false, lastTick:Date.now()});
+  care:{hunger:80, fun:80, energy:80, clean:90}, asleep:false, sick:false, lastTick:Date.now(),
+  dragon:false, hall:[], tv:[]});
 let S = fresh();
 function load(){ try{ const raw = localStorage.getItem(SAVE_KEY); if(raw) S = Object.assign(fresh(), JSON.parse(raw)); }catch(e){} }
 function save(){ S.lastTick=Date.now(); try{ localStorage.setItem(SAVE_KEY, JSON.stringify(S)); }catch(e){} }
 
 const lvOf = xp => { let l = 1; for(let i=1;i<LEVELS.length;i++) if(xp >= LEVELS[i]) l = i+1; return l; };
 const me = () => ({body:COLORS[S.color].body, belly:COLORS[S.color].belly, feature:''});
+const look = () => S.dragon ? {...me(), feature:'dragon'} : me();
 const friend = id => FRIENDS.find(f => f.id === id);
 const nextEgg = () => FRIENDS.find(f => !S.found[f.id]);
 const pal = () => (S.companion && S.awake[S.companion]) ? friend(S.companion) : null;
@@ -411,6 +442,7 @@ const SFX = {
   hit:   () => tone([220,110], 0.12, 'sawtooth', 0.07),
   egg:   () => tone([523,659,784,1047], 0.09, 'triangle', 0.08),
   tap:   () => tone([660], 0.05, 'triangle', 0.08),
+  fire:  () => tone([200,150,110,90], 0.07, 'sawtooth', 0.06),
   hatch: () => tone([523,659,784,1047,1319], 0.1, 'triangle', 0.09),
   shield:() => tone([880,660], 0.08, 'sine', 0.08),
   eat:   () => tone([330,440,330,523], 0.07, 'triangle', 0.08),
@@ -452,6 +484,12 @@ function drawDino(c, x, y, s, o){
     c.fillStyle=dark; ell(c,tx,ty,0.11,0.1); c.fill(); c.stroke();
   }
   leg(c,-0.04,sw,dark);
+  if(f==='dragon'){
+    dragonWing(c,B,L,t,o.air,true);
+    c.fillStyle=shade(B,-0.35);
+    [[-0.78,-0.48,0.06],[-0.55,-0.6,0.07],[-0.3,-0.76,0.08],[-0.05,-0.84,0.09],[0.2,-0.8,0.08]].forEach(([a,b2,r])=>tri(c,a-r,b2+0.08,a,b2-r*1.6,a+r,b2+0.08));
+    const tx=-0.95, ty=-0.42+tw*2; tri(c,tx+0.02,ty-0.02,tx-0.14,ty-0.12,tx-0.12,ty+0.08);
+  }
   if(f==='wings'){
     const fl = Math.sin(t*(o.air?20:5))*0.35;
     c.save(); c.translate(-0.05,-0.74); c.rotate(-0.35+fl); c.fillStyle=L;
@@ -469,6 +507,7 @@ function drawDino(c, x, y, s, o){
   c.fillStyle=L; ell(c,0.08,-0.44,0.27,0.18); c.fill();
   leg(c,0.14,-sw,B);
   c.fillStyle=B; c.save(); c.translate(0.3,-0.52); c.rotate(0.7+Math.sin(o.run||0)*0.2); rr(c,-0.035,0,0.07,0.15,0.035); c.fill(); c.stroke(); c.restore();
+  if(f==='dragon') dragonWing(c,B,L,t,o.air,false);
   // 목과 머리
   const N = f==='neck'; const hx = N?0.52:0.38, hy = N?-1.26:-0.9;
   if(N){
@@ -484,6 +523,9 @@ function drawDino(c, x, y, s, o){
   c.fillStyle=B; ell(c,hx,hy,0.27,0.23); c.fill(); c.stroke();
   ell(c,hx+0.18,hy+0.06,0.17,0.13); c.fill(); c.stroke();
   ell(c,hx+0.07,hy+0.03,0.18,0.15); c.fill();
+  if(f==='dragon'){ c.fillStyle='#FFF0C8';
+    c.beginPath(); c.moveTo(hx-0.14,hy-0.12); c.quadraticCurveTo(hx-0.34,hy-0.3,hx-0.48,hy-0.26); c.quadraticCurveTo(hx-0.3,hy-0.2,hx-0.06,hy-0.18); c.closePath(); c.fill(); c.stroke();
+    c.beginPath(); c.moveTo(hx-0.02,hy-0.2); c.quadraticCurveTo(hx-0.14,hy-0.42,hx-0.3,hy-0.46); c.quadraticCurveTo(hx-0.12,hy-0.32,hx+0.08,hy-0.2); c.closePath(); c.fill(); c.stroke(); }
   if(f==='horn'){ c.fillStyle='#FFF6E0'; tri(c,hx+0.24,hy-0.04,hx+0.32,hy-0.22,hx+0.34,hy-0.01); tri(c,hx-0.03,hy-0.18,hx+0.05,hy-0.38,hx+0.1,hy-0.16); }
   // 얼굴
   c.fillStyle='rgba(255,120,140,.45)'; ell(c,hx+0.12,hy+0.1,0.05,0.035); c.fill();
@@ -504,6 +546,20 @@ function drawDino(c, x, y, s, o){
   else { c.beginPath(); c.arc(hx+0.21,hy+0.06,0.07,0.2*Math.PI,0.8*Math.PI); c.stroke(); }
   if(o.sick){ c.fillStyle='rgba(110,130,230,.35)'; ell(c,hx-0.02,hy-0.12,0.2,0.08); c.fill();
     c.fillStyle='#8FD3FF'; c.beginPath(); c.moveTo(hx-0.2,hy-0.14); c.quadraticCurveTo(hx-0.27,hy-0.02,hx-0.2,hy+0.0); c.quadraticCurveTo(hx-0.13,hy-0.02,hx-0.2,hy-0.14); c.fill(); c.stroke(); }
+  if(o.fire>0){ const k=Math.min(1,o.fire*2);
+    for(let i=5;i>=0;i--){ const fx=hx+0.4+i*0.13*k, fy=hy+0.07+Math.sin(t*30+i)*0.03, r=(0.05+i*0.035)*k;
+      c.fillStyle=['#FFF3B0','#FFD23F','#FFB13B','#FF7B54','#F0542D','#E0402A'][i]; c.globalAlpha=0.9; ell(c,fx,fy,r,r*0.8); c.fill(); }
+    c.globalAlpha=1; }
+  c.restore();
+}
+function dragonWing(c,B,L,t,air,far){
+  const fl=Math.sin(t*(air?14:3)+(far?0.6:0))*(air?0.45:0.15);
+  c.save(); c.translate(far?-0.14:0,-0.74); c.rotate((air?-0.15:0.25)+fl+(far?-0.3:0)); c.scale(air?0.85:0.7, air?0.85:0.7);
+  c.fillStyle = far ? shade(B,-0.38) : shade(L,-0.12);
+  c.beginPath(); c.moveTo(0,0); c.lineTo(-0.1,-0.92);
+  c.quadraticCurveTo(-0.3,-0.62,-0.5,-0.68); c.quadraticCurveTo(-0.6,-0.45,-0.84,-0.5);
+  c.quadraticCurveTo(-0.72,-0.22,-0.92,-0.14); c.quadraticCurveTo(-0.56,-0.04,-0.36,0.06); c.closePath(); c.fill(); c.stroke();
+  c.beginPath(); c.moveTo(-0.1,-0.92); c.lineTo(-0.5,-0.68); c.moveTo(-0.1,-0.92); c.lineTo(-0.84,-0.5); c.moveTo(-0.1,-0.92); c.lineTo(-0.92,-0.14); c.stroke();
   c.restore();
 }
 
@@ -551,6 +607,8 @@ document.querySelectorAll('[data-go]').forEach(b => b.addEventListener('click', 
 
 /* ---------- 처음 시작 ---------- */
 function renderSetup(){
+  const last=S.hall[S.hall.length-1];
+  $('setupLead').innerHTML = last ? `드래곤 ${last.name}가 남기고 간 새 알이에요.<br>새 공룡의 이름과 색을 골라 주세요.` : '알 속에서 아기 공룡이 기다리고 있어요.<br>이름과 색을 골라 주고 알을 깨워 주세요.';
   const box = $('colorPick'); box.innerHTML='';
   COLORS.forEach((col,i) => {
     const b=document.createElement('button'); b.setAttribute('aria-pressed', String(S.color===i)); b.setAttribute('aria-label', `색 ${i+1}`);
@@ -642,7 +700,7 @@ function canTravel(){
 }
 function busy(){
   if(S.asleep){ toast('쉿! 자고 있어요. 깨우려면 깨우기 버튼을 눌러요.'); return true; }
-  return !!(HOME.play || HOME.bath);
+  return !!(HOME.play || HOME.bath || HOME.tv || HOME.evo || HOME.fly);
 }
 function renderMeters(){
   NEEDS.forEach(n=>{ const v=Math.round(S.care[n.k]), i=$('m_'+n.k); i.style.width=v+'%';
@@ -651,7 +709,7 @@ function renderMeters(){
 function renderHome(){
   const lv=lvOf(S.xp);
   $('hName').textContent = S.name;
-  $('hStage').textContent = `Lv.${lv} ${STAGES[lv-1]}`;
+  $('hStage').textContent = S.dragon ? `Lv.${lv} 드래곤` : `Lv.${lv} ${STAGES[lv-1]}`;
   const a=LEVELS[lv-1], b=LEVELS[lv];
   $('hXp').style.width = b ? `${Math.min(100,(S.xp-a)/(b-a)*100)}%` : '100%';
   $('hXpNum').textContent = b ? `경험치 ${S.xp-a} / ${b-a}` : `경험치 ${S.xp} · 최고 레벨!`;
@@ -662,6 +720,11 @@ function renderHome(){
   $('nestSub').textContent = `친구 ${Object.keys(S.awake).length}/${FRIENDS.length}`;
   renderMeters();
   $('sickBar').hidden = !S.sick;
+  const ready = lvOf(S.xp)>=LEVELS.length && !S.dragon;
+  $('evoBar').hidden = S.sick || S.asleep || !(ready || S.dragon);
+  $('evoTxt').textContent = ready ? '전설의 공룡이 됐어요! 드래곤으로 변신할 수 있어요' : '드래곤이 넓은 하늘을 날고 싶어해요';
+  $('btnEvo').textContent = ready ? '변신!' : '날려 보내기';
+  $('btnTV').classList.toggle('dim', S.asleep);
   $('sleepLbl').textContent = S.asleep ? '깨우기' : '재우기';
   $('sleepIc').textContent = S.asleep ? '☀️' : '🌙';
   $('btnSleep').classList.toggle('on', S.asleep);
@@ -695,6 +758,7 @@ hc.addEventListener('pointerdown', e => {
   const p=homePt(e), L=homeLayout(p.w,p.h), spots=poopSpots(p.w,L.gy);
   for(let i=0;i<poops();i++){ const [x,y]=spots[i];
     if(Math.hypot(p.x-x,p.y-(y-12))<32){ S.care.clean=clamp(S.care.clean+25); sparkle(x,y-10,10); SFX.coin(); say('깨끗해졌다!'); gain(2); return; } }
+  if(HOME.tv){ const T=tvRect(p.w,L.gy); if(p.x>T.x && p.x<T.x+T.w && p.y>T.y && p.y<T.y+T.h+20){ HOME.tv.ch=(HOME.tv.ch+1)%TV_CH.length; HOME.tv.t=Math.min(HOME.tv.t,3); SFX.tap(); say(TV_CH[HOME.tv.ch]); return; } }
   if(onDino(p)){ HOME.pet={x:p.x,y:p.y,moved:0,acc:0,said:false}; try{ hc.setPointerCapture(e.pointerId); }catch(_){} }
 });
 hc.addEventListener('pointermove', e => {
@@ -707,11 +771,70 @@ hc.addEventListener('pointerup', () => {
   const pet=HOME.pet; HOME.pet=null; if(!pet) return;
   if(pet.moved<12){
     if(S.asleep){ say('쿨쿨... 자고 있어요'); return; }
-    if(HOME.jump<=0 && !HOME.play){ HOME.jv=520; HOME.jump=0.001; SFX.jump(); }
+    if(HOME.play || HOME.fly || HOME.evo) return;
+    if(S.dragon){ HOME.fire=1.1; SFX.fire(); say('화르륵!'); return; }
+    if(HOME.jump<=0){ HOME.jv=520; HOME.jump=0.001; SFX.jump(); }
     say(needLine());
   } else { save(); renderMeters(); }
 });
 hc.addEventListener('pointercancel', () => { HOME.pet=null; });
+
+/* TV 보기 (한 시간에 3번까지) */
+const TV_CH = ['공룡 만화다!','반짝반짝 별 쇼!','물고기 친구들이다!'];
+const tvRect = (w,gy) => ({x:w*0.13-44, y:gy-80, w:88, h:64});
+$('btnTV').addEventListener('click', () => {
+  if(busy()) return;
+  const now=Date.now(); S.tv=(S.tv||[]).filter(x=>now-x<3600e3);
+  if(S.tv.length>=3){ toast('TV를 너무 많이 봤어요. 눈도 쉬어야 해요! 조금 있다가 다시 볼 수 있어요.'); say('눈이 피곤해...'); SFX.hit(); return; }
+  S.tv.push(now); save(); SFX.tap(); HOME.tv={t:0, ch:Math.floor(Math.random()*TV_CH.length)}; say(TV_CH[HOME.tv.ch]);
+});
+function drawTV(c,w,gy,t,ch){
+  const T=tvRect(w,gy);
+  c.save(); c.lineWidth=2.5; c.strokeStyle=OUT; c.lineJoin='round';
+  c.beginPath(); c.moveTo(T.x+T.w*0.42,T.y); c.lineTo(T.x+T.w*0.3,T.y-22); c.moveTo(T.x+T.w*0.58,T.y); c.lineTo(T.x+T.w*0.72,T.y-24); c.stroke();
+  c.fillStyle='#FF7B54'; ell(c,T.x+T.w*0.3,T.y-22,4,4); c.fill(); ell(c,T.x+T.w*0.72,T.y-24,4,4); c.fill();
+  c.fillStyle='#6B4A3A'; c.fillRect(T.x+12,T.y+T.h,6,16); c.fillRect(T.x+T.w-18,T.y+T.h,6,16);
+  c.fillStyle='#E0704E'; rr(c,T.x,T.y,T.w,T.h,12); c.fill(); c.stroke();
+  const sx=T.x+8, sy=T.y+8, sw=T.w-26, sh=T.h-16;
+  c.fillStyle='#FFD23F'; ell(c,T.x+T.w-9,T.y+18,4,4); c.fill(); ell(c,T.x+T.w-9,T.y+32,4,4); c.fill();
+  rr(c,sx,sy,sw,sh,6); c.save(); c.clip();
+  if(ch===0){ c.fillStyle='#BDE8FF'; c.fillRect(sx,sy,sw,sh); c.fillStyle='#7CC86B'; c.fillRect(sx,sy+sh-10,sw,10);
+    drawDino(c, sx+((t*40)%(sw+40))-20, sy+sh-8, sh*0.55, {body:'#F2A541',belly:'#FBE3B5',feature:'horn',run:t*12,t}); }
+  else if(ch===1){ c.fillStyle='#2B2F6B'; c.fillRect(sx,sy,sw,sh);
+    for(let i=0;i<9;i++){ const r=2+2*Math.abs(Math.sin(t*3+i)); c.fillStyle=['#FFD23F','#FF9EB5','#9BD0FF'][i%3]; ell(c,sx+((i*23+7)%sw),sy+((i*17+5)%sh),r,r); c.fill(); } }
+  else { c.fillStyle='#4FA7E0'; c.fillRect(sx,sy,sw,sh);
+    for(let i=0;i<3;i++){ const fx=sx+((t*22*(i+1)*0.7+i*30)%(sw+24))-12, fy=sy+sh*(0.28+i*0.24);
+      c.fillStyle=['#FFB13B','#FF7B54','#FFE066'][i]; ell(c,fx,fy,7,4.5); c.fill(); c.beginPath(); c.moveTo(fx-6,fy); c.lineTo(fx-12,fy-4); c.lineTo(fx-12,fy+4); c.fill(); }
+    c.fillStyle='rgba(255,255,255,.7)'; for(let i=0;i<3;i++){ const k=((t*0.6)+i/3)%1; ell(c,sx+12+i*16,sy+sh-k*sh,2,2); c.fill(); } }
+  c.restore();
+  c.fillStyle='rgba(255,255,255,.18)'; rr(c,sx,sy,sw*0.45,sh,6); c.fill();
+  c.restore();
+}
+
+/* 드래곤 변신 & 날려 보내기 */
+$('btnEvo').addEventListener('click', () => {
+  if(HOME.evo || HOME.fly || HOME.play || HOME.bath || HOME.tv) return;
+  if(!S.dragon){ HOME.evo={t:0}; SFX.egg(); say('어? 몸이 이상해!'); return; }
+  $('flyTxt').textContent = `드래곤 ${S.name}는 넓은 하늘 나라로 떠나요. 떠나면서 선물로 코인 100개와 새 알을 남겨요. 코인과 친구들은 그대로예요.`;
+  $('flyBox').hidden=false;
+});
+$('btnFlyNo').addEventListener('click', () => { $('flyBox').hidden=true; SFX.tap(); });
+$('btnFlyGo').addEventListener('click', () => { $('flyBox').hidden=true; HOME.fly={t:0}; SFX.hatch(); say('고마웠어! 안녕!'); });
+function finishFly(){
+  const name=S.name, color=S.color;
+  S.hall.push({name, color, at:Date.now()});
+  S.coins+=100;
+  Object.assign(S,{created:false, name:'', xp:0, dragon:false, asleep:false, sick:false, care:{hunger:80, fun:80, energy:80, clean:90}});
+  save(); HOME.fly=null;
+  $('byeTitle').textContent=`잘 가, ${name}!`;
+  $('byeTxt').textContent=`드래곤 ${name}가 하늘 나라로 날아갔어요. 선물로 코인 100개와 새 알을 남겼어요. 가끔 하늘에 놀러 올 거예요!`;
+  const c=$('byeCv').getContext('2d'); c.clearRect(0,0,520,360);
+  const g=c.createLinearGradient(0,0,0,360); g.addColorStop(0,'#8ED3F5'); g.addColorStop(1,'#E2F5FF'); c.fillStyle=g; rr(c,0,0,520,360,30); c.fill();
+  cloud(c,110,90,34); cloud(c,420,250,40);
+  drawDino(c,280,300,200,{...COLORS[color],feature:'dragon',air:true,happy:true,t:0.3});
+  $('byeBox').hidden=false;
+}
+$('btnNewEgg').addEventListener('click', () => { $('byeBox').hidden=true; SFX.tap(); renderSetup(); show('setup'); });
 
 /* 먹이 */
 function renderFoods(){
@@ -760,6 +883,7 @@ $('btnTravel').addEventListener('click', () => { const why=canTravel(); if(why){
 $('btnNest').addEventListener('click', () => { SFX.tap(); show('nestPage'); });
 $('btnMute').addEventListener('click', () => { S.muted=!S.muted; save(); renderHome(); SFX.tap(); });
 
+HOME.visitT=4;
 function careTick(dt){
   if(!S.created) return;
   decay(dt/3600);
@@ -813,6 +937,15 @@ function drawHome(dt){
     sleepers.slice(0,3).forEach((f,i)=>drawEgg(c,nx+(i-(Math.min(3,sleepers.length)-1)/2)*es*0.8,gy+es*0.15,es,f.body,{wob:Math.sin(t*2+i)*0.06}));
     zzz(c,nx+es*0.6,gy-es*0.9,es,t);
   }
+  // 하늘 나라에서 놀러 온 드래곤
+  if(S.hall.length && !night){
+    HOME.visitT-=dt;
+    if(!HOME.visit && HOME.visitT<=0){ HOME.visit={t:0, d:S.hall[Math.floor(Math.random()*S.hall.length)]}; HOME.visitT=rand(20,35); }
+    if(HOME.visit){ const V=HOME.visit; V.t+=dt; const k=V.t/8, vs=Math.min(w,h)*0.11;
+      drawDino(c,-80+k*(w+160), h*0.3+Math.sin(V.t*2)*12, vs, {...COLORS[V.d.color],feature:'dragon',air:true,happy:true,t:V.t});
+      c.font='14px Jua, sans-serif'; c.fillStyle='#2E2A36'; c.textAlign='center'; c.fillText(V.d.name,-80+k*(w+160),h*0.3+Math.sin(V.t*2)*12+16);
+      if(k>1) HOME.visit=null; }
+  }
   // 응가
   const spots=poopSpots(w,gy); for(let i=0;i<poops();i++) drawPoop(c,spots[i][0],spots[i][1],13,t+i);
   // 깨어난 친구들
@@ -845,7 +978,22 @@ function drawHome(dt){
   c.fillStyle='rgba(0,0,0,.12)'; ell(c,dx,gy+4,L.ds*0.45*(1-Math.min(.5,HOME.jump/300)),L.ds*0.07); c.fill();
   const m=mood(), breathe = 1 + Math.sin(t*(night?1.2:2.5))*(night?0.025:0.015);
   const cheer = HOME.jump>0 || HOME.eat>0 || (m==='happy' && Math.sin(t*0.7)>0.6);
-  drawDino(c,dx,gy+2-HOME.jump,L.ds*breathe,{...me(),t,flip,run:running?t*14:null,air:HOME.jump>0,
+  HOME.fire=Math.max(0,(HOME.fire||0)-dt);
+  if(HOME.tv){ HOME.tv.t+=dt; drawTV(c,w,gy,HOME.tv.t,HOME.tv.ch); flip=true;
+    if(HOME.tv.t>7){ HOME.tv=null; S.care.fun=clamp(S.care.fun+12); S.care.energy=clamp(S.care.energy-1); say('재밌었다!'); gain(2); } }
+  let lk=look(), sz=L.ds*breathe*(S.dragon?1.2:1), fy=gy+2-HOME.jump, fx=dx, air=HOME.jump>0;
+  if(HOME.evo){ const E=HOME.evo; E.t+=dt;
+    const gl=c.createRadialGradient(dx,gy-L.ds*0.5,5,dx,gy-L.ds*0.5,L.ds*1.4); gl.addColorStop(0,`rgba(255,240,150,${Math.min(.9,E.t/2)})`); gl.addColorStop(1,'rgba(255,240,150,0)');
+    c.fillStyle=gl; c.fillRect(0,0,w,h);
+    if(Math.sin(E.t*E.t*14)>0){ lk={...me(),feature:'dragon'}; sz=L.ds*(1+0.2*Math.min(1,E.t/2.4)); }
+    if(Math.random()<0.3) sparkle(dx+rand(-40,40),gy-L.ds*rand(0.2,1.2),1);
+    if(E.t>2.6){ HOME.evo=null; S.dragon=true; save(); SFX.level(); sparkle(dx,gy-L.ds,20); say('나 드래곤이 됐어!'); toast(`${S.name}가 드래곤이 됐어요! 이제 여행에서 점프를 한 번 더 할 수 있어요.`); renderHome(); }
+  }
+  if(HOME.fly){ const F=HOME.fly; F.t+=dt; air=true;
+    const k=Math.max(0,F.t-0.8); fx=dx+k*k*55; fy=gy+2-k*k*95-k*30; sz*=Math.max(0.35,1-k*0.18);
+    if(Math.random()<0.25) hearts(fx,fy-sz*0.5,1);
+    if(fy<-sz*1.5 || F.t>6){ finishFly(); return; } }
+  drawDino(c,fx,fy,sz,{...lk,t,flip,run:running?t*14:null,air,fire:HOME.fire,
     sleep:night, sick:m==='sick', sad:m==='sad'&&!cheer, happy:!night&&m!=='sick'&&cheer, eat:HOME.eat>0, blink:HOME.blink>0});
   if(ball){ c.fillStyle='#FF7B54'; c.strokeStyle=OUT; c.lineWidth=2; ell(c,ball[0],ball[1],10,10); c.fill(); c.stroke();
     c.strokeStyle='#fff'; c.beginPath(); c.arc(ball[0],ball[1],6,0.5,2.2); c.stroke(); }
@@ -892,7 +1040,7 @@ function drawZoneThumb(c,w,h,z){
   c.fillStyle=z.hill2; c.beginPath(); c.moveTo(0,h*0.75); for(let x=0;x<=w;x+=6) c.lineTo(x,h*0.6-Math.sin(x/30)*h*0.1); c.lineTo(w,h*0.75); c.fill();
   c.fillStyle=z.ground; c.fillRect(0,h*0.75,w,h); c.fillStyle=z.top; c.fillRect(0,h*0.75,w,4);
   drawObstacle(c,{type:z.obs[0],x:w*0.62,w:OBS[z.obs[0]].w*0.5,h:OBS[z.obs[0]].h*0.5,rot:0},h*0.75,z,0);
-  drawDino(c,w*0.28,h*0.75,h*0.42,{...me(),run:1});
+  drawDino(c,w*0.28,h*0.75,h*0.42,{...look(),run:1});
 }
 function renderMap(){
   const lv=lvOf(S.xp), box=$('zoneList'); box.innerHTML='';
@@ -924,6 +1072,11 @@ $('btnGo').addEventListener('click',()=>{ SFX.tap(); startRun(); });
 /* ---------- 친구 둥지 ---------- */
 function renderNest(){
   $('nCoins').textContent=S.coins;
+  $('hallSec').hidden=!S.hall.length; const hl=$('hallList'); hl.innerHTML='';
+  S.hall.forEach(d=>{ const card=document.createElement('div'); card.className='dcard';
+    const cv=document.createElement('canvas'); cv.width=220; cv.height=160; drawDino(cv.getContext('2d'),120,140,96,{...COLORS[d.color],feature:'dragon',air:true,happy:true,t:0.3});
+    const b=document.createElement('b'); b.textContent=d.name; const sp=document.createElement('span'); const dt=new Date(d.at); sp.textContent=`${dt.getMonth()+1}월 ${dt.getDate()}일 날아감`;
+    card.append(cv,b,sp); hl.appendChild(card); });
   const box=$('nestList'); box.innerHTML='';
   FRIENDS.forEach(f=>{
     const card=document.createElement('div'); card.className='fcard'+(S.awake[f.id]?' awake':'');
@@ -968,7 +1121,7 @@ function startRun(){
   const z=ZONES.find(z=>z.id===S.zone)||ZONES[0], p=pal(), lv=lvOf(S.xp);
   const egg=nextEgg();
   R = {zone:z, pal:p, lv, t:0, dist:0, speed:z.speed*(p&&p.power==='slow'?0.85:1), y:0, vy:0, jumps:0,
-    maxJumps: p&&p.power==='triple'?3:2, maxHearts: 3+(lv>=4?1:0)+(p&&p.power==='heart'?1:0),
+    maxJumps: (p&&p.power==='triple'?3:2)+(S.dragon?1:0), maxHearts: 3+(lv>=4?1:0)+(p&&p.power==='heart'?1:0),
     shield: !!(p&&p.power==='shield'), inv:0, coins:0, obs:[], items:[], parts:[], nextAt:420,
     egg, eggAt: egg ? rand(120,260) : Infinity, eggSpawned:false, eggGot:false, hist:[], over:false, overT:0, paused:false, shake:0, run:0};
   R.hearts=R.maxHearts; R.baseSpeed=R.speed;
@@ -1142,7 +1295,7 @@ function stepRun(dt){
   const blinkOn = !R.over && R.inv>0 && Math.floor(R.inv*12)%2===0;
   if(!blinkOn){
     c.fillStyle='rgba(0,0,0,.12)'; ell(c,DX,G+3,s*0.4*(1+R.y/400),s*0.06); c.fill();
-    drawDino(c,DX,G+R.y,s,{...me(),t,run:R.run,air:R.y<-2,hurt:R.over||R.inv>1,happy:R.jumps>1});
+    drawDino(c,DX,G+R.y,s*(S.dragon?1.1:1),{...look(),t,run:R.run,air:R.y<-2,hurt:R.over||R.inv>1,happy:R.jumps>1});
   }
   if(R.shield){ c.strokeStyle='rgba(120,190,255,.8)'; c.lineWidth=3; ell(c,DX,G+R.y-s*0.5,s*0.72,s*0.66); c.stroke(); c.fillStyle='rgba(150,210,255,.15)'; c.fill(); }
   R.parts.forEach(p=>{ p.x+=p.vx*dt; p.y+=p.vy*dt; p.vy+=300*dt; c.globalAlpha=Math.min(1,p.life*2);
