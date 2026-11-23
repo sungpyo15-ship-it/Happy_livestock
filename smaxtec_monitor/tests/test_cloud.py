@@ -267,3 +267,39 @@ def test_admin_guides_excel(env, tmp_path, monkeypatch):
     acc = c.get("/account").get_data(as_text=True)
     c.post("/admin/guides/reset", data={"csrf": _csrf(acc)})
     assert not actions.is_custom() and next(x for x in actions.guides() if x["id"] == "temp_high")["check"][0].startswith("직장 체온으로 재확인")
+
+
+def test_contacts_api_and_admin_excel(env):
+    import io
+    import openpyxl
+    store, app = env
+    c = app.test_client()
+    c.post("/login", data={"username": USER, "password": "pw"})
+    _wait(store, USER)
+    csrf = _csrf(c.get("/account").get_data(as_text=True))
+    h = {"X-CSRF": csrf}
+    assert c.post("/api/contacts", json={"farm_id": "org1", "items": [{"role": "딜러", "name": "김", "phone": "12"}]},
+                  headers=h).status_code == 400                                    # 번호 형식
+    assert c.post("/api/contacts", json={"farm_id": "nope", "items": []}, headers=h).status_code == 400   # 담당 목장 아님
+    r = c.post("/api/contacts", json={"farm_id": "org1", "items": [{"role": "딜러", "name": "김딜러", "phone": "01012345678"}]},
+               headers=h)
+    assert r.json["items"][0]["phone"] == "010-1234-5678"
+    assert c.get("/api/contacts").json == {"org1": [{"role": "딜러", "name": "김딜러", "phone": "010-1234-5678", "farm_name": "가나목장"}]}
+    other = app.test_client()
+    other.post("/login", data={"username": OTHER, "password": "otherpw"})
+    assert other.get("/api/contacts").json == {}                                    # 다른 팀원 목장 아님
+    # 관리자 엑셀 받기·올리기
+    adm = app.test_client()
+    adm.post("/login", data={"username": ADMIN, "password": "adminpw"})
+    acc = adm.get("/account").get_data(as_text=True)
+    assert "목장 담당자" in acc
+    wb = openpyxl.load_workbook(io.BytesIO(adm.get("/admin/contacts.xlsx").data))
+    ws = wb["담당자"]
+    assert ws["A2"].value == "org1" and ws["D2"].value == "김딜러"
+    ws.append(["org1", "가나목장", "판매과장", "이과장", "010 9999 0000"])
+    buf = io.BytesIO()
+    wb.save(buf)
+    r = adm.post("/admin/contacts", data={"csrf": _csrf(acc), "file": (io.BytesIO(buf.getvalue()), "c.xlsx")},
+                 content_type="multipart/form-data").get_data(as_text=True)
+    assert "담당자 2명을 저장" in r
+    assert [x["name"] for x in c.get("/api/contacts").json["org1"]] == ["김딜러", "이과장"]

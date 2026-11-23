@@ -313,6 +313,13 @@ def create_app(store: CloudStore, base: Settings, *, secure_cookie: bool = True,
           <table><tr><th>시각</th><th>아이디</th><th>결과</th></tr>{events}</table>
           <p class="sub">등록 안 됨 = 허용 목록에 없음(철자 확인) · 비밀번호 거절 = smaXtec 이 거절(웹 로그인 확인, 웹은 되면 리얼팜에 API 조회 권한 문의)</p></div>
         {guides_html(csrf)}
+        <div class="card"><h2>관리자 — 목장 담당자(딜러·판매과장)</h2>
+          <p class="sub">긴급·우선 목장 업무지시 문자에 쓰는 연락처입니다. 엑셀로 한 번에 넣거나, 각 팀원이 목장 상세에서 직접 고칠 수 있습니다.</p>
+          <div class="row"><a class="btn ghost" href="/admin/contacts.xlsx">담당자 엑셀 받기</a></div>
+          <form method="post" action="/admin/contacts" enctype="multipart/form-data" class="row">
+            <input type="hidden" name="csrf" value="{csrf}">
+            <input type="file" name="file" id="contactfile" accept=".xlsx" required>
+            <button type="submit">올리기</button></form></div>
         {validate_html(user, csrf)}"""
 
     def guides_html(csrf: str) -> str:
@@ -601,6 +608,133 @@ def create_app(store: CloudStore, base: Settings, *, secure_cookie: bool = True,
         return Response('<!doctype html><html lang="ko"><head><meta charset="utf-8">'
                         '<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">'
                         '</head><body style="margin:0">' + back + body + "</body></html>", mimetype="text/html")
+
+    # ───────── 목장 담당자(딜러·판매과장) — 팀 공용 연락처 ─────────
+    def user_farms(uid: str) -> dict[str, str]:
+        import sqlite3
+        p = store.user_dir(uid) / "data" / "smaxtec.db"
+        if not p.exists():
+            return {}
+        c = sqlite3.connect(f"file:{p}?mode=ro", uri=True)
+        try:
+            return {r[0]: r[1] for r in c.execute("SELECT farm_id, name FROM farms")}
+        except sqlite3.Error:
+            return {}
+        finally:
+            c.close()
+
+    def clean_contact(it: dict) -> dict | None:
+        name = str(it.get("name") or "").strip()[:20]
+        role = str(it.get("role") or "").strip()[:12] or "담당"
+        digits = re.sub(r"\D", "", str(it.get("phone") or ""))
+        if not name and not digits:
+            return None
+        if not re.fullmatch(r"0\d{8,10}", digits):
+            raise ValueError(f"전화번호 확인: {it.get('phone')}")
+        phone = (f"{digits[:3]}-{digits[3:-4]}-{digits[-4:]}" if digits.startswith("01")
+                 else f"{digits[:-8]}-{digits[-8:-4]}-{digits[-4:]}" if len(digits) >= 10 else digits)
+        return {"role": role, "name": name or role, "phone": phone}
+
+    @app.get("/api/contacts")
+    def contacts_get():
+        user, _ = need_login()
+        return store.contacts(list(user_farms(user.uid)))
+
+    @app.post("/api/contacts")
+    def contacts_set():
+        user, csrf = need_login()
+        if request.headers.get("X-CSRF") != csrf:
+            abort(400)
+        d = request.get_json(silent=True) or {}
+        fid, items = str(d.get("farm_id") or ""), d.get("items")
+        farms = user_farms(user.uid)
+        if fid not in farms or not isinstance(items, list) or len(items) > 5:
+            abort(400)
+        try:
+            clean = [c for c in (clean_contact(x) for x in items if isinstance(x, dict)) if c]
+        except ValueError as e:
+            return {"ok": False, "error": str(e)}, 400
+        store.set_contacts(fid, clean, user.username, farms[fid])
+        return {"ok": True, "items": clean}
+
+    @app.get("/admin/contacts.xlsx")
+    def admin_contacts_get():
+        from datetime import date
+        from openpyxl import Workbook
+        from openpyxl.styles import Font, PatternFill
+        user, _ = need_login()
+        if not store.admin or user.username != store.admin:
+            abort(403)
+        farms: dict[str, str] = {}
+        for u in store.users():
+            for k, v in user_farms(u.uid).items():
+                farms.setdefault(k, v)
+        cts = store.contacts()
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "담당자"
+        ws.append(["목장ID (바꾸지 마세요)", "목장", "구분 (딜러/판매과장 등)", "이름", "휴대폰"])
+        for c in ws[1]:
+            c.font, c.fill = Font(bold=True), PatternFill("solid", fgColor="DDEBF7")
+        for fid, name in sorted(farms.items(), key=lambda x: x[1]):
+            rows = cts.get(fid) or [{"role": "", "name": "", "phone": ""}]
+            for r in rows:
+                ws.append([fid, name, r["role"], r["name"], r["phone"]])
+        for col, w in zip("ABCDE", (26, 24, 18, 14, 16)):
+            ws.column_dimensions[col].width = w
+        ws.freeze_panes = "C2"
+        info = wb.create_sheet("쓰는 법")
+        for i, t in enumerate(["목장마다 담당자를 한 줄씩 적습니다. 담당자가 둘이면 같은 목장을 한 줄 더 추가(목장ID 그대로 복사).",
+                               "구분 예: 딜러, 판매과장, 수의사 · 휴대폰은 010-1234-5678 형식",
+                               "올리면 파일에 있는 목장의 담당자를 이 내용으로 바꿉니다(파일에 없는 목장은 그대로).",
+                               "연락처는 팀 공용 서버에 저장되고 그 목장을 담당하는 팀원 앱에만 보입니다."], 1):
+            info.cell(row=i, column=1, value=t)
+        info.column_dimensions["A"].width = 100
+        p = store.user_dir(user.uid) / "reports" / "담당자.xlsx"
+        p.parent.mkdir(parents=True, exist_ok=True)
+        wb.save(p)
+        return send_file(p, as_attachment=True, download_name=f"목장담당자_{date.today():%Y%m%d}.xlsx")
+
+    @app.post("/admin/contacts")
+    def admin_contacts_put():
+        from openpyxl import load_workbook
+        user = need_admin()
+        f = request.files.get("file")
+        if not f or not f.filename.lower().endswith(".xlsx"):
+            return account(msg="엑셀(.xlsx) 파일을 선택하세요.")
+        tmp = store.user_dir(user.uid) / "contacts.upload.xlsx"
+        f.save(tmp)
+        try:
+            rows = list(load_workbook(tmp, read_only=True, data_only=True).worksheets[0].iter_rows(values_only=True))
+        except Exception:  # noqa: BLE001
+            return account(msg="엑셀을 읽지 못했습니다.")
+        finally:
+            tmp.unlink(missing_ok=True)
+        if not rows or not str(rows[0][0] or "").startswith("목장ID"):
+            return account(msg="'담당자 엑셀 받기'로 받은 파일에 작성해 올려 주세요.")
+        by: dict[str, list] = {}
+        names: dict[str, str] = {}
+        errs = []
+        for i, r in enumerate(rows[1:], 2):
+            r = list(r) + [None] * 5
+            fid = str(r[0] or "").strip()
+            if not fid:
+                continue
+            names[fid] = str(r[1] or "")
+            by.setdefault(fid, [])
+            try:
+                c = clean_contact({"role": r[2], "name": r[3], "phone": r[4]})
+            except ValueError as e:
+                errs.append(f"{i}행 {r[1]}: {e}")
+                continue
+            if c:
+                by[fid].append(c)
+        if errs:
+            return account(msg="반영하지 않았습니다 — " + " / ".join(errs[:5]) + (f" 외 {len(errs) - 5}건" if len(errs) > 5 else ""))
+        for fid, items in by.items():
+            store.set_contacts(fid, items[:5], user.username, names.get(fid, ""))
+        n = sum(len(v) for v in by.values())
+        return account(ok=f"목장 {len(by)}곳 · 담당자 {n}명을 저장했습니다. 팀원 앱에서 바로 보입니다.")
 
     @app.get("/healthz")
     def health():

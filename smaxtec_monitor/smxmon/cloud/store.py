@@ -43,6 +43,14 @@ CREATE TABLE IF NOT EXISTS login_events (
     username    TEXT,
     result      TEXT NOT NULL      -- ok / not_allowed / bad_password / api_error / rate_limited / empty
 );
+CREATE TABLE IF NOT EXISTS contacts (   -- 목장별 담당자(딜러·판매과장) — 팀 공용
+    farm_id  TEXT NOT NULL,
+    idx      INTEGER NOT NULL,
+    role     TEXT, name TEXT, phone TEXT,
+    farm_name TEXT,
+    updated_by TEXT, updated TEXT,
+    PRIMARY KEY (farm_id, idx)
+);
 CREATE TABLE IF NOT EXISTS allowed (
     username    TEXT PRIMARY KEY,
     added_at    TEXT NOT NULL,
@@ -204,6 +212,24 @@ class CloudStore:
                 c.execute("INSERT INTO notes VALUES (?,?,?,?) ON CONFLICT(uid, key) DO UPDATE SET "
                           "value=excluded.value, updated=excluded.updated",
                           (uid, key, json.dumps(value, ensure_ascii=False), _now()))
+
+    # ───────── 목장 담당자(팀 공용) ─────────
+    def contacts(self, farm_ids: list[str] | None = None) -> dict[str, list[dict]]:
+        with self._conn() as c:
+            rows = c.execute("SELECT * FROM contacts ORDER BY farm_id, idx").fetchall()
+        out: dict[str, list[dict]] = {}
+        for r in rows:
+            if farm_ids is None or r["farm_id"] in farm_ids:
+                out.setdefault(r["farm_id"], []).append({"role": r["role"] or "", "name": r["name"] or "",
+                                                         "phone": r["phone"] or "", "farm_name": r["farm_name"] or ""})
+        return out
+
+    def set_contacts(self, farm_id: str, items: list[dict], by: str, farm_name: str = "") -> None:
+        with self._lock, self._conn() as c:
+            c.execute("DELETE FROM contacts WHERE farm_id=?", (farm_id,))
+            for i, it in enumerate(items):
+                c.execute("INSERT INTO contacts VALUES (?,?,?,?,?,?,?,?)",
+                          (farm_id, i, it.get("role", ""), it.get("name", ""), it.get("phone", ""), farm_name, by, _now()))
 
     # ───────── 로그인 기록 (관리자 화면 진단용, 최근 100건만 보관) ─────────
     def log_login(self, username: str, result: str) -> None:

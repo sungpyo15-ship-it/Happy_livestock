@@ -271,7 +271,7 @@ function detail(id){
   <h2>7. 조치 가이드 — 지금 해당 신호 ${(f.guides||[]).length}개</h2>${guideSection(f.guides||[])}
   <h2>8. 현장 점검 체크리스트</h2><div class="box">${f.checklist.map((c,i)=>`<label class="ck"><input type="checkbox" ${ck[i]?"checked":""}
    onchange="tick('${f.id}',${i},this.checked)"><div><b>${esc(c.topic)}</b><span>${esc(c.text)}</span></div></label>`).join("")}</div>
-  <h2>9. 조치·결과 기록</h2>${actSection(f)}
+  <h2>9. 담당자·조치·결과 기록</h2>${ctSection(f)}${actSection(f)}
   <h2>자유 메모</h2><textarea placeholder="농장주 의견·조치·다음 방문 (${CLOUD?"휴대폰·PC 모두에 자동 저장":"이 기기에만 저장"})" oninput="store.set('memo:${f.id}',this.value)">${esc(memo)}</textarea>
   <div class="note" id="syncst">${CLOUD?"휴대폰·PC 모두에 자동 저장됩니다":"이 기기에만 저장됩니다"}</div>
   <div class="foot">센서 알림·행동지표 기반 선별 자료(진단 아님) · 목장 데이터 외부 공유 금지</div>`;
@@ -288,6 +288,95 @@ function guideSection(ids){
   return `${ids.length?ids.map(id=>guideBox(id)).join(""):`<div class="empty">지금 해당하는 신호 없음</div>`}
   ${rest.length?`<details class="gd"><summary style="color:var(--sub)">다른 알림 조치 가이드 보기 (${rest.length})</summary><div class="gs">${rest.map(g=>guideBox(g.id)).join("")}</div></details>`:""}
   <div class="note">센서 알림은 의심 신호(진단 아님) · [문헌] = 논문·공식 지침 근거, [관행] = 현장 경험 기준(목장마다 조정) · 약품 사용·치료는 반드시 수의사 진료·처방에 따름</div>`; }
+/* ───── 담당자(딜러·판매과장)·업무지시 문자 ───── */
+let CT = {};          // {목장ID: [{role,name,phone}]}
+const CTE = {};       // 수정 중인 목장
+function loadCT(){
+  if(CLOUD){ fetch("/api/contacts",{credentials:"same-origin"}).then(r=>r.ok?r.json():{}).then(d=>{ CT=d||{}; if(document.activeElement?.tagName!=="INPUT") keepY(()=>{}); }).catch(()=>{}); }
+  else { try { for(const f of D.farms){ const v=store.get("ct:"+f.id); if(v) CT[f.id]=v; } } catch(e){} }
+}
+const ctOf = fid => CT[fid] || [];
+function ctEdit(fid){ CTE[fid] = ctOf(fid).map(x=>({...x})); if(!CTE[fid].length) CTE[fid].push({role:"딜러",name:"",phone:""}); keepY(()=>{}); }
+function ctAdd(fid){ (CTE[fid]=CTE[fid]||[]).push({role:"판매과장",name:"",phone:""}); keepY(()=>{}); }
+function ctSave(fid){
+  const items = (CTE[fid]||[]).filter(x=>x.name.trim()||x.phone.trim());
+  if(items.some(x=>!/^0\d{8,10}$/.test(x.phone.replace(/\D/g,"")))){ alertBox(fid,"휴대폰 번호를 확인하세요 (예: 010-1234-5678)"); return; }
+  const done = list => { CT[fid]=list; delete CTE[fid]; keepY(()=>{}); };
+  if(CLOUD){
+    fetch("/api/contacts",{method:"POST",credentials:"same-origin",headers:{"Content-Type":"application/json","X-CSRF":CLOUD.csrf},body:JSON.stringify({farm_id:fid,items})})
+     .then(r=>r.json()).then(d=>d.ok?done(d.items):alertBox(fid,d.error||"저장 실패")).catch(()=>alertBox(fid,"저장 실패 — 인터넷 연결 확인"));
+  } else { const fmt=p=>{ const d=p.replace(/\D/g,""); return d.startsWith("01")?`${d.slice(0,3)}-${d.slice(3,-4)}-${d.slice(-4)}`:d; };
+    const list=items.map(x=>({role:x.role||"담당",name:x.name.trim()||x.role,phone:fmt(x.phone)}));
+    try{ localStorage.setItem("ct:"+fid, JSON.stringify(list)); }catch(e){} done(list); }
+}
+function alertBox(fid,msg){ const e=document.getElementById("cterr-"+fid); if(e) e.textContent=msg; }
+const plain = t => String(t||"").replace(/\s*\[(문헌|관행)[^\]]*\]/g,"").trim();
+function orderLines(f){
+  const a=oneAction(f), cows=f.animals.slice(0,3).map(c=>`${c.label}(${c.types})`).join(", ");
+  const why=[...f.reasons].slice(0,2).join(", ") || (f.headline[0]||"");
+  return [`■ ${f.name} — ${f.grade}(${f.score}점)`, `· 사유: ${why}`, cows?`· 확인 개체: ${cows}`:"", a?`· 요청: ${a.title} — ${plain(a.text)}`:""].filter(Boolean);
+}
+function orderMsg(name, farms){
+  const due = farms.some(f=>f.grade=="긴급") ? "오늘 중" : "내일까지";
+  return [`[목장모니터 업무요청] ${name} 님`, `${D.asOf.slice(5,10).replace("-","/")} 기준 확인이 필요한 목장입니다.`, "",
+          ...farms.flatMap(f=>[...orderLines(f),""]), `${due} 확인 후 결과 회신 부탁드립니다.`].join("\n");
+}
+const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent);
+const smsHref = (phone, body) => `sms:${phone.replace(/[^\d+]/g,"")}${isIOS?"&":"?"}body=${encodeURIComponent(body)}`;
+function logOrder(farms, c){
+  const id=Date.now().toString(36);
+  farms.forEach((f,i)=>store.set(`act:${f.id}:${id}${i}`, {d:day, target:"담당자:"+c.name, sig:"업무지시", acts:["담당자 업무지시"],
+    memo:`${c.role} ${c.name}(${c.phone})에게 문자`, res:null, rd:null}));
+}
+function sendOrder(key){ const o=ORD[key]; if(!o) return; const ta=document.getElementById("om-"+key); const body=ta?ta.value:o.msg;
+  logOrder(o.farms, o.c); location.href = smsHref(o.c.phone, body); setTimeout(()=>keepY(()=>{}), 400); }
+function copyOrder(key){ const o=ORD[key]; const ta=document.getElementById("om-"+key); const body=ta?ta.value:o.msg;
+  const ok=()=>{ logOrder(o.farms,o.c); const b=document.getElementById("oc-"+key); if(b) b.textContent="복사됨 · 기록함"; };
+  try{ navigator.clipboard.writeText(body).then(ok,()=>{ ta&&ta.select(); }); }catch(e){ ta&&ta.select(); } }
+const ORD = {};
+function orderCard(key, c, farms){
+  const msg = orderMsg(c.name, farms); ORD[key] = {c, farms, msg};
+  const sentToday = farms.every(f=>actsOf(f.id).some(a=>a.d==day && a.target=="담당자:"+c.name));
+  return `<div class="box" style="margin-bottom:8px">
+   <div class="row"><div><b>${esc(c.name)}</b> <small class="cn">${esc(c.role)} · ${esc(c.phone)}</small></div>${sentToday?'<span class="chip">오늘 보냄</span>':""}</div>
+   <div class="chips">${farms.map(f=>`<span class="chip"><span class="dot g-${f.grade}" style="background:var(--g)"></span>${esc(f.name)} ${f.grade}</span>`).join("")}</div>
+   <details style="margin-top:6px"><summary class="cn" style="cursor:pointer">보낼 내용 보기·고치기</summary>
+    <textarea id="om-${key}" rows="${Math.min(14, msg.split("\n").length+1)}" style="margin-top:6px;font-size:13px">${esc(msg)}</textarea></details>
+   <div class="row" style="justify-content:flex-start;gap:6px;margin-top:6px">
+    <button type="button" class="ch on" onclick="sendOrder('${key}')">문자 보내기</button>
+    <button type="button" class="ch" id="oc-${key}" onclick="copyOrder('${key}')">카카오톡용 복사</button></div></div>`;
+}
+function orderSection(){
+  const targets = D.farms.filter(f=>f.grade=="긴급"||f.grade=="우선");
+  if(!targets.length) return "";
+  const by = {}, none = [];
+  targets.forEach(f=>{ const cs=ctOf(f.id); if(!cs.length) none.push(f);
+    cs.forEach(c=>{ const k=c.phone.replace(/\D/g,""); (by[k]=by[k]||{c, farms:[]}).farms.push(f); }); });
+  const keys = Object.keys(by);
+  return `<h2>업무지시 보내기 — 긴급·우선 ${targets.length}곳</h2>
+   ${keys.length?keys.map(k=>orderCard("o"+k, by[k].c, by[k].farms)).join(""):""}
+   ${none.length?`<div class="note">담당자 미등록: ${none.map(f=>`<a href="#f=${encodeURIComponent(f.id)}">${esc(f.name)}</a>`).join(", ")} — 목장 상세 '9. 담당자·조치·결과 기록'에서 등록${CLOUD?" (관리자는 계정 화면에서 엑셀로 한 번에)":""}</div>`:""}
+   <div class="note">[문자 보내기]를 누르면 휴대폰 문자 앱이 받는 사람·내용이 채워진 채 열립니다. 확인 후 직접 전송하세요(PC에서는 '카카오톡용 복사'). 보낸 지시는 각 목장 조치 기록에 '업무지시'로 남고, 7일 뒤 완료 보고·미이행을 누릅니다.</div>`;
+}
+function ctSection(f){
+  const fid=f.id.replace(/'/g,""), ed=CTE[f.id], cs=ctOf(f.id);
+  if(ed) return `<div class="box af"><div class="afl">담당자 (최대 5명)</div>
+    ${ed.map((x,i)=>`<div class="row" style="gap:6px;margin-top:4px;justify-content:flex-start">
+      <select class="afi" onchange="CTE['${fid}'][${i}].role=this.value">${["딜러","판매과장","수의사","목장주","기타"].map(r=>`<option${x.role==r?" selected":""}>${r}</option>`).join("")}</select>
+      <input class="afi" placeholder="이름" value="${esc(x.name)}" oninput="CTE['${fid}'][${i}].name=this.value" style="width:90px">
+      <input class="afi" type="tel" placeholder="010-1234-5678" value="${esc(x.phone)}" oninput="CTE['${fid}'][${i}].phone=this.value" style="width:140px">
+      <button type="button" class="ch" onclick="CTE['${fid}'].splice(${i},1);keepY(()=>{})">×</button></div>`).join("")}
+    <div class="row" style="gap:6px;margin-top:8px;justify-content:flex-start">${ed.length<5?`<button type="button" class="ch" onclick="ctAdd('${fid}')">+ 추가</button>`:""}
+     <button type="button" class="ch on" onclick="ctSave('${fid}')">저장</button><button type="button" class="ch" onclick="delete CTE['${fid}'];keepY(()=>{})">취소</button>
+     <span id="cterr-${fid}" class="neg" style="font-size:13px"></span></div>
+    <div class="note">${CLOUD?"팀 공용으로 저장 — 이 목장을 담당하는 팀원 모두에게 보입니다":"이 기기에만 저장됩니다"}</div></div>`;
+  const key="f"+fid.replace(/\W/g,"");
+  return `<div class="box" style="margin-bottom:8px"><div class="row"><div><b>담당자</b> ${cs.length?cs.map(c=>`<span class="chip">${esc(c.role)} ${esc(c.name)} <small class="cn">${esc(c.phone)}</small></span>`).join(" "):'<span class="cn">미등록</span>'}</div>
+   <button type="button" class="ch" onclick="ctEdit('${fid}')">${cs.length?"수정":"등록"}</button></div>
+   ${cs.length?`<div class="row" style="justify-content:flex-start;gap:6px;margin-top:6px">${cs.map((c,i)=>{ const k=key+"_"+i; ORD[k]={c, farms:[f], msg:orderMsg(c.name,[f])};
+     return `<button type="button" class="ch on" onclick="sendOrder('${k}')">${esc(c.name)}에게 업무지시 문자</button><button type="button" class="ch" id="oc-${k}" onclick="copyOrder('${k}')">복사</button>`; }).join("")}</div>`:""}</div>`;
+}
+
 /* ───── 오늘 할 일 (첫 화면) ───── */
 const G_PRI = ["group_rum","ph_low","heat_stress","lying","sync","temp_high","rumination","ketosis","mastitis","milk_fever","drinking","activity","temp_low"];
 function oneAction(f){
@@ -301,7 +390,7 @@ function oneAction(f){
   if(g && g.act.length) return {title:g.title, text:g.act[0], check:g.check[0]||""};
   const c = f.checklist[0]; return c ? {title:c.topic, text:c.text, check:""} : null;
 }
-function goAct(id){ location.hash = "f=" + encodeURIComponent(id); setTimeout(()=>{ const e=[...document.querySelectorAll('h2')].find(x=>x.textContent.includes('9. 조치')); if(e) window.scrollBy(0,e.getBoundingClientRect().top-100); }, 60); }
+function goAct(id){ location.hash = "f=" + encodeURIComponent(id); setTimeout(()=>{ const e=[...document.querySelectorAll('h2')].find(x=>x.textContent.includes('9. 담당자')); if(e) window.scrollBy(0,e.getBoundingClientRect().top-100); }, 60); }
 function todayTab(){
   const vis = D.farms.filter(f=>f.grade=="긴급"||f.grade=="우선");
   const pick = [...vis, ...D.farms.filter(f=>f.grade=="관찰")].slice(0,3);
@@ -319,18 +408,20 @@ function todayTab(){
       <button type="button" class="ch" onclick="go('${f.id}')">목장 상세 ›</button>
       <button type="button" class="ch on" onclick="goAct('${f.id}')">조치 기록하기</button></div></div>`; }).join("")
    :`<div class="empty">오늘은 방문이 필요한 목장이 없습니다 — 정기 방문 일정대로</div>`}
+  ${orderSection()}
   ${pend.length?`<h2>결과 입력 대기 (조치 후 7일 지남)</h2>
    ${pend.slice(0,8).map(x=>`<div class="box" style="margin-bottom:6px"><b>${esc(x.fname)}</b> · ${x.d.slice(5)} <small class="cn">(${daysAgo(x.d)}일 전)</small> · ${esc(x.target)}
     <div class="meta">${x.acts.map(esc).join(", ")}${x.memo?` — ${esc(x.memo)}`:""}</div>
-    <div>${(isCow(x)?RES_COW:RES_FARM).map(r=>chip(false,r,`actRes('${x.k}','${r}')`)).join("")}</div></div>`).join("")}
+    <div>${resSet(x).map(r=>chip(false,r,`actRes('${x.k}','${r}')`)).join("")}</div></div>`).join("")}
     ${pend.length>8?`<div class="note">외 ${pend.length-8}건 — 각 목장 상세 '9. 조치·결과 기록'에서</div>`:""}`:""}
   <div class="note">순서 = 방문 우선순위 점수(긴급 → 우선 → 관찰) · 할 조치 = 지금 신호에 맞는 조치 가이드의 첫 항목(전체는 목장 상세 7번) · 센서 신호 기반(진단 아님)</div>`;
 }
 
 /* ───── 조치·결과 기록 (act:<목장>:<id> 1건 = 1키, 기기 간 동기화) ───── */
-const ACTS = ["사료 배합 조정","급여·TMR 관리","조사료 교체·점검","첨가제 투입","음수 개선","우사 환경 개선","해충 방제",
+const ACTS = ["담당자 업무지시","사료 배합 조정","급여·TMR 관리","조사료 교체·점검","첨가제 투입","음수 개선","우사 환경 개선","해충 방제",
               "과밀 완화·그룹 재편","개체 격리·집중 관찰","수의사 진료 의뢰","삭제·발굽 관리","기타"];
-const RES_COW = ["회복","치료 후 회복","치료 중","도태","변화 없음"], RES_FARM = ["개선","변화 없음","악화"];
+const RES_COW = ["회복","치료 후 회복","치료 중","도태","변화 없음"], RES_FARM = ["개선","변화 없음","악화"], RES_ORDER = ["완료 보고","진행 중","미이행"];
+const resSet = x => (x.acts||[]).includes("담당자 업무지시") ? RES_ORDER : isCow(x) ? RES_COW : RES_FARM;
 const AF = {};   // 입력 중인 양식 (목장별)
 function actsOf(fid){
   const out=[]; try { for(let i=0;i<localStorage.length;i++){ const k=localStorage.key(i);
@@ -369,7 +460,7 @@ function actSection(f){
    ${list.map(x=>`<tr><td>${x.d.slice(5)}<br><small class="cn">${daysAgo(x.d)}일 전</small></td>
     <td class="l wrap">${esc(x.target)}${x.sig?`<br><small class="cn">${esc(x.sig)}</small>`:""}</td>
     <td class="l wrap">${x.acts.map(esc).join(", ")}${x.memo?`<br><small class="cn">${esc(x.memo)}</small>`:""}</td>
-    <td class="l wrap">${(isCow(x)?RES_COW:RES_FARM).map(r=>chip(x.res==r,r,`actRes('${x.k}','${r}')`)).join("")}
+    <td class="l wrap">${resSet(x).map(r=>chip(x.res==r,r,`actRes('${x.k}','${r}')`)).join("")}
       ${needResult(x)?'<br><b class="neg" style="font-size:12px">결과 입력 필요</b>':x.res?`<br><small class="cn">${x.rd||""} 입력</small>`:""}</td>
     <td><button type="button" class="ch" onclick="actDel('${x.k}')" title="지우기">×</button></td></tr>`).join("")}</table></div>`
    :`<div class="note">아직 기록 없음 — 위에서 대상·신호·조치를 골라 저장하면, 7일 뒤 결과(회복·치료·도태 등)를 누르라고 알려 줍니다.</div>`}
@@ -650,6 +741,7 @@ function render(keepFocus){
 }
 function setTab(k){ st.tab=k; st.sortK=null; save(); if(location.hash) history.replaceState(null,"",location.pathname); render(); }
 window.addEventListener("hashchange", () => render());
+loadCT();      // PC 는 바로, 클라우드는 받아온 뒤 다시 그림
 render();
 // 클라우드: 다른 기기에서 쓴 메모·체크를 받아와 화면 갱신 (입력 중인 메모는 덮어쓰지 않음)
 if (CLOUD) {
