@@ -21,6 +21,7 @@ elif [ -n "$B" ]; then ng "백업이 30시간 넘게 없음 → sudo smxmon-back
 echo "[2] 서비스"
 for s in smxmon-web caddy; do systemctl is-active --quiet $s && ok "$s 실행 중" || ng "$s 꺼짐 → sudo systemctl restart $s"; done
 systemctl is-active --quiet smxmon-collect.timer && ok "자동 수집 타이머 켜짐" || ng "자동 수집 타이머 꺼짐"
+if systemctl is-active --quiet smxmon-dispatch-am.timer; then ok "자동 업무지시 알림 타이머(08:00·14:00) 켜짐 — 실제 발송 여부는 관리자 화면 설정"; else ng "알림 타이머 없음 → sudo smxmon-update 한 번 더"; fi
 echo "    수집 간격: $(cat /etc/smxmon/schedule 2>/dev/null || echo '6h(기본)') — 바꾸기: sudo smxmon-schedule 6h|4h|2h"
 echo "    다음 자동 수집: $(systemctl list-timers smxmon-collect.timer --no-pager 2>/dev/null | awk 'NR==2{print $1,$2,$3}')"
 systemctl is-active --quiet smxmon-collect.service && echo "    지금 수집 진행 중"

@@ -81,7 +81,7 @@ footer{color:var(--sub);font-size:13px;text-align:center}
   <p class="lead">담당 목장의 smaXtec 알림을 모아 <b>오늘 어느 목장에 가서, 어떤 소를 보고, 무엇을 할지</b>를 알려 주는 앱입니다. 휴대폰과 PC에서 같은 화면을 봅니다.</p>
   <ul class="toc" aria-label="바로가기">
     <li><a href="#start">시작하기</a></li><li><a href="#flow">하루 사용 흐름</a></li><li><a href="#screens">화면별 설명</a></li>
-    <li><a href="#grade">등급·점수</a></li><li><a href="#terms">용어 풀이</a></li><li><a href="#act">조치·결과 기록</a></li><li><a href="#order">업무지시 문자</a></li>
+    <li><a href="#grade">등급·점수</a></li><li><a href="#terms">용어 풀이</a></li><li><a href="#act">조치·결과 기록</a></li><li><a href="#order">업무지시 문자</a></li><li><a href="#push">자동 알림</a></li>
     <li><a href="#dhi">검정성적</a></li><li><a href="#trial">투입비교</a></li><li><a href="#files">엑셀 받기</a></li>
     <li><a href="#faq">문제 해결</a></li><li><a href="#rules">꼭 지킬 것</a></li>
   </ul>
@@ -105,7 +105,7 @@ footer{color:var(--sub);font-size:13px;text-align:center}
   <div class="panel">
     <h3>언제 새 자료가 들어오나</h3>
     <ul>
-      <li>자동: 매일 <b>05:30</b>(출근 전 완료), <b>11:30</b>, <b>17:30</b> 하루 3번(관리자가 4시간·2시간 간격으로 바꿀 수 있음, 계정 화면에 지금 설정 표시). 밤에는 쉬고 다음 날 아침에 한꺼번에 들어옵니다.</li>
+      <li>자동: 매일 <b>06:30</b>(07시 전 판정 확정), <b>12:30</b>, <b>18:30</b> 하루 3번(관리자가 4시간·2시간 간격으로 바꿀 수 있음, 계정 화면에 지금 설정 표시). 밤에는 쉬고 다음 날 아침에 한꺼번에 들어옵니다.</li>
       <li>바로 보고 싶으면 오른쪽 위 <span class="ui">계정</span> → <span class="ui">지금 새로고침</span> (20분에 한 번). 몇 분 뒤 반영됩니다.</li>
       <li>smaXtec 앱의 푸시 알림은 실시간이고, 이 앱은 <b>추세·목장 비교·방문 계획</b>용입니다. 급한 개체는 smaXtec 앱을 그대로 보세요.</li>
     </ul>
@@ -228,6 +228,22 @@ footer{color:var(--sub);font-size:13px;text-align:center}
     <li><div><b>결과 확인</b>: 보낸 지시는 각 목장 조치 기록에 '업무지시'로 남습니다. 7일 뒤 <span class="ui">완료 보고</span> / <span class="ui">진행 중</span> / <span class="ui">미이행</span>을 누릅니다.</div></li>
   </ol>
   <p class="note">문자에는 목장 건강 정보가 들어갑니다. 그 목장 담당자에게만 보내고, 단체 대화방에는 올리지 마세요. 연락처는 팀 공용 서버에 저장되고 그 목장을 담당하는 팀원에게만 보입니다.</p>
+</section>
+
+<section id="push">
+  <h2>자동 알림 (휴대폰 푸시)</h2>
+  <div class="tw"><table>
+    <tr><th>시각</th><th>받는 사람</th><th>내용</th></tr>
+    <tr><td>08:00</td><td>담당자(딜러·판매과장)</td><td>06:30 판정의 긴급·우선 목장을 담당자별로 묶은 업무요청</td></tr>
+    <tr><td>14:00</td><td>담당자</td><td>12:30 판정에서 <b>아침에 없던 목장</b>과 <b>우선→긴급으로 올라간 목장</b>만</td></tr>
+    <tr><td>08:00 · 14:00</td><td>팀원</td><td>내 담당 목장의 '오늘 할 일' 요약(긴급 N · 우선 N)</td></tr>
+  </table></div>
+  <ol class="flow">
+    <li><div><b>팀원</b>: 홈 화면에 추가한 앱 → <span class="ui">계정</span> → <span class="ui">이 기기에서 알림 받기</span> → 알림 허용 → <span class="ui">시험 알림 보내기</span>로 확인</div></li>
+    <li><div><b>담당자</b>: 관리자가 만든 <b>전용 링크</b>를 문자·카톡으로 받음 → 열어서 홈 화면에 추가 → '업무요청' 아이콘으로 열기 → <span class="ui">이 휴대폰에서 알림 받기</span>. 알림을 누르면 요청 내용이 열리고 목장마다 <span class="ui">완료 보고</span>를 누르면 팀원 조치 기록에 바로 반영됩니다.</div></li>
+    <li><div><b>관리자</b>: <span class="ui">계정</span> → <b>자동 업무지시 알림</b>에서 켜기·<b>시험 모드</b>(모든 알림을 관리자 기기로만), 담당자별 링크 만들기·끊기, 최근 발송·전달 현황</div></li>
+  </ol>
+  <p class="note">아이폰은 iOS 16.4 이상이고 홈 화면에 추가한 앱에서만 알림을 받습니다(안드로이드는 크롬). 알림 설정을 하지 않은 담당자는 지금처럼 '업무지시 문자'로 직접 보냅니다. 담당자 링크는 비밀번호와 같으니 본인에게만 보내세요.</p>
 </section>
 
 <section id="dhi">

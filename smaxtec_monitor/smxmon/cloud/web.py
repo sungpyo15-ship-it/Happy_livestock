@@ -57,6 +57,28 @@ table{width:100%;border-collapse:collapse;font-size:14px}td,th{padding:7px 4px;b
 """
 
 
+PUSH_JS = """<script>
+async function smxSub(url, hdr){
+  const st = document.getElementById('pushst');
+  try {
+    if(!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)){
+      st.textContent = '이 화면에서는 알림을 켤 수 없습니다. 아이폰은 iOS 16.4 이상에서 Safari 공유 → 홈 화면에 추가한 뒤, 홈 화면 아이콘으로 열어서 누르세요.'; return; }
+    const perm = await Notification.requestPermission();
+    if(perm !== 'granted'){ st.textContent = '알림이 허용되지 않았습니다. 휴대폰 설정 → 알림에서 허용한 뒤 다시 누르세요.'; return; }
+    const reg = await navigator.serviceWorker.register('/sw.js', {scope:'/'}); await navigator.serviceWorker.ready;
+    const key = (await (await fetch('/push/key')).json()).key;
+    const raw = Uint8Array.from(atob(key.replace(/-/g,'+').replace(/_/g,'/') + '='.repeat((4 - key.length % 4) % 4)), c => c.charCodeAt(0));
+    let sub = await reg.pushManager.getSubscription();
+    if(!sub) sub = await reg.pushManager.subscribe({userVisibleOnly:true, applicationServerKey:raw});
+    const j = sub.toJSON();
+    const r = await fetch(url, {method:'POST', credentials:'same-origin', headers:Object.assign({'Content-Type':'application/json'}, hdr||{}),
+      body: JSON.stringify({endpoint:j.endpoint, p256dh:j.keys.p256dh, auth:j.keys.auth, ua:navigator.userAgent})});
+    st.textContent = r.ok ? '이 기기에서 알림을 받습니다 ✓' : '저장 실패 — 화면을 새로고침한 뒤 다시 누르세요';
+  } catch(e) { st.textContent = '알림 켜기 실패: ' + e.message; }
+}
+</script>"""
+
+
 def _page(title: str, body: str, *, nav: bool = True, refresh: int | None = None) -> str:
     meta = f'<meta http-equiv="refresh" content="{refresh}">' if refresh else ""
     return (f'<!doctype html><html lang="ko"><head><meta charset="utf-8">'
@@ -248,6 +270,14 @@ def create_app(store: CloudStore, base: Settings, *, secure_cookie: bool = True,
             <input type="hidden" name="csrf" value="{csrf}">
             <input type="file" name="file" id="trialfile" accept=".xlsx" required>
             <button type="submit">올리기</button></form></div>
+        <div class="card"><h2>알림 받기 (이 기기)</h2>
+          <p class="sub">켜 두면 매일 08:00 '오늘 할 일'(긴급·우선 목장)과 14:00 추가분이 이 휴대폰에 알림으로 옵니다.
+          아이폰은 iOS 16.4 이상, Safari 공유 → <b>홈 화면에 추가</b>한 앱에서 눌러야 합니다.</p>
+          <p>등록된 기기: <b>{len(store.subs('u:' + user.uid))}대</b> <span id="pushst" class="sub"></span></p>
+          <div class="row"><button type="button" onclick="smxSub('/push/subscribe', {{'X-CSRF': {json.dumps(csrf)}}})">이 기기에서 알림 받기</button>
+          <form method="post" action="/push/test"><input type="hidden" name="csrf" value="{csrf}"><button class="ghost" type="submit">시험 알림 보내기</button></form>
+          <form method="post" action="/push/off"><input type="hidden" name="csrf" value="{csrf}"><button class="ghost" type="submit">내 알림 모두 끄기</button></form></div>
+          {PUSH_JS}</div>
         <div class="card"><h2>검정성적 올리기</h2>
           <p class="sub">검정 기관·목장 프로그램에서 받은 검정성적 엑셀(.xlsx)을 그대로 올리면 머리글(관리번호·이표·유량·유지방·체세포 등)로 열을 찾아
           센서 개체와 연결합니다. 결과: 목장 상세 '4-3. 검정성적·경제성'(알림 소 유량 손실 추정).</p>
@@ -272,9 +302,9 @@ def create_app(store: CloudStore, base: Settings, *, secure_cookie: bool = True,
     def schedule_text() -> str:
         p = store.root / "schedule.txt"
         try:
-            return html.escape(p.read_text(encoding="utf-8").strip()) or "매일 05:30 · 11:30 · 17:30"
+            return html.escape(p.read_text(encoding="utf-8").strip()) or "매일 06:30 · 12:30 · 18:30"
         except OSError:
-            return "매일 05:30 · 11:30 · 17:30"
+            return "매일 06:30 · 12:30 · 18:30"
 
     def farm_opts(user: User) -> str:
         import sqlite3
@@ -319,6 +349,7 @@ def create_app(store: CloudStore, base: Settings, *, secure_cookie: bool = True,
           <h2>최근 로그인 기록</h2>
           <table><tr><th>시각</th><th>아이디</th><th>결과</th></tr>{events}</table>
           <p class="sub">등록 안 됨 = 허용 목록에 없음(철자 확인) · 비밀번호 거절 = smaXtec 이 거절(웹 로그인 확인, 웹은 되면 리얼팜에 API 조회 권한 문의)</p></div>
+        {dispatch_html(csrf)}
         {guides_html(csrf)}
         <div class="card"><h2>관리자 — 목장 담당자(딜러·판매과장)</h2>
           <p class="sub">긴급·우선 목장 업무지시 문자에 쓰는 연락처입니다. 엑셀로 한 번에 넣거나, 각 팀원이 목장 상세에서 직접 고칠 수 있습니다.</p>
@@ -328,6 +359,59 @@ def create_app(store: CloudStore, base: Settings, *, secure_cookie: bool = True,
             <input type="file" name="file" id="contactfile" accept=".xlsx" required>
             <button type="submit">올리기</button></form></div>
         {validate_html(user, csrf)}"""
+
+    def dispatch_html(csrf: str) -> str:
+        if request.host_url.startswith("https://"):
+            store.kv_set("site_url", request.host_url.rstrip("/"))
+        on, test = store.kv_get("dispatch_enabled", "0") == "1", store.kv_get("dispatch_test", "1") == "1"
+        try:
+            last = json.loads(store.kv_get("dispatch_last") or "{}")
+        except ValueError:
+            last = {}
+        # 담당자 = 연락처의 전화번호별
+        people: dict[str, dict] = {}
+        for fid, cs in store.contacts().items():
+            for c in cs:
+                d = re.sub(r"\D", "", c["phone"])
+                e = people.setdefault(d, {"name": c["name"], "role": c["role"], "phone": c["phone"], "farms": 0})
+                e["farms"] += 1
+        rows = []
+        for d, e in sorted(people.items(), key=lambda x: x[1]["name"]):
+            r = store.receiver_by_phone(d)
+            dev = len(store.subs("r:" + r["id"])) if r else 0
+            st = ("<span class='st-ok'>알림 켜짐 " + str(dev) + "대</span>" if dev else
+                  "<span class='sub'>링크 보냄 · 알림 미설정</span>" if r else "<span class='sub'>링크 없음</span>")
+            btn = (f'<form method="post" action="/admin/receiver"><input type="hidden" name="csrf" value="{csrf}">'
+                   f'<input type="hidden" name="phone" value="{d}"><input type="hidden" name="name" value="{html.escape(e["name"])}">'
+                   f'<button class="ghost" type="submit" style="padding:4px 8px;font-size:13px">{"새 링크" if r else "링크 만들기"}</button></form>')
+            if r:
+                btn += (f'<form method="post" action="/admin/receiver/revoke"><input type="hidden" name="csrf" value="{csrf}">'
+                        f'<input type="hidden" name="phone" value="{d}"><button class="ghost" type="submit" style="padding:4px 8px;font-size:13px">끊기</button></form>')
+            rows.append(f"<tr><td>{html.escape(e['role'])} {html.escape(e['name'])}<br><span class='sub'>{html.escape(e['phone'])} · 목장 {e['farms']}</span></td>"
+                        f"<td>{st}</td><td><div class='row'>{btn}</div></td></tr>")
+        recent = "".join(
+            f"<tr><td>{x['day'][5:]} {'08시' if x['slot'] == 'am' else '14시'}{' <b>시험</b>' if x['test'] else ''}</td><td>{html.escape(x['name'] or '')}</td>"
+            f"<td>{len(x['farms'])}곳</td><td>{'전달 ' + str(x['delivered']) + '/' + str(x['devices']) if x['devices'] else '<span class=sub>기기 없음</span>'}</td></tr>"
+            for x in store.dispatches(limit=15)) or "<tr><td colspan=4 class=sub>아직 없음</td></tr>"
+        lst = (f"마지막 실행 {last.get('at', '')} {'08시' if last.get('slot') == 'am' else '14시'} — "
+               f"담당자 {last.get('contacts', 0)}명 · 목장 {last.get('farms', 0)}건 · 전달 {last.get('delivered', 0)}명"
+               + (f" · 알림 미설정: {', '.join(last.get('no_device', [])[:6])}" if last.get('no_device') else "")
+               + (f" · ⚠ 자료 오래됨(수집 실패): {', '.join(last.get('stale', []))}" if last.get('stale') else "")
+               + (" (꺼짐)" if last.get('note') == '꺼짐' else "")) if last else "아직 실행 안 함"
+        return f"""<div class="card"><h2>관리자 — 자동 업무지시 알림</h2>
+          <p class="sub">매일 <b>08:00</b> 긴급·우선 목장을 담당자(딜러·판매과장)별로 묶어 알림, <b>14:00</b>엔 아침에 없던 목장과 우선→긴급으로 올라간 목장만 추가로 보냅니다(주말 포함).
+          담당자는 아래 '링크 만들기'로 받은 주소를 열어 홈 화면에 추가 → 알림 받기를 한 번 해야 받습니다.</p>
+          <form method="post" action="/admin/dispatch" style="display:grid;gap:8px;margin:8px 0"><input type="hidden" name="csrf" value="{csrf}">
+            <label style="display:flex;gap:8px;align-items:center"><input type="checkbox" name="enabled" value="1" style="width:20px;height:20px" {'checked' if on else ''}> 자동 알림 켜기</label>
+            <label style="display:flex;gap:8px;align-items:center"><input type="checkbox" name="test" value="1" style="width:20px;height:20px" {'checked' if test else ''}> 시험 모드 (모든 알림을 관리자 기기로만)</label>
+            <button type="submit">저장</button></form>
+          <p class="sub">지금: <b>{'켜짐' if on else '꺼짐'}</b>{' · 시험 모드' if on and test else ''} · {html.escape(lst)}</p>
+          <form method="post" action="/admin/dispatch/now" class="row"><input type="hidden" name="csrf" value="{csrf}">
+            <button class="ghost" type="submit" name="slot" value="am">지금 아침 알림 실행</button>
+            <button class="ghost" type="submit" name="slot" value="pm">지금 오후 알림 실행</button></form>
+          <h2>담당자 알림 링크</h2>
+          <table><tr><th>담당자</th><th>상태</th><th></th></tr>{''.join(rows) or '<tr><td colspan=3 class=sub>먼저 목장 담당자를 등록하세요</td></tr>'}</table>
+          <h2>최근 발송</h2><table><tr><th>시각</th><th>담당자</th><th>목장</th><th>전달</th></tr>{recent}</table></div>"""
 
     def guides_html(csrf: str) -> str:
         from ..actions import guides, is_custom
@@ -615,6 +699,167 @@ def create_app(store: CloudStore, base: Settings, *, secure_cookie: bool = True,
         return Response('<!doctype html><html lang="ko"><head><meta charset="utf-8">'
                         '<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">'
                         '</head><body style="margin:0">' + back + body + "</body></html>", mimetype="text/html")
+
+    # ───────── 웹 푸시 ─────────
+    def vapid():
+        from .webpush import Vapid
+        return Vapid(store.root / "vapid.pem")
+
+    def clean_sub(d: dict) -> dict | None:
+        ep, k, a = str(d.get("endpoint") or ""), str(d.get("p256dh") or ""), str(d.get("auth") or "")
+        if not ep.startswith("https://") or len(ep) > 1000 or not (40 < len(k) < 200) or not (10 < len(a) < 60):
+            return None
+        return {"endpoint": ep, "p256dh": k, "auth": a}
+
+    @app.get("/push/key")
+    def push_key():
+        return {"key": vapid().public_b64}
+
+    @app.post("/push/subscribe")
+    def push_subscribe():
+        user, csrf = need_login()
+        if request.headers.get("X-CSRF") != csrf:
+            abort(400)
+        d = request.get_json(silent=True) or {}
+        sub = clean_sub(d)
+        if not sub:
+            abort(400)
+        store.add_sub("u:" + user.uid, sub, str(d.get("ua") or ""))
+        return {"ok": True}
+
+    @app.post("/push/test")
+    def push_test():
+        from .webpush import send
+        user, csrf = need_login()
+        check_csrf(csrf)
+        subs = store.subs("u:" + user.uid)
+        if not subs:
+            return account(msg="등록된 기기가 없습니다. 먼저 '이 기기에서 알림 받기'를 누르세요.")
+        claim = store.kv_get("site_url") or "mailto:admin@example.com"
+        ok = 0
+        for s_ in subs:
+            code, _ = send(vapid(), s_, {"title": "목장모니터 시험 알림", "body": "알림이 잘 옵니다 ✓", "url": "/", "tag": "test"}, contact=claim)
+            store.sub_result(s_["endpoint"], 200 <= code < 300, gone=code in (404, 410))
+            ok += 200 <= code < 300
+        return account(ok=f"시험 알림을 보냈습니다 (기기 {ok}/{len(subs)}대). 몇 초~몇 분 안에 와야 합니다.") if ok else \
+            account(msg="보내지 못했습니다. 알림을 다시 켠 뒤 시도하세요.")
+
+    @app.post("/push/off")
+    def push_off():
+        user, csrf = need_login()
+        check_csrf(csrf)
+        store.del_subs("u:" + user.uid)
+        return account(ok="이 계정의 알림을 모두 껐습니다.")
+
+    @app.post("/admin/dispatch")
+    def admin_dispatch():
+        need_admin()
+        store.kv_set("dispatch_enabled", "1" if request.form.get("enabled") else "0")
+        store.kv_set("dispatch_test", "1" if request.form.get("test") else "0")
+        return account(ok="자동 알림 설정을 저장했습니다.")
+
+    @app.post("/admin/dispatch/now")
+    def admin_dispatch_now():
+        from ..dispatch import run as run_dispatch
+        need_admin()
+        slot = "pm" if request.form.get("slot") == "pm" else "am"
+        if store.kv_get("dispatch_enabled", "0") != "1":
+            return account(msg="자동 알림이 꺼져 있습니다. '자동 알림 켜기'를 먼저 저장하세요.")
+        sm = run_dispatch(store, slot)
+        return account(ok=f"{'아침' if slot == 'am' else '오후'} 알림 실행 — 담당자 {sm['contacts']}명 · 목장 {sm['farms']}건 · 전달 {sm['delivered']}명"
+                          + (" (시험 모드: 관리자 기기로만)" if sm["test"] else ""))
+
+    @app.post("/admin/receiver")
+    def admin_receiver():
+        need_admin()
+        phone = re.sub(r"\D", "", request.form.get("phone") or "")
+        if not re.fullmatch(r"0\d{8,10}", phone):
+            abort(400)
+        r = store.new_receiver(phone, (request.form.get("name") or "")[:20])
+        link = request.host_url.rstrip("/") + "/c/" + r["token"]
+        return account(ok=f"{r['name']} 님 알림 링크: {link}  ← 이 주소를 문자·카톡으로 보내 주세요(예전 링크는 끊김). "
+                          "받는 분은 주소를 열어 홈 화면에 추가 → 알림 받기를 누르면 됩니다.")
+
+    @app.post("/admin/receiver/revoke")
+    def admin_receiver_revoke():
+        need_admin()
+        store.revoke_receiver(re.sub(r"\D", "", request.form.get("phone") or ""))
+        return account(ok="링크를 끊었습니다. 그 담당자에게는 더 이상 알림이 가지 않습니다.")
+
+    # ───────── 담당자 전용 페이지 (로그인 없이 링크로) ─────────
+    def receiver_or_404(token: str) -> dict:
+        r = store.receiver_by_token(token)
+        if not r:
+            abort(404)
+        return r
+
+    @app.get("/c/<token>/manifest.webmanifest")
+    def receiver_manifest(token: str):
+        receiver_or_404(token)
+        m = {**MANIFEST, "name": "업무요청 — 목장모니터", "short_name": "업무요청", "start_url": f"/c/{token}",
+             "scope": f"/c/{token}", "icons": [{**i, "src": "/" + i["src"]} for i in MANIFEST["icons"]]}
+        return Response(json.dumps(m, ensure_ascii=False), mimetype="application/manifest+json")
+
+    @app.get("/c/<token>")
+    def receiver_page(token: str):
+        r = receiver_or_404(token)
+        ds = store.dispatches(phone=r["phone"], limit=6)
+        blocks = []
+        for d in ds:
+            acked = store.acked(r["phone"], d["id"])
+            fl = "".join(
+                f"<li><b>{html.escape(f['name'])}</b> {html.escape(f['grade'])} {html.escape(f.get('note') or '')} "
+                + ("<span class='st-ok'>완료 보고함</span>" if f["id"] in acked else
+                   f"<button class='ghost' style='padding:3px 8px;font-size:13px' onclick=\"ack({d['id']},{html.escape(json.dumps(f['id']))})\">완료 보고</button>")
+                + "</li>" for f in d["farms"])
+            blocks.append(f"<div class='card'><h2>{d['day'][5:]} {'08시' if d['slot'] == 'am' else '14시'}"
+                          f"{' <span class=sub>(시험)</span>' if d['test'] else ''}</h2><ul>{fl}</ul>"
+                          f"<details><summary>요청 내용 전체</summary><pre style='white-space:pre-wrap;font-size:13px'>{html.escape(d['text'])}</pre></details></div>")
+        n = len(store.subs("r:" + r["id"]))
+        body = f"""<div class="card"><h1>{html.escape(r['name'] or '')} 님 업무요청</h1>
+          <p class="sub">긴급·우선 목장 업무요청이 매일 08:00·14:00 이 휴대폰 알림으로 옵니다.</p>
+          <p>알림 기기: <b>{n}대</b> <span id="pushst" class="sub"></span></p>
+          <button type="button" onclick="smxSub('/c/{token}/subscribe')">이 휴대폰에서 알림 받기</button>
+          <details style="margin-top:8px"><summary>처음 설정 방법</summary><ol class="sub">
+            <li>아이폰: 이 화면을 <b>Safari</b>로 열기 → 아래 공유 버튼 → <b>홈 화면에 추가</b> → 홈 화면의 '업무요청' 아이콘으로 열기 → 위 버튼(iOS 16.4 이상)</li>
+            <li>안드로이드: <b>크롬</b>으로 열기 → 위 버튼 → 알림 허용 (홈 화면 추가는 선택)</li>
+            <li>이 주소는 본인 전용입니다. 다른 사람에게 보내지 마세요.</li></ol></details></div>
+          {''.join(blocks) or '<div class="card sub">아직 받은 업무요청이 없습니다.</div>'}
+          {PUSH_JS}
+          <script>function ack(d,f){{fetch('/c/{token}/ack',{{method:'POST',headers:{{'Content-Type':'application/json'}},body:JSON.stringify({{did:d,farm_id:f}})}})
+            .then(r=>{{if(r.ok)location.reload();else alert('저장 실패');}});}}</script>"""
+        page = _page("업무요청", body, nav=False).replace('href="/manifest.webmanifest"', f'href="/c/{token}/manifest.webmanifest"')
+        return Response(page, mimetype="text/html")
+
+    @app.post("/c/<token>/subscribe")
+    def receiver_subscribe(token: str):
+        r = receiver_or_404(token)
+        d = request.get_json(silent=True) or {}
+        sub = clean_sub(d)
+        if not sub:
+            abort(400)
+        if len(store.subs("r:" + r["id"])) >= 5:
+            return {"ok": False}, 400
+        store.add_sub("r:" + r["id"], sub, str(d.get("ua") or ""))
+        return {"ok": True}
+
+    @app.post("/c/<token>/ack")
+    def receiver_ack(token: str):
+        from datetime import date
+        r = receiver_or_404(token)
+        d = request.get_json(silent=True) or {}
+        try:
+            did, fid = int(d.get("did")), str(d.get("farm_id") or "")
+        except (TypeError, ValueError):
+            abort(400)
+        if not store.ack(r["phone"], did, fid):
+            abort(404)
+        key = f"act:{fid}:d{did}"
+        for u in store.users():      # 그 목장 담당 팀원의 조치 기록에 결과 자동 입력
+            v = store.notes(u.uid).get(key)
+            if isinstance(v, dict):
+                store.set_note(u.uid, key, {**v, "res": "완료 보고", "rd": date.today().isoformat()})
+        return {"ok": True}
 
     # ───────── 목장 담당자(딜러·판매과장) — 팀 공용 연락처 ─────────
     def user_farms(uid: str) -> dict[str, str]:

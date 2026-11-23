@@ -5,6 +5,7 @@
   collect-all       모든 사용자 수집·리포트 (서버 타이머가 실행)
   allow 아이디 [메모]  팀원 허용 (관리자 화면에서도 가능)
   users             사용자·상태 목록
+  dispatch --slot am|pm   자동 업무지시 알림 (서버 타이머가 08:00·14:00 실행)
   validate [--days N] [--anon]  판정 기준 검증(모든 사용자 DB, 목장 중복 제외) → 관리자 '파일 받기'에 판정검증 엑셀
 
 환경변수 (/etc/smxmon/env)
@@ -52,6 +53,8 @@ def main(argv=None) -> int:
     a.add_argument("username")
     a.add_argument("note", nargs="?", default="")
     sub.add_parser("users")
+    dp = sub.add_parser("dispatch")
+    dp.add_argument("--slot", choices=["am", "pm"], required=True)
     v = sub.add_parser("validate")
     v.add_argument("--days", type=int, default=365)
     v.add_argument("--anon", action="store_true", help="엑셀 목장 이름을 목장01… 로")
@@ -76,6 +79,9 @@ def main(argv=None) -> int:
     elif args.cmd == "allow":
         store.allow(args.username, args.note)
         print("허용:", args.username.lower())
+    elif args.cmd == "dispatch":
+        from ..dispatch import run as run_dispatch
+        print(run_dispatch(store, args.slot))
     elif args.cmd == "validate":
         import sqlite3
         from datetime import datetime

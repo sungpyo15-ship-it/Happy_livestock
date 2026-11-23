@@ -42,6 +42,13 @@ def build_dashboard(an: Analysis, mapper: AlertTypeMapper, out_path: Path) -> Pa
     out_path.write_text(html, encoding="utf-8")
     (out_path.parent / "smaxtec_app.html").write_text(html, encoding="utf-8")  # 항상 최신본
     write_pwa(html, out_path.parent / "app")   # 아이폰 홈 화면 앱(서버용)
+    # 자동 업무지시(알림)용 판정 요약 — 서버 발송 작업이 읽음
+    state = {"asOf": data["asOf"], "farms": [
+        {k: f.get(k) for k in ("id", "name", "grade", "score", "reasons", "headline", "guides")}
+        | {"animals": [{"label": a["label"], "types": a["types"]} for a in f["animals"][:3]],
+           "checklist0": f["checklist"][0] if f["checklist"] else None,
+           "cluster": f["cluster"]["text"] if f["cluster"] else ""} for f in data["farms"]]}
+    (out_path.parent / "latest_state.json").write_text(json.dumps(state, ensure_ascii=False), encoding="utf-8")
     return out_path
 
 

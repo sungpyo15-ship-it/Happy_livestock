@@ -51,6 +51,28 @@ CREATE TABLE IF NOT EXISTS contacts (   -- 목장별 담당자(딜러·판매과
     updated_by TEXT, updated TEXT,
     PRIMARY KEY (farm_id, idx)
 );
+CREATE TABLE IF NOT EXISTS push_subs (  -- 웹 푸시 구독(기기별). owner = u:<uid>(팀원) / r:<receiver id>(담당자)
+    endpoint TEXT PRIMARY KEY,
+    owner    TEXT NOT NULL,
+    p256dh   TEXT NOT NULL, auth TEXT NOT NULL,
+    ua       TEXT, created TEXT, last_ok TEXT, fails INTEGER DEFAULT 0
+);
+CREATE TABLE IF NOT EXISTS receivers (  -- 담당자(딜러·판매과장) 알림 받기 링크
+    id      TEXT PRIMARY KEY,
+    token   TEXT UNIQUE NOT NULL,
+    phone   TEXT NOT NULL,             -- 숫자만 (contacts.phone 과 연결)
+    name    TEXT, created TEXT, revoked INTEGER DEFAULT 0
+);
+CREATE TABLE IF NOT EXISTS dispatches (  -- 자동 업무지시 1건 = 담당자 1명에게 1회
+    id      INTEGER PRIMARY KEY AUTOINCREMENT,
+    day     TEXT, slot TEXT, phone TEXT, name TEXT,
+    farms   TEXT, text TEXT, created TEXT, test INTEGER DEFAULT 0, devices INTEGER DEFAULT 0, delivered INTEGER DEFAULT 0
+);
+CREATE TABLE IF NOT EXISTS dispatch_log (  -- 담당자 × 목장 × 하루 (오후 재발송 판단·완료 보고)
+    day TEXT, phone TEXT, farm_id TEXT, slot TEXT, grade TEXT, dispatch_id INTEGER, acked TEXT,
+    PRIMARY KEY (day, phone, farm_id, slot)
+);
+CREATE TABLE IF NOT EXISTS kv (key TEXT PRIMARY KEY, value TEXT);
 CREATE TABLE IF NOT EXISTS allowed (
     username    TEXT PRIMARY KEY,
     added_at    TEXT NOT NULL,
@@ -230,6 +252,122 @@ class CloudStore:
             for i, it in enumerate(items):
                 c.execute("INSERT INTO contacts VALUES (?,?,?,?,?,?,?,?)",
                           (farm_id, i, it.get("role", ""), it.get("name", ""), it.get("phone", ""), farm_name, by, _now()))
+
+    # ───────── 설정 값 ─────────
+    def kv_get(self, key: str, default: str | None = None) -> str | None:
+        with self._conn() as c:
+            r = c.execute("SELECT value FROM kv WHERE key=?", (key,)).fetchone()
+        return r["value"] if r else default
+
+    def kv_set(self, key: str, value: str) -> None:
+        with self._lock, self._conn() as c:
+            c.execute("INSERT INTO kv VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value", (key, value))
+
+    # ───────── 웹 푸시 구독 ─────────
+    def add_sub(self, owner: str, sub: dict, ua: str = "") -> None:
+        with self._lock, self._conn() as c:
+            c.execute("INSERT INTO push_subs VALUES (?,?,?,?,?,?,NULL,0) ON CONFLICT(endpoint) DO UPDATE SET "
+                      "owner=excluded.owner, p256dh=excluded.p256dh, auth=excluded.auth, ua=excluded.ua, fails=0",
+                      (sub["endpoint"], owner, sub["p256dh"], sub["auth"], ua[:120], _now()))
+
+    def subs(self, owner: str) -> list[dict]:
+        with self._conn() as c:
+            return [dict(r) for r in c.execute("SELECT * FROM push_subs WHERE owner=?", (owner,))]
+
+    def sub_result(self, endpoint: str, ok: bool, gone: bool = False) -> None:
+        with self._lock, self._conn() as c:
+            if gone:
+                c.execute("DELETE FROM push_subs WHERE endpoint=?", (endpoint,))
+            elif ok:
+                c.execute("UPDATE push_subs SET last_ok=?, fails=0 WHERE endpoint=?", (_now(), endpoint))
+            else:
+                c.execute("UPDATE push_subs SET fails=fails+1 WHERE endpoint=?", (endpoint,))
+                c.execute("DELETE FROM push_subs WHERE endpoint=? AND fails>=10", (endpoint,))
+
+    def del_subs(self, owner: str) -> None:
+        with self._lock, self._conn() as c:
+            c.execute("DELETE FROM push_subs WHERE owner=?", (owner,))
+
+    # ───────── 담당자 알림 링크 ─────────
+    def receivers(self) -> list[dict]:
+        with self._conn() as c:
+            return [dict(r) for r in c.execute("SELECT * FROM receivers WHERE revoked=0")]
+
+    def receiver_by_token(self, token: str) -> dict | None:
+        if not token or len(token) < 20:
+            return None
+        with self._conn() as c:
+            r = c.execute("SELECT * FROM receivers WHERE token=? AND revoked=0", (token,)).fetchone()
+        return dict(r) if r else None
+
+    def receiver_by_phone(self, phone: str) -> dict | None:
+        with self._conn() as c:
+            r = c.execute("SELECT * FROM receivers WHERE phone=? AND revoked=0", (phone,)).fetchone()
+        return dict(r) if r else None
+
+    def new_receiver(self, phone: str, name: str) -> dict:
+        import secrets
+        old = self.receiver_by_phone(phone)
+        with self._lock, self._conn() as c:
+            if old:
+                c.execute("UPDATE receivers SET revoked=1 WHERE id=?", (old["id"],))
+                c.execute("DELETE FROM push_subs WHERE owner=?", ("r:" + old["id"],))
+            rid, tok = secrets.token_hex(6), secrets.token_urlsafe(24)
+            c.execute("INSERT INTO receivers VALUES (?,?,?,?,?,0)", (rid, tok, phone, name, _now()))
+        return {"id": rid, "token": tok, "phone": phone, "name": name}
+
+    def revoke_receiver(self, phone: str) -> None:
+        old = self.receiver_by_phone(phone)
+        if old:
+            with self._lock, self._conn() as c:
+                c.execute("UPDATE receivers SET revoked=1 WHERE id=?", (old["id"],))
+                c.execute("DELETE FROM push_subs WHERE owner=?", ("r:" + old["id"],))
+
+    # ───────── 자동 업무지시 기록 ─────────
+    def add_dispatch(self, day: str, slot: str, phone: str, name: str, farms: list, text: str, test: bool) -> int:
+        import json
+        with self._lock, self._conn() as c:
+            cur = c.execute("INSERT INTO dispatches(day,slot,phone,name,farms,text,created,test) VALUES (?,?,?,?,?,?,?,?)",
+                            (day, slot, phone, name, json.dumps(farms, ensure_ascii=False), text, _now(), int(test)))
+            did = cur.lastrowid
+            for f in farms:     # 시험 모드는 't:전화' 로 따로 기록(실제 발송 판단과 섞이지 않게)
+                c.execute("INSERT OR REPLACE INTO dispatch_log VALUES (?,?,?,?,?,?,NULL)",
+                          (day, ("t:" if test else "") + phone, f["id"], slot, f["grade"], did))
+        return did
+
+    def dispatch_delivered(self, did: int, devices: int, delivered: int) -> None:
+        with self._lock, self._conn() as c:
+            c.execute("UPDATE dispatches SET devices=?, delivered=? WHERE id=?", (devices, delivered, did))
+
+    def sent_today(self, day: str, phone: str) -> dict[str, str]:
+        """{목장: 오늘 마지막으로 보낸 등급}"""
+        with self._conn() as c:
+            rows = c.execute("SELECT farm_id, grade, slot FROM dispatch_log WHERE day=? AND phone=? ORDER BY slot", (day, phone))
+            return {r["farm_id"]: r["grade"] for r in rows}
+
+    def dispatches(self, phone: str | None = None, day: str | None = None, limit: int = 30) -> list[dict]:
+        import json
+        q, args = "SELECT * FROM dispatches WHERE 1=1", []
+        if phone:
+            q, args = q + " AND phone=?", args + [phone]
+        if day:
+            q, args = q + " AND day=?", args + [day]
+        with self._conn() as c:
+            rows = [dict(r) for r in c.execute(q + " ORDER BY id DESC LIMIT ?", (*args, limit))]
+        for r in rows:
+            r["farms"] = json.loads(r["farms"] or "[]")
+        return rows
+
+    def ack(self, phone: str, did: int, farm_id: str) -> bool:
+        with self._lock, self._conn() as c:
+            n = c.execute("UPDATE dispatch_log SET acked=? WHERE phone IN (?,?) AND dispatch_id=? AND farm_id=?",
+                          (_now(), phone, "t:" + phone, did, farm_id)).rowcount
+        return n > 0
+
+    def acked(self, phone: str, did: int) -> set[str]:
+        with self._conn() as c:
+            return {r[0] for r in c.execute("SELECT farm_id FROM dispatch_log WHERE phone IN (?,?) AND dispatch_id=? AND acked IS NOT NULL",
+                                             (phone, "t:" + phone, did))}
 
     # ───────── 로그인 기록 (관리자 화면 진단용, 최근 100건만 보관) ─────────
     def log_login(self, username: str, result: str) -> None:

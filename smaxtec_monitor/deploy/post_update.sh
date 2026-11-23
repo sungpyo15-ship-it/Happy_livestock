@@ -15,6 +15,35 @@ set -a; . /etc/smxmon/env; set +a
 exec nice -n 10 runuser -u smxmon -- /opt/smxmon/venv/bin/python -m smxmon.cloud validate "$@"
 SH
 chmod 755 /usr/local/bin/smxmon-validate
+# 자동 업무지시 알림 08:00(am) · 14:00(pm) — 켜고 끄기는 관리자 화면에서
+for slot in am pm; do
+  t=$([ $slot = am ] && echo "08:00:00" || echo "14:00:00")
+  cat > /etc/systemd/system/smxmon-dispatch-$slot.service <<UNIT
+[Unit]
+Description=smaXtec 자동 업무지시 알림 ($slot)
+After=network-online.target
+[Service]
+Type=oneshot
+User=smxmon
+WorkingDirectory=/opt/smxmon/app/smaxtec_monitor
+EnvironmentFile=/etc/smxmon/env
+ExecStart=/opt/smxmon/venv/bin/python -m smxmon.cloud dispatch --slot $slot
+TimeoutStartSec=20min
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/var/lib/smxmon
+UNIT
+  cat > /etc/systemd/system/smxmon-dispatch-$slot.timer <<UNIT
+[Unit]
+Description=smaXtec 자동 업무지시 알림 ($slot)
+[Timer]
+OnCalendar=*-*-* $t
+[Install]
+WantedBy=timers.target
+UNIT
+done
 cat > /etc/systemd/system/smxmon-backup.service <<UNIT
 [Unit]
 Description=smaXtec monitor daily backup
@@ -33,7 +62,7 @@ Persistent=true
 WantedBy=timers.target
 UNIT
 systemctl daemon-reload
-systemctl enable --now smxmon-backup.timer >/dev/null 2>&1
+systemctl enable --now smxmon-backup.timer smxmon-dispatch-am.timer smxmon-dispatch-pm.timer >/dev/null 2>&1
 if ! ls /var/backups/smxmon/smxmon_*.tar.gz >/dev/null 2>&1; then
   echo "첫 백업 실행..."; /usr/local/bin/smxmon-backup || echo "  ⚠ 첫 백업 실패 — sudo smxmon-backup 으로 다시 확인"
 fi

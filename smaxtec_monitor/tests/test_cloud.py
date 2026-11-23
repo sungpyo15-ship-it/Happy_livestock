@@ -306,3 +306,28 @@ def test_contacts_api_and_admin_excel(env):
     got = c.get("/api/contacts").json["org1"]
     assert [(x["name"], x["phone"]) for x in got] == [("김딜러", "010-1234-5678"), ("이과장", "010-9999-0000"),
                                                       ("박수의", "010-2222-3333")]
+
+
+def test_account_push_and_admin_dispatch(env):
+    store, app = env
+    c = app.test_client()
+    c.post("/login", data={"username": ADMIN, "password": "adminpw"})
+    acc = c.get("/account").get_data(as_text=True)
+    assert "알림 받기 (이 기기)" in acc and "자동 업무지시 알림" in acc and "smxSub" in acc
+    csrf = _csrf(acc)
+    sub = {"endpoint": "https://fcm.googleapis.com/fcm/send/x", "p256dh": "B" + "A" * 86, "auth": "A" * 22}
+    assert c.post("/push/subscribe", json=sub).status_code == 400                 # CSRF 없음
+    assert c.post("/push/subscribe", json=sub, headers={"X-CSRF": csrf}).status_code == 200
+    r = c.post("/admin/dispatch/now", data={"csrf": csrf, "slot": "am"}).get_data(as_text=True)
+    assert "꺼져 있습니다" in r
+    c.post("/admin/dispatch", data={"csrf": csrf, "enabled": "1", "test": "1"})
+    assert store.kv_get("dispatch_enabled") == "1" and store.kv_get("dispatch_test") == "1"
+    store.set_contacts("org1", [{"role": "딜러", "name": "김딜러", "phone": "010-1111-2222"}], ADMIN, "가나목장")
+    r = c.post("/admin/receiver", data={"csrf": csrf, "phone": "01011112222", "name": "김딜러"}).get_data(as_text=True)
+    assert "/c/" in r and "김딜러 님 알림 링크" in r
+    assert "링크 보냄 · 알림 미설정" in c.get("/account").get_data(as_text=True)
+    u = app.test_client()
+    u.post("/login", data={"username": OTHER, "password": "otherpw"})
+    acc2 = u.get("/account").get_data(as_text=True)
+    assert "자동 업무지시 알림" not in acc2 and "알림 받기 (이 기기)" in acc2
+    assert u.post("/admin/dispatch", data={"csrf": _csrf(acc2), "enabled": "1"}).status_code == 403
