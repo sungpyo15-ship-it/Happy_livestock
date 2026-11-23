@@ -296,10 +296,13 @@ def test_contacts_api_and_admin_excel(env):
     wb = openpyxl.load_workbook(io.BytesIO(adm.get("/admin/contacts.xlsx").data))
     ws = wb["담당자"]
     assert ws["A2"].value == "org1" and ws["D2"].value == "김딜러"
-    ws.append(["org1", "가나목장", "판매과장", "이과장", "010 9999 0000"])
+    ws.append(["org1", "가나목장", "판매과장", "이과장", 1099990000])          # 엑셀 숫자 칸(앞 0 빠짐)
+    ws.append(["org1", "가나목장", "수의사", "박수의", "+82 10-2222-3333"])
     buf = io.BytesIO()
     wb.save(buf)
     r = adm.post("/admin/contacts", data={"csrf": _csrf(acc), "file": (io.BytesIO(buf.getvalue()), "c.xlsx")},
                  content_type="multipart/form-data").get_data(as_text=True)
-    assert "담당자 2명을 저장" in r
-    assert [x["name"] for x in c.get("/api/contacts").json["org1"]] == ["김딜러", "이과장"]
+    assert "담당자 3명을 저장" in r
+    got = c.get("/api/contacts").json["org1"]
+    assert [(x["name"], x["phone"]) for x in got] == [("김딜러", "010-1234-5678"), ("이과장", "010-9999-0000"),
+                                                      ("박수의", "010-2222-3333")]

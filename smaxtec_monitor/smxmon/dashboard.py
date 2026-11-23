@@ -300,7 +300,8 @@ function ctEdit(fid){ CTE[fid] = ctOf(fid).map(x=>({...x})); if(!CTE[fid].length
 function ctAdd(fid){ (CTE[fid]=CTE[fid]||[]).push({role:"판매과장",name:"",phone:""}); keepY(()=>{}); }
 function ctSave(fid){
   const items = (CTE[fid]||[]).filter(x=>x.name.trim()||x.phone.trim());
-  if(items.some(x=>!/^0\d{8,10}$/.test(x.phone.replace(/\D/g,"")))){ alertBox(fid,"휴대폰 번호를 확인하세요 (예: 010-1234-5678)"); return; }
+  items.forEach(x=>{ let d=x.phone.replace(/\D/g,""); if(/^82\d{9,10}$/.test(d)) d="0"+d.slice(2); if(/^1\d{8,9}$/.test(d)) d="0"+d; x.phone=d; });
+  if(items.some(x=>!/^0\d{8,10}$/.test(x.phone))){ alertBox(fid,"휴대폰 번호를 확인하세요 (예: 010-1234-5678)"); return; }
   const done = list => { CT[fid]=list; delete CTE[fid]; keepY(()=>{}); };
   if(CLOUD){
     fetch("/api/contacts",{method:"POST",credentials:"same-origin",headers:{"Content-Type":"application/json","X-CSRF":CLOUD.csrf},body:JSON.stringify({farm_id:fid,items})})

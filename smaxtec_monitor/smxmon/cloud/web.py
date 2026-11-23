@@ -626,7 +626,14 @@ def create_app(store: CloudStore, base: Settings, *, secure_cookie: bool = True,
     def clean_contact(it: dict) -> dict | None:
         name = str(it.get("name") or "").strip()[:20]
         role = str(it.get("role") or "").strip()[:12] or "담당"
-        digits = re.sub(r"\D", "", str(it.get("phone") or ""))
+        raw = it.get("phone")
+        if isinstance(raw, float) and raw.is_integer():
+            raw = int(raw)
+        digits = re.sub(r"\D", "", str(raw or ""))
+        if digits.startswith("82") and len(digits) in (11, 12):      # +82 10-… → 010-…
+            digits = "0" + digits[2:]
+        if re.fullmatch(r"1\d{8,9}", digits):                       # 엑셀 숫자 칸에서 앞 0 이 빠진 경우
+            digits = "0" + digits
         if not name and not digits:
             return None
         if not re.fullmatch(r"0\d{8,10}", digits):
@@ -685,7 +692,8 @@ def create_app(store: CloudStore, base: Settings, *, secure_cookie: bool = True,
         ws.freeze_panes = "C2"
         info = wb.create_sheet("쓰는 법")
         for i, t in enumerate(["목장마다 담당자를 한 줄씩 적습니다. 담당자가 둘이면 같은 목장을 한 줄 더 추가(목장ID 그대로 복사).",
-                               "구분 예: 딜러, 판매과장, 수의사 · 휴대폰은 010-1234-5678 형식",
+                               "구분 예: 딜러, 판매과장, 수의사",
+                               "휴대폰: 010-1234-5678 / 01012345678 / 010 1234 5678 모두 됩니다. 엑셀이 앞의 0을 지워 1012345678 이 되어도 자동으로 고칩니다.",
                                "올리면 파일에 있는 목장의 담당자를 이 내용으로 바꿉니다(파일에 없는 목장은 그대로).",
                                "연락처는 팀 공용 서버에 저장되고 그 목장을 담당하는 팀원 앱에만 보입니다."], 1):
             info.cell(row=i, column=1, value=t)
