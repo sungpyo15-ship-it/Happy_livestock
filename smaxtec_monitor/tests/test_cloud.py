@@ -331,3 +331,20 @@ def test_account_push_and_admin_dispatch(env):
     acc2 = u.get("/account").get_data(as_text=True)
     assert "자동 업무지시 알림" not in acc2 and "알림 받기 (이 기기)" in acc2
     assert u.post("/admin/dispatch", data={"csrf": _csrf(acc2), "enabled": "1"}).status_code == 403
+
+
+def test_push_button_onclick_is_valid(env):
+    """알림 받기 버튼의 onclick 이 따옴표 충돌 없이 온전해야 함(예전 버그: 버튼이 아무 동작 안 함)."""
+    from html.parser import HTMLParser
+    store, app = env
+    c = app.test_client()
+    c.post("/login", data={"username": ADMIN, "password": "adminpw"})
+    found = []
+
+    class P(HTMLParser):
+        def handle_starttag(self, tag, attrs):
+            a = dict(attrs)
+            if tag == "button" and "smxSub" in (a.get("onclick") or ""):
+                found.append(a)
+    P().feed(c.get("/account").get_data(as_text=True))
+    assert found and found[0]["onclick"] == "smxSub('/push/subscribe', {'X-CSRF': this.dataset.c})" and len(found[0]["data-c"]) > 10

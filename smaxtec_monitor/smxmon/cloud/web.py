@@ -274,7 +274,7 @@ def create_app(store: CloudStore, base: Settings, *, secure_cookie: bool = True,
           <p class="sub">켜 두면 매일 08:00 '오늘 할 일'(긴급·우선 목장)과 14:00 추가분이 이 휴대폰에 알림으로 옵니다.
           아이폰은 iOS 16.4 이상, Safari 공유 → <b>홈 화면에 추가</b>한 앱에서 눌러야 합니다.</p>
           <p>등록된 기기: <b>{len(store.subs('u:' + user.uid))}대</b> <span id="pushst" class="sub"></span></p>
-          <div class="row"><button type="button" onclick="smxSub('/push/subscribe', {{'X-CSRF': {json.dumps(csrf)}}})">이 기기에서 알림 받기</button>
+          <div class="row"><button type="button" data-c="{html.escape(csrf)}" onclick="smxSub('/push/subscribe', {{'X-CSRF': this.dataset.c}})">이 기기에서 알림 받기</button>
           <form method="post" action="/push/test"><input type="hidden" name="csrf" value="{csrf}"><button class="ghost" type="submit">시험 알림 보내기</button></form>
           <form method="post" action="/push/off"><input type="hidden" name="csrf" value="{csrf}"><button class="ghost" type="submit">내 알림 모두 끄기</button></form></div>
           {PUSH_JS}</div>
