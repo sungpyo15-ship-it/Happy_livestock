@@ -4,6 +4,8 @@ set -euo pipefail
 D=/opt/smxmon/app/smaxtec_monitor/deploy
 install -m 755 "$D/backup.sh" /usr/local/bin/smxmon-backup
 install -m 755 "$D/restore.sh" /usr/local/bin/smxmon-restore
+install -m 755 "$D/schedule.sh" /usr/local/bin/smxmon-schedule
+bash "$D/schedule.sh" apply >/dev/null   # 수집 간격(기본 6시간) 적용
 cat > /usr/local/bin/smxmon-validate <<'SH'
 #!/usr/bin/env bash
 # 판정 기준 검증 — 사용법: sudo smxmon-validate [--days 365] [--anon]

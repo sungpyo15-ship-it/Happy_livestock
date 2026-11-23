@@ -103,10 +103,10 @@ ReadWritePaths=/var/lib/smxmon
 UNIT
 cat > /etc/systemd/system/smxmon-collect.timer <<UNIT
 [Unit]
-Description=smaXtec 수집 시각 (05:30 → 06시 전 완료, 이후 08:10~20:10 2시간마다)
+Description=smaXtec 수집 시각 (기본 6시간 — post_update.sh 의 smxmon-schedule 이 다시 씀)
 [Timer]
 OnCalendar=*-*-* 05:30:00
-OnCalendar=*-*-* 08,10,12,14,16,18,20:10:00
+OnCalendar=*-*-* 11,17:30:00
 Persistent=true
 [Install]
 WantedBy=timers.target

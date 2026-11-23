@@ -237,7 +237,7 @@ def create_app(store: CloudStore, base: Settings, *, secure_cookie: bool = True,
         <div class="card"><h1>계정</h1>
           <p><b>{html.escape(user.username)}</b> · 담당 목장 {user.farms or '-'}곳 · <a href="/guide">사용 설명서</a></p>
           <p class="sub">상태: <span class="st-{user.status}">{st}</span>{' — ' + html.escape(user.message) if user.message else ''}<br>
-          마지막 정상 수집: {user.last_ok or '없음'} · 자동 갱신: 매일 06시 전, 낮 2시간마다</p>
+          마지막 정상 수집: {user.last_ok or '없음'} · 자동 갱신: {schedule_text()}</p>
           <form method="post" action="/refresh"><input type="hidden" name="csrf" value="{csrf}">
             <button type="submit">지금 새로고침</button></form></div>
         {f'<div class="card"><h2>파일 받기</h2><div class="row">{links}</div></div>' if links else ''}
@@ -268,6 +268,13 @@ def create_app(store: CloudStore, base: Settings, *, secure_cookie: bool = True,
             <button class="danger" type="submit">연결 해제</button></form></div>
         {admin_html(user, csrf) if store.admin and user.username == store.admin else ''}"""
         return _page("계정", body)
+
+    def schedule_text() -> str:
+        p = store.root / "schedule.txt"
+        try:
+            return html.escape(p.read_text(encoding="utf-8").strip()) or "매일 05:30 · 11:30 · 17:30"
+        except OSError:
+            return "매일 05:30 · 11:30 · 17:30"
 
     def farm_opts(user: User) -> str:
         import sqlite3
