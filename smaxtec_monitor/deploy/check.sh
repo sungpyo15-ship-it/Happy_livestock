@@ -62,7 +62,7 @@ for uid, u, st, farms, last_ok, msg in users:
     n_alert = d.execute("select count(*) from alerts").fetchone()[0]
     calv = d.execute("select count(*) from alerts where lower(alert_type_raw) in ('calving_confirmation','calving_detection')").fetchone()[0]
     beh = d.execute("select min(date), max(date) from group_behaviour where current is not null").fetchone()
-    done = hist.get("410", 0) + sum(v for k, v in hist.items() if k.isdigit() and int(k) >= 400)
+    done = sum(v for k, v in hist.items() if str(k).isdigit() and int(k) >= 400)
     tot = sum(hist.values())
     flag = "정상" if tot and done == tot else f"보충 진행 전/중 ({done}/{tot} 목장 1년치 완료)"
     print(f"      1년치 이력: {flag} · 가장 오래된 알림 {str(first)[:10]} · 알림 {n_alert:,}건 · 분만 기록 {calv:,}건")
