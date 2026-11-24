@@ -71,5 +71,47 @@ PY
 
 echo "[4] 최근 오류 (웹앱)"
 journalctl -u smxmon-web --since "-6h" --no-pager 2>/dev/null | grep -iE "error|traceback" | tail -3 || true
+echo "[5] 자동 업무지시 알림 진단"
+python3 - "$DATA" <<'PY'
+import json, os, sqlite3, sys
+from datetime import date, datetime
+root = sys.argv[1]
+try:
+    c = sqlite3.connect(f"file:{root}/cloud.db?mode=ro", uri=True)
+    c.row_factory = sqlite3.Row
+    kv = dict(c.execute("SELECT key, value FROM kv").fetchall())
+except Exception as e:
+    print("  확인 불가:", e); sys.exit()
+last = json.loads(kv.get("dispatch_last") or "{}")
+if last:
+    print(f"  마지막 실행: {last.get('at')} {'08시' if last.get('slot') == 'am' else '14시'} · {'시험' if last.get('test') else '실제'}"
+          f"{' · 꺼짐' if last.get('note') == '꺼짐' else ''} · 판정 {last.get('as_of') or '없음'} · 긴급·우선 {last.get('targets', '?')}곳"
+          f" · 보낸 담당자 {last.get('contacts', 0)}명/목장 {last.get('farms', 0)}건 · 전달 {last.get('delivered', 0)}명")
+    for k, lbl in (("no_contact", "담당자 미등록"), ("no_device", "알림 미설정 담당자"), ("stale", "판정 오래됨(팀원)"), ("no_state", "판정 자료 없음(팀원)")):
+        if last.get(k):
+            print(f"    {lbl}: {', '.join(map(str, last[k][:10]))}{' …' if len(last[k]) > 10 else ''}")
+else:
+    print("  아직 한 번도 실행 안 됨")
+today = date.today().isoformat()
+rows = c.execute("SELECT slot, test, name, devices, delivered, farms FROM dispatches WHERE day=? ORDER BY id", (today,)).fetchall()
+print(f"  오늘({today}) 발송 기록 {len(rows)}건" + ("" if rows else " — 없음"))
+for r in rows[:12]:
+    print(f"    {'08시' if r['slot'] == 'am' else '14시'} {'시험' if r['test'] else '실제'} · {r['name']} · 목장 {len(json.loads(r['farms'] or '[]'))} · 기기 {r['devices']} · 전달 {r['delivered']}")
+n_ct = c.execute("SELECT COUNT(DISTINCT farm_id) FROM contacts").fetchone()[0]
+print(f"  담당자 등록 목장 {n_ct}곳 · 담당자 링크 {c.execute('SELECT COUNT(*) FROM receivers WHERE revoked=0').fetchone()[0]}명")
+for u in c.execute("SELECT uid, username FROM users"):
+    p = f"{root}/users/{u['uid']}/reports/latest_state.json"
+    if os.path.exists(p):
+        st = json.load(open(p, encoding="utf-8"))
+        g = [f["grade"] for f in st.get("farms", [])]
+        print(f"  판정 자료 {u['username']}: {st.get('asOf')} · 긴급 {g.count('긴급')} · 우선 {g.count('우선')}")
+    else:
+        print(f"  판정 자료 {u['username']}: 없음(업데이트 후 수집 전)")
+PY
+for slot in am pm; do
+  echo "  · 발송 작업 로그($slot) 최근:"
+  journalctl -u smxmon-dispatch-$slot --since "-2d" --no-pager -o short 2>/dev/null | grep -vE "^-- |Starting|Started|Deactivated|Finished|Consumed" | tail -3 | sed 's/^/      /'
+  systemctl list-timers smxmon-dispatch-$slot.timer --no-pager 2>/dev/null | awk 'NR==2{print "      다음 실행: "$1" "$2" "$3"  · 지난 실행: "$5" "$6" "$7}'
+done
 echo "=========================================================="
 echo "결과 화면을 캡처해 보내 주세요."
