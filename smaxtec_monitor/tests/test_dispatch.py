@@ -124,3 +124,29 @@ def test_receiver_page_and_ack(tmp_path):
     store.new_receiver("01011112222", "김딜러")
     assert c.get(f"/c/{rcv['token']}").status_code == 404 and not store.subs("r:" + rcv["id"])
     assert len(c.get("/push/key").json["key"]) > 80
+
+
+def test_dispatch_tells_why_nothing_sent(tmp_path):
+    """보낼 대상이 없으면 시험 모드에선 관리자에게 이유 알림 + '지금 실행'은 하루 지난 판정도 사용."""
+    store = CloudStore(tmp_path / "c", Fernet.generate_key(), ADMIN)
+    me, _ = store.upsert_user(ADMIN, "pw")
+    fp = FakePush()
+    store.add_sub("u:" + me.uid, fp.sub("admin"))
+    store.kv_set("dispatch_enabled", "1")          # 시험 모드(기본)
+    # 1) 판정 자료 없음
+    run(store, "am", datetime(2026, 11, 23, 8, 0), sender=fp)
+    assert fp.sent[-1][1]["title"] == "[시험] 보낼 업무요청 없음" and "판정 자료 없음" in fp.sent[-1][1]["body"]
+    # 2) 긴급 목장은 있는데 담당자 미등록 → 이유 + 팀원 요약은 감
+    _state(store, me.uid, "2026-11-23 06:40", [_farm("f1", "가나", "긴급", 70)])
+    fp.sent.clear()
+    sm = run(store, "am", datetime(2026, 11, 23, 8, 0), sender=fp)
+    assert sm["targets"] == 1 and sm["no_contact"] == ["가나"] and sm["farms"] == 0
+    assert fp.sent and fp.sent[0][1]["title"].startswith("오늘 할 일")          # 관리자 본인 '오늘 할 일' 요약
+    # 3) 밤 22시: 자동은 4시간 넘은 판정이라 안 보냄, '지금 실행'은 보냄(24시간까지)
+    store.set_contacts("f1", [{"role": "딜러", "name": "김딜러", "phone": "010-1111-2222"}], ADMIN, "가나")
+    fp.sent.clear()
+    assert run(store, "am", datetime(2026, 11, 23, 22, 0), sender=fp)["farms"] == 0
+    assert "오래됨" in fp.sent[-1][1]["body"]
+    fp.sent.clear()
+    sm = run(store, "am", datetime(2026, 11, 23, 22, 0), sender=fp, manual=True)
+    assert sm["farms"] == 1 and fp.sent[0][1]["title"].startswith("[시험] 김딜러")

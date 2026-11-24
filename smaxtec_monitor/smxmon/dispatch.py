@@ -66,7 +66,8 @@ def message(name: str, farms: list[dict], guides: dict[str, dict], as_of: str, s
     return "\n".join(body)
 
 
-def load_states(paths: dict[str, Path], now: datetime) -> tuple[dict[str, dict], dict[str, list[str]], list[str], str]:
+def load_states(paths: dict[str, Path], now: datetime, max_age: timedelta = MAX_STATE_AGE
+                ) -> tuple[dict[str, dict], dict[str, list[str]], list[str], str]:
     """팀원별 latest_state.json → (목장 판정, 목장별 담당 팀원 uid, 오래된 자료 경고, 기준 시각)."""
     farms: dict[str, dict] = {}
     owners: dict[str, list[str]] = {}
@@ -77,7 +78,7 @@ def load_states(paths: dict[str, Path], now: datetime) -> tuple[dict[str, dict],
             t = datetime.strptime(st["asOf"], "%Y-%m-%d %H:%M")
         except (OSError, ValueError, KeyError):
             continue
-        if now - t > MAX_STATE_AGE:
+        if now - t > max_age:
             stale.append(uid)
             continue
         as_of = max(as_of, st["asOf"])
@@ -112,8 +113,29 @@ def plan(farms: dict[str, dict], contacts: dict[str, list[dict]], slot: str,
     return sorted(by.values(), key=lambda e: e["name"])
 
 
-def run(store, slot: str, now: datetime | None = None, sender=None, vapid=None) -> dict[str, Any]:
-    """서버 타이머가 08:00(am)·14:00(pm) 실행. 반환: 요약(관리자 화면 표시)."""
+def reason(sm: dict[str, Any]) -> str:
+    """보낸 것이 없을 때 이유 한 줄."""
+    if sm.get("note") == "꺼짐":
+        return "자동 알림이 꺼져 있음"
+    if not sm.get("as_of"):
+        if sm.get("stale"):
+            return "판정 자료가 오래됨(수집 실패 또는 수집 전) — 계정 → 지금 새로고침 후 다시"
+        return "판정 자료 없음 — 업데이트 후 수집이 한 번 끝나야 함(계정 → 지금 새로고침)"
+    base = f"{sm['as_of'][5:16]} 판정 · 긴급·우선 {sm.get('targets', 0)}곳"
+    if not sm.get("targets"):
+        return base + " — 보낼 목장 없음"
+    if sm.get("no_contact") and len(sm["no_contact"]) == sm["targets"]:
+        return base + " 모두 담당자 미등록 — 목장 상세 9번 또는 관리자 엑셀로 담당자 등록"
+    if sm.get("slot") == "pm" and not sm.get("farms"):
+        return base + " — 아침에 이미 보낸 목장뿐(오후엔 신규·우선→긴급만)"
+    if sm.get("no_device"):
+        return base + f" — 담당자 {', '.join(sm['no_device'][:3])} 알림 미설정(링크 보내기)"
+    return base
+
+
+def run(store, slot: str, now: datetime | None = None, sender=None, vapid=None, manual: bool = False) -> dict[str, Any]:
+    """서버 타이머가 08:00(am)·14:00(pm) 실행. manual=관리자 '지금 실행'(판정 자료 24시간까지 허용).
+    반환: 요약(관리자 화면 표시)."""
     from .actions import guides as _guides
     from .cloud import webpush
     now = now or datetime.now()
@@ -121,15 +143,18 @@ def run(store, slot: str, now: datetime | None = None, sender=None, vapid=None) 
     enabled = store.kv_get("dispatch_enabled", "0") == "1"
     test = store.kv_get("dispatch_test", "1") == "1"
     summary: dict[str, Any] = {"at": now.strftime("%Y-%m-%d %H:%M"), "slot": slot, "enabled": enabled, "test": test,
-                               "contacts": 0, "farms": 0, "delivered": 0, "no_device": [], "stale": [], "team": 0}
+                               "contacts": 0, "farms": 0, "delivered": 0, "no_device": [], "stale": [], "team": 0,
+                               "targets": 0, "no_contact": [], "as_of": "", "no_state": []}
     if not enabled:
         summary["note"] = "꺼짐"
         store.kv_set("dispatch_last", json.dumps(summary, ensure_ascii=False))
         return summary
     users = store.users()
     paths = {u.uid: store.user_dir(u.uid) / "reports" / "latest_state.json" for u in users}
-    farms, owners, stale, as_of = load_states(paths, now)
+    farms, owners, stale, as_of = load_states(paths, now, timedelta(hours=24) if manual else MAX_STATE_AGE)
     summary["stale"] = [u.username for u in users if u.uid in stale]
+    summary["no_state"] = [u.username for u in users if not paths[u.uid].exists()]
+    summary["as_of"] = as_of
     guides = {g["id"]: g for g in _guides()}
     contacts = store.contacts()
     sent = {}
@@ -139,6 +164,9 @@ def run(store, slot: str, now: datetime | None = None, sender=None, vapid=None) 
                 ph = digits(c["phone"])
                 sent.setdefault(ph, store.sent_today(day, ("t:" if test else "") + ph))
     plans = plan(farms, contacts, slot, sent)
+    tg = [f for f in farms.values() if f["grade"] in TARGET]
+    summary["targets"] = len(tg)
+    summary["no_contact"] = [f["name"] for f in tg if not contacts.get(f["id"])]
     vapid = vapid or webpush.Vapid(store.root / "vapid.pem")
     sender = sender or webpush.send
     claim = store.kv_get("site_url") or "mailto:admin@example.com"
@@ -193,6 +221,9 @@ def run(store, slot: str, now: datetime | None = None, sender=None, vapid=None) 
         summary["team"] += push(subs, {"title": f"오늘 할 일 — 긴급 {n_u} · 우선 {len(tgt) - n_u}" if slot == "am"
                                         else f"오후 추가 — {len(tgt)}곳", "body": ", ".join(f["name"] for f in tgt[:4]),
                                         "url": "/", "tag": f"team-{slot}"}) > 0
+    # 시험 모드·'지금 실행'인데 관리자에게 아무것도 안 갔으면 → 이유를 알림으로(조용히 끝나지 않게)
+    if (test or manual) and not summary["delivered"] and not summary["team"] and admin_subs:
+        push(admin_subs, {"title": f"[{'시험' if test else '실행'}] 보낼 업무요청 없음", "body": reason(summary), "url": "/account", "tag": "dispatch-none"})
     store.kv_set("dispatch_last", json.dumps(summary, ensure_ascii=False))
     log.info("자동 업무지시 %s: 담당자 %d명 · 목장 %d · 전달 %d", slot, summary["contacts"], summary["farms"], summary["delivered"])
     return summary

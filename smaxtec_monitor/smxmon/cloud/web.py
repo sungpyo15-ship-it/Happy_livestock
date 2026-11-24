@@ -395,6 +395,8 @@ def create_app(store: CloudStore, base: Settings, *, secure_cookie: bool = True,
             for x in store.dispatches(limit=15)) or "<tr><td colspan=4 class=sub>아직 없음</td></tr>"
         lst = (f"마지막 실행 {last.get('at', '')} {'08시' if last.get('slot') == 'am' else '14시'} — "
                f"담당자 {last.get('contacts', 0)}명 · 목장 {last.get('farms', 0)}건 · 전달 {last.get('delivered', 0)}명"
+               + (f" · 긴급·우선 {last.get('targets', 0)}곳" if 'targets' in last else "")
+               + (f" · 담당자 미등록 {len(last.get('no_contact', []))}곳" if last.get('no_contact') else "")
                + (f" · 알림 미설정: {', '.join(last.get('no_device', [])[:6])}" if last.get('no_device') else "")
                + (f" · ⚠ 자료 오래됨(수집 실패): {', '.join(last.get('stale', []))}" if last.get('stale') else "")
                + (" (꺼짐)" if last.get('note') == '꺼짐' else "")) if last else "아직 실행 안 함"
@@ -765,9 +767,18 @@ def create_app(store: CloudStore, base: Settings, *, secure_cookie: bool = True,
         slot = "pm" if request.form.get("slot") == "pm" else "am"
         if store.kv_get("dispatch_enabled", "0") != "1":
             return account(msg="자동 알림이 꺼져 있습니다. '자동 알림 켜기'를 먼저 저장하세요.")
-        sm = run_dispatch(store, slot)
-        return account(ok=f"{'아침' if slot == 'am' else '오후'} 알림 실행 — 담당자 {sm['contacts']}명 · 목장 {sm['farms']}건 · 전달 {sm['delivered']}명"
-                          + (" (시험 모드: 관리자 기기로만)" if sm["test"] else ""))
+        from ..dispatch import reason
+        sm = run_dispatch(store, slot, manual=True)
+        lines = [f"{'아침' if slot == 'am' else '오후'} 알림 실행{' (시험 모드: 관리자 기기로만)' if sm['test'] else ''}",
+                 f"판정 기준 {sm['as_of'] or '없음'} · 긴급·우선 {sm['targets']}곳",
+                 f"보낸 업무요청: 담당자 {sm['contacts']}명 · 목장 {sm['farms']}건 · 기기로 전달 {sm['delivered']}명"]
+        if sm["no_contact"]:
+            lines.append(f"담당자 미등록(보내지 않음): {', '.join(sm['no_contact'][:8])}{' 외' if len(sm['no_contact']) > 8 else ''}")
+        if sm["no_device"]:
+            lines.append(f"알림 미설정 담당자: {', '.join(sm['no_device'][:8])}")
+        if not sm["farms"]:
+            lines.append("이유: " + reason(sm))
+        return account(ok=" / ".join(lines))
 
     @app.post("/admin/receiver")
     def admin_receiver():
