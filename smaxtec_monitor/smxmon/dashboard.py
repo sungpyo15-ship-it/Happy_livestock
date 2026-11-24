@@ -38,7 +38,8 @@ def build_dashboard(an: Analysis, mapper: AlertTypeMapper, out_path: Path) -> Pa
     }
     blob = json.dumps(data, ensure_ascii=False, default=str).replace("</", "<\\/")
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    html = TEMPLATE.replace("__DATA__", blob).replace("__ASOF__", data["asOf"])
+    from .pwa import NAV_JS
+    html = TEMPLATE.replace("__DATA__", blob).replace("__ASOF__", data["asOf"]).replace("__NAV_JS__", NAV_JS)
     out_path.write_text(html, encoding="utf-8")
     (out_path.parent / "smaxtec_app.html").write_text(html, encoding="utf-8")  # 항상 최신본
     write_pwa(html, out_path.parent / "app")   # 아이폰 홈 화면 앱(서버용)
@@ -782,6 +783,7 @@ if (CLOUD) {
   }).catch(() => {});
 }
 // 아이폰 홈 화면 앱: HTTPS 로 열렸을 때 마지막 화면을 저장(오프라인에서도 열림)
+__NAV_JS__
 if ("serviceWorker" in navigator && window.isSecureContext && location.protocol !== "file:") {
   navigator.serviceWorker.register("sw.js").catch(() => {});
 }

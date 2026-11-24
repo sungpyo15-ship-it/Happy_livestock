@@ -22,7 +22,7 @@ from flask import Flask, Response, abort, redirect, request, send_file
 from ..api_client import ApiError, SmaxtecAPI
 from ..common import LoginError
 from ..config import Settings
-from ..pwa import MANIFEST, SERVICE_WORKER, _png
+from ..pwa import MANIFEST, NAV_JS, SERVICE_WORKER, _png
 from .jobs import Runner
 from .store import CloudStore, User
 
@@ -277,7 +277,7 @@ def create_app(store: CloudStore, base: Settings, *, secure_cookie: bool = True,
           <div class="row"><button type="button" data-c="{html.escape(csrf)}" onclick="smxSub('/push/subscribe', {{'X-CSRF': this.dataset.c}})">이 기기에서 알림 받기</button>
           <form method="post" action="/push/test"><input type="hidden" name="csrf" value="{csrf}"><button class="ghost" type="submit">시험 알림 보내기</button></form>
           <form method="post" action="/push/off"><input type="hidden" name="csrf" value="{csrf}"><button class="ghost" type="submit">내 알림 모두 끄기</button></form></div>
-          {PUSH_JS}</div>
+          {PUSH_JS}<script>{NAV_JS}</script></div>
         <div class="card"><h2>검정성적 올리기</h2>
           <p class="sub">검정 기관·목장 프로그램에서 받은 검정성적 엑셀(.xlsx)을 그대로 올리면 머리글(관리번호·이표·유량·유지방·체세포 등)로 열을 찾아
           센서 개체와 연결합니다. 결과: 목장 상세 '4-3. 검정성적·경제성'(알림 소 유량 손실 추정).</p>
@@ -836,7 +836,8 @@ def create_app(store: CloudStore, base: Settings, *, secure_cookie: bool = True,
             <li>안드로이드: <b>크롬</b>으로 열기 → 위 버튼 → 알림 허용 (홈 화면 추가는 선택)</li>
             <li>이 주소는 본인 전용입니다. 다른 사람에게 보내지 마세요.</li></ol></details></div>
           {''.join(blocks) or '<div class="card sub">아직 받은 업무요청이 없습니다.</div>'}
-          {PUSH_JS}
+          {'<p><a href="/">‹ 목장모니터 앱으로</a></p>' if current() else ''}
+          {PUSH_JS}<script>{NAV_JS}</script>
           <script>function ack(d,f){{fetch('/c/{token}/ack',{{method:'POST',headers:{{'Content-Type':'application/json'}},body:JSON.stringify({{did:d,farm_id:f}})}})
             .then(r=>{{if(r.ok)location.reload();else alert('저장 실패');}});}}</script>"""
         page = _page("업무요청", body, nav=False).replace('href="/manifest.webmanifest"', f'href="/c/{token}/manifest.webmanifest"')
