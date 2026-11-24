@@ -156,6 +156,7 @@ def run(store, slot: str, now: datetime | None = None, sender=None, vapid=None, 
     day = now.strftime("%Y-%m-%d")
     enabled = store.kv_get("dispatch_enabled", "0") == "1"
     test = store.kv_get("dispatch_test", "1") == "1"
+    cc = store.kv_get("dispatch_cc", "0") == "1"
     summary: dict[str, Any] = {"at": now.strftime("%Y-%m-%d %H:%M"), "slot": slot, "enabled": enabled, "test": test,
                                "contacts": 0, "farms": 0, "delivered": 0, "no_device": [], "stale": [], "team": 0,
                                "targets": 0, "no_contact": [], "as_of": "", "no_state": []}
@@ -209,6 +210,8 @@ def run(store, slot: str, now: datetime | None = None, sender=None, vapid=None, 
                 "body": notice_body(p["farms"], guides), "url": f"/c/{rcv['token']}" if rcv else "/", "tag": f"order-{did}"}
         subs = admin_subs if test else (store.subs("r:" + rcv["id"]) if rcv else [])
         got = push(subs, data) if subs else 0
+        if not test and cc and admin_subs:      # 관리자 사본
+            push(admin_subs, {**data, "title": f"[사본] {p['name']} 님께 보냄 · " + data["title"], "tag": f"cc-{did}"})
         store.dispatch_delivered(did, len(subs), got)
         summary["contacts"] += 1
         summary["farms"] += len(p["farms"])

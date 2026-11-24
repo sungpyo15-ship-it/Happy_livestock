@@ -307,6 +307,17 @@ function guideSection(ids){
 /* ───── 담당자(딜러·판매과장)·업무지시 문자 ───── */
 let CT = {};          // {목장ID: [{role,name,phone}]}
 const CTE = {};       // 수정 중인 목장
+let SENT = null;   // 오늘 보낸 업무요청(클라우드)
+function loadSent(){ if(!CLOUD) return; fetch("/api/dispatches",{credentials:"same-origin"}).then(r=>r.ok?r.json():{items:[]})
+  .then(d=>{ SENT=d.items||[]; if(st.tab=="today" && document.activeElement?.tagName!=="INPUT") keepY(()=>{}); }).catch(()=>{}); }
+function sentSection(){
+  if(!CLOUD || !SENT || !SENT.length) return "";
+  return `<h2>오늘 보낸 업무요청 (자동 알림 ${SENT.length}건)</h2>${SENT.map(x=>`<div class="box" style="margin-bottom:6px">
+   <div class="row"><div><b>${esc(x.name)}</b> <small class="cn">${x.slot=="am"?"08시":"14시"}</small></div>
+    ${x.devices?(x.delivered?'<span class="chip">알림 전달됨</span>':'<span class="chip neg">전달 실패</span>'):'<span class="chip neg">알림 미설정 — 직접 연락 필요</span>'}</div>
+   <div class="chips">${x.farms.map(f=>`<span class="chip">${f.acked?"✓ ":""}${esc(f.name)} ${esc(f.grade)}${f.note?" "+esc(f.note):""}${f.acked?" · 완료 보고":""}</span>`).join("")}</div>
+   <details style="margin-top:4px"><summary class="cn" style="cursor:pointer">보낸 내용 보기</summary><pre style="white-space:pre-wrap;font-size:13px;margin:6px 0 0">${esc(x.text)}</pre></details></div>`).join("")}`;
+}
 function loadCT(){
   if(CLOUD){ fetch("/api/contacts",{credentials:"same-origin"}).then(r=>r.ok?r.json():{}).then(d=>{ CT=d||{}; if(document.activeElement?.tagName!=="INPUT") keepY(()=>{}); }).catch(()=>{}); }
   else { try { for(const f of D.farms){ const v=store.get("ct:"+f.id); if(v) CT[f.id]=v; } } catch(e){} }
@@ -425,6 +436,7 @@ function todayTab(){
       <button type="button" class="ch" onclick="go('${f.id}')">목장 상세 ›</button>
       <button type="button" class="ch on" onclick="goAct('${f.id}')">조치 기록하기</button></div></div>`; }).join("")
    :`<div class="empty">오늘은 방문이 필요한 목장이 없습니다 — 정기 방문 일정대로</div>`}
+  ${sentSection()}
   ${orderSection()}
   ${pend.length?`<h2>결과 입력 대기 (조치 후 7일 지남)</h2>
    ${pend.slice(0,8).map(x=>`<div class="box" style="margin-bottom:6px"><b>${esc(x.fname)}</b> · ${x.d.slice(5)} <small class="cn">(${daysAgo(x.d)}일 전)</small> · ${esc(x.target)}
@@ -763,6 +775,7 @@ function render(keepFocus){
 function setTab(k){ st.tab=k; st.sortK=null; save(); if(location.hash) history.replaceState(null,"",location.pathname); render(); }
 window.addEventListener("hashchange", () => render());
 loadCT();      // PC 는 바로, 클라우드는 받아온 뒤 다시 그림
+loadSent();
 render();
 // 클라우드: 다른 기기에서 쓴 메모·체크를 받아와 화면 갱신 (입력 중인 메모는 덮어쓰지 않음)
 if (CLOUD) {

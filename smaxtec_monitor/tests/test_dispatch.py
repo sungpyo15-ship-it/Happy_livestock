@@ -173,3 +173,40 @@ def test_one_device_team_and_receiver(tmp_path):
     assert store.subs("u:a") and store.subs("r:dealer")
     store.sub_result("https://x/1", False, gone=True)
     assert not store.subs("u:a") and not store.subs("r:dealer")
+
+
+def test_sent_visible_to_team_and_cc(tmp_path):
+    """보낸 업무요청: 팀원 API·관리자 화면에서 내용 보기, 사본 받기."""
+    import sqlite3
+    from smxmon.cloud.jobs import Runner
+    from smxmon.cloud.web import create_app
+    from smxmon.config import load_settings
+    store = CloudStore(tmp_path / "c", Fernet.generate_key(), ADMIN)
+    me, _ = store.upsert_user(ADMIN, "pw")
+    db = store.user_dir(me.uid) / "data"
+    db.mkdir(parents=True)
+    c = sqlite3.connect(db / "smaxtec.db")
+    c.execute("CREATE TABLE farms (farm_id TEXT, name TEXT)")
+    c.execute("INSERT INTO farms VALUES ('f1','가나')")
+    c.commit()
+    c.close()
+    store.set_contacts("f1", [{"role": "딜러", "name": "김딜러", "phone": "010-1111-2222"}], ADMIN, "가나")
+    rcv = store.new_receiver("01011112222", "김딜러")
+    fp = FakePush()
+    store.add_sub("r:" + rcv["id"], fp.sub("dealer"))
+    store.add_sub("u:" + me.uid, fp.sub("admin"))
+    _state(store, me.uid, datetime.now().strftime("%Y-%m-%d %H:%M"), [_farm("f1", "가나", "긴급", 70)])
+    for k, v in (("dispatch_enabled", "1"), ("dispatch_test", "0"), ("dispatch_cc", "1")):
+        store.kv_set(k, v)
+    run(store, "am", sender=fp)
+    titles = [d["title"] for _, d in fp.sent]
+    assert any(t.startswith("[사본] 김딜러 님께 보냄") for t in titles) and any(t.startswith("업무요청") for t in titles)
+    base = dataclasses.replace(load_settings(env_file=tmp_path / "none.env"), log_dir=tmp_path / "l")
+    app = create_app(store, base, secure_cookie=False, runner=Runner(base, store), verify_login=lambda u, p: 0)
+    app.testing = True
+    cl = app.test_client()
+    cl.post("/login", data={"username": ADMIN, "password": "pw"})
+    items = cl.get("/api/dispatches").json["items"]
+    assert len(items) == 1 and items[0]["name"] == "김딜러" and "가나 — 긴급" in items[0]["text"] and items[0]["delivered"] == 1
+    acc = cl.get("/account").get_data(as_text=True)
+    assert "보낸 내용 · 완료 보고 0/1" in acc and "사본 받기" in acc

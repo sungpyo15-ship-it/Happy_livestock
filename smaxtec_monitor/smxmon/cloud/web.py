@@ -392,6 +392,8 @@ def create_app(store: CloudStore, base: Settings, *, secure_cookie: bool = True,
         recent = "".join(
             f"<tr><td>{x['day'][5:]} {'08시' if x['slot'] == 'am' else '14시'}{' <b>시험</b>' if x['test'] else ''}</td><td>{html.escape(x['name'] or '')}</td>"
             f"<td>{len(x['farms'])}곳</td><td>{'전달 ' + str(x['delivered']) + '/' + str(x['devices']) if x['devices'] else '<span class=sub>기기 없음</span>'}</td></tr>"
+            f"<tr><td colspan=4 style='padding-top:0'><details><summary class='sub'>보낸 내용 · 완료 보고 {len(store.acked(x['phone'], x['id']))}/{len(x['farms'])}</summary>"
+            f"<pre style='white-space:pre-wrap;font-size:12px'>{html.escape(x['text'] or '')}</pre></details></td></tr>"
             for x in store.dispatches(limit=15)) or "<tr><td colspan=4 class=sub>아직 없음</td></tr>"
         lst = (f"마지막 실행 {last.get('at', '')} {'08시' if last.get('slot') == 'am' else '14시'} — "
                f"담당자 {last.get('contacts', 0)}명 · 목장 {last.get('farms', 0)}건 · 전달 {last.get('delivered', 0)}명"
@@ -406,6 +408,7 @@ def create_app(store: CloudStore, base: Settings, *, secure_cookie: bool = True,
           <form method="post" action="/admin/dispatch" style="display:grid;gap:8px;margin:8px 0"><input type="hidden" name="csrf" value="{csrf}">
             <label style="display:flex;gap:8px;align-items:center"><input type="checkbox" name="enabled" value="1" style="width:20px;height:20px" {'checked' if on else ''}> 자동 알림 켜기</label>
             <label style="display:flex;gap:8px;align-items:center"><input type="checkbox" name="test" value="1" style="width:20px;height:20px" {'checked' if test else ''}> 시험 모드 (모든 알림을 관리자 기기로만)</label>
+            <label style="display:flex;gap:8px;align-items:center"><input type="checkbox" name="cc" value="1" style="width:20px;height:20px" {'checked' if store.kv_get('dispatch_cc', '0') == '1' else ''}> 사본 받기 (실제 발송 때 같은 알림을 관리자 기기로도)</label>
             <button type="submit">저장</button></form>
           <p class="sub">지금: <b>{'켜짐' if on else '꺼짐'}</b>{' · 시험 모드' if on and test else ''} · {html.escape(lst)}</p>
           <form method="post" action="/admin/dispatch/now" class="row"><input type="hidden" name="csrf" value="{csrf}">
@@ -758,6 +761,7 @@ def create_app(store: CloudStore, base: Settings, *, secure_cookie: bool = True,
         need_admin()
         store.kv_set("dispatch_enabled", "1" if request.form.get("enabled") else "0")
         store.kv_set("dispatch_test", "1" if request.form.get("test") else "0")
+        store.kv_set("dispatch_cc", "1" if request.form.get("cc") else "0")
         return account(ok="자동 알림 설정을 저장했습니다.")
 
     @app.post("/admin/dispatch/now")
@@ -905,6 +909,23 @@ def create_app(store: CloudStore, base: Settings, *, secure_cookie: bool = True,
         phone = (f"{digits[:3]}-{digits[3:-4]}-{digits[-4:]}" if digits.startswith("01")
                  else f"{digits[:-8]}-{digits[-8:-4]}-{digits[-4:]}" if len(digits) >= 10 else digits)
         return {"role": role, "name": name or role, "phone": phone}
+
+    @app.get("/api/dispatches")
+    def dispatches_get():
+        from datetime import date
+        user, _ = need_login()
+        mine = set(user_farms(user.uid))
+        out = []
+        for x in store.dispatches(day=date.today().isoformat(), limit=200):
+            if x["test"]:
+                continue
+            fs = [f for f in x["farms"] if f["id"] in mine]
+            if not fs:
+                continue
+            ack = store.acked(x["phone"], x["id"])
+            out.append({"id": x["id"], "slot": x["slot"], "name": x["name"], "devices": x["devices"], "delivered": x["delivered"],
+                        "farms": [{**f, "acked": f["id"] in ack} for f in fs], "text": x["text"]})
+        return {"items": out}
 
     @app.get("/api/contacts")
     def contacts_get():
