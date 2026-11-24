@@ -180,11 +180,19 @@ st.q = "";
 if(!location.hash) st.tab = "today";   // 앱을 열면 항상 '오늘 할 일'부터
 const save = () => store.set("ui", {tab:st.tab, grade:st.grade, cat:st.cat, behAll:st.behAll, hcat:st.hcat, hunit:st.hunit});
 const heat = (v, mx) => v ? `background:rgba(var(--heat),${Math.min(.85, .12 + .73*v/Math.max(1,mx))})` : "";
-// 검색창: 한글 조합 중에는 화면을 다시 그리지 않음(다시 그리면 조합이 끊겨 자음·모음이 따로 들어감)
-let IME = 0;
-function qIn(e, el){ st.q = el.value; if(IME || e.isComposing) return; render(true); }
-document.addEventListener("compositionstart", e => { if(e.target.type === "search") IME = 1; }, true);
-document.addEventListener("compositionend", e => { if(e.target.type === "search"){ IME = 0; qIn(e, e.target); } }, true);
+// 검색창: 검색창 자체는 절대 다시 만들지 않고 그 아래 목록(#qlist)만 바꿈
+//  → 휴대폰 한글 키보드(조합 신호를 안 보내는 경우 포함)에서도 자음·모음이 끊기지 않음
+const qwrap = h => { const i = h.indexOf('<input type="search"'); if(i < 0) return h;
+  const j = h.indexOf('>', i) + 1; return h.slice(0, j) + '<div id="qlist">' + h.slice(j) + '</div>'; };
+function qIn(e, el){
+  st.q = el.value;
+  const box = document.getElementById("qlist");
+  if(!box){ return; }
+  const tmp = document.createElement("div");
+  tmp.innerHTML = viewHtml();
+  const nl = tmp.querySelector("#qlist");
+  if(nl) box.innerHTML = nl.innerHTML;
+}
 const go = id => { location.hash = "f=" + encodeURIComponent(id); };
 
 function bars(tr){
@@ -230,12 +238,12 @@ function gradeFilter(){
 function farmList(selId){
   let fs = D.farms.filter(f => st.grade=="전체" || (st.grade=="방문" ? ["긴급","우선"].includes(f.grade) : f.grade==st.grade));
   if(st.q) fs = fs.filter(f => f.name.includes(st.q));
-  return `<input type="search" placeholder="목장 검색" value="${esc(st.q)}" oninput="qIn(event,this)">${gradeFilter()}
+  return qwrap(`<input type="search" placeholder="목장 검색" value="${esc(st.q)}" oninput="qIn(event,this)">${gradeFilter()}
   ${fs.length ? fs.map(f => `<div class="card g-${f.grade} ${f.id==selId?'sel':''}" onclick="go('${f.id}')">
     <div class="row"><div class="name">${esc(f.name)}</div><span class="badge">${f.grade} ${f.score}</span></div>
     <div class="meta">건강알림 <b>${f.health_d0}</b>두 · 전일 ${f.health_d1}두${f.herd?` · ${f.herd}두`:""}${f.stale?" · ⚠지연":""}</div>
     ${f.reasons.length?`<div class="chips">${f.reasons.slice(0,3).map(r=>`<span class="chip">${esc(r)}</span>`).join("")}</div>`:""}
-  </div>`).join("") : `<div class="empty">해당 목장 없음</div>`}`;
+  </div>`).join("") : `<div class="empty">해당 목장 없음</div>`}`);
 }
 function farmTab(id){
   return `<div class="split ${id?'has-detail':''}"><aside>${farmList(id)}</aside>
@@ -736,14 +744,18 @@ function cluTab(){
    : `<div class="empty">집단신호 없음</div>`;
 }
 
+function viewHtml(){
+  const m = location.hash.match(/f=([^&]+)/);
+  if(st.tab=="farm") return farmTab(m ? decodeURIComponent(m[1]) : null);
+  const view = {today:todayTab, sum:sumTab, trend:trendTab, hist:histTab, tr:trTab, trial:trialTab, beh:behTab, clu:cluTab}[st.tab];
+  return qwrap(view()) + `<div class="foot">센서 알림·행동지표 기반 선별 자료(진단 아님) · 외부 공유 금지</div>`;
+}
 function render(keepFocus){
   const m = location.hash.match(/f=([^&]+)/);
   if(m) st.tab = "farm";
   $("#tabs").innerHTML = TABS.map(([k,l])=>`<button class="${st.tab==k?'on':''}" onclick="setTab('${k}')">${l}${k=='clu'&&D.clusters?` ${D.clusters}`:""}</button>`).join("");
   const pos = keepFocus ? document.activeElement?.selectionStart : null;
-  const view = {today:todayTab, sum:sumTab, trend:trendTab, hist:histTab, tr:trTab, trial:trialTab, beh:behTab, clu:cluTab}[st.tab];
-  $("#app").innerHTML = st.tab=="farm" ? farmTab(m ? decodeURIComponent(m[1]) : null)
-    : view() + `<div class="foot">센서 알림·행동지표 기반 선별 자료(진단 아님) · 외부 공유 금지</div>`;
+  $("#app").innerHTML = viewHtml();
   if(keepFocus){ const i=$("input[type=search]"); if(i){ i.focus(); i.setSelectionRange(pos,pos); } }
   else if(m && window.innerWidth<=900) window.scrollTo(0,0);
 }
