@@ -11,12 +11,26 @@ echo "[1] 프로그램 버전"
 if grep -q '^long_days' "$APP/config/rules.toml" 2>/dev/null; then ok "최신(12개월 전환기 포함)"; else ng "예전 버전 → sudo smxmon-update"; fi
 if grep -q 'monthTable' "$APP/smxmon/dashboard.py" 2>/dev/null; then ok "누적·월별 종류별 펼침 포함"; else ng "종류별 펼침 없음 → sudo smxmon-update"; fi
 if [ -f "$APP/config/actions.toml" ]; then ok "조치 가이드 포함"; else ng "조치 가이드 없음 → sudo smxmon-update"; fi
+if grep -q 'dispatch_cc' "$APP/smxmon/cloud/web.py" 2>/dev/null; then ok "최신(보낸 업무요청 보기·사본 받기·아이폰 알림 이동 포함)"; else ng "이전 버전 → sudo smxmon-update"; fi
 if [ -f "$APP/smxmon/validate.py" ]; then ok "판정 검증 도구 포함 (sudo smxmon-validate)"; else ng "판정 검증 없음 → sudo smxmon-update 두 번"; fi
 echo "    코드 설치 시각: $(stat -c %y "$APP/config/rules.toml" 2>/dev/null | cut -d. -f1)"
 
 B=$(ls -t /var/backups/smxmon/smxmon_*.tar.gz 2>/dev/null | head -1)
 if [ -n "$B" ] && [ $(( ($(date +%s) - $(stat -c %Y "$B")) / 3600 )) -lt 30 ]; then ok "백업: 최근 $(stat -c %y "$B" | cut -c1-16) · $(ls /var/backups/smxmon/smxmon_*.tar.gz | wc -l)개 보관"
 elif [ -n "$B" ]; then ng "백업이 30시간 넘게 없음 → sudo smxmon-backup"; else ng "백업 없음 → sudo smxmon-update 한 번 더"; fi
+
+echo "    자동 알림 설정: $(python3 - <<'PY' 2>/dev/null
+import sqlite3
+try:
+    c = sqlite3.connect("file:/var/lib/smxmon/cloud.db?mode=ro", uri=True)
+    kv = dict(c.execute("SELECT key, value FROM kv WHERE key LIKE 'dispatch_%' AND key != 'dispatch_last'").fetchall())
+    subs = c.execute("SELECT substr(owner,1,1), COUNT(*) FROM push_subs GROUP BY 1").fetchall()
+    print(f"켜짐={kv.get('dispatch_enabled','0')} 시험={kv.get('dispatch_test','1')} 사본={kv.get('dispatch_cc','0')} · 알림 기기 " +
+          ", ".join(f"{'팀원' if o=='u' else '담당자'} {n}대" for o, n in subs))
+except Exception as e:
+    print("확인 불가", e)
+PY
+)"
 
 echo "[2] 서비스"
 for s in smxmon-web caddy; do systemctl is-active --quiet $s && ok "$s 실행 중" || ng "$s 꺼짐 → sudo systemctl restart $s"; done
