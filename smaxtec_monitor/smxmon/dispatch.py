@@ -113,6 +113,20 @@ def plan(farms: dict[str, dict], contacts: dict[str, list[dict]], slot: str,
     return sorted(by.values(), key=lambda e: e["name"])
 
 
+def notice_body(farms: list[dict], guides: dict[str, dict], max_farms: int = 4) -> str:
+    """알림 본문 — 알림만 봐도 목장·등급·사유·요청이 보이게(펼치면 여러 줄)."""
+    lines = []
+    for f in farms[:max_farms]:
+        why = ((f.get("reasons") or [])[:1] or (f.get("headline") or [""])[:1])[0]
+        a = one_action(f, guides)
+        lines.append(f"[{f['grade']}] {f['name']}{' ' + f['_note'] if f.get('_note') else ''} · {why}"[:90])
+        if a:
+            lines.append(f"  → {a[0]}: {a[1]}"[:90])
+    if len(farms) > max_farms:
+        lines.append(f"외 {len(farms) - max_farms}곳 — 눌러서 전체 보기")
+    return "\n".join(lines)
+
+
 def reason(sm: dict[str, Any]) -> str:
     """보낸 것이 없을 때 이유 한 줄."""
     if sm.get("note") == "꺼짐":
@@ -188,10 +202,11 @@ def run(store, slot: str, now: datetime | None = None, sender=None, vapid=None, 
         did = store.add_dispatch(day, slot, p["phone"], p["name"], flist, text, test)
         rcv = store.receiver_by_phone(p["phone"])
         n_urg = sum(f["grade"] == "긴급" for f in p["farms"])
-        first = p["farms"][0]["name"] + (f" 외 {len(p['farms']) - 1}곳" if len(p["farms"]) > 1 else "")
-        data = {"title": f"{'[시험] ' + p['name'] + ' 님께 갈 알림 · ' if test else ''}업무요청 {len(p['farms'])}곳"
-                         + (f" (긴급 {n_urg})" if n_urg else ""),
-                "body": f"{first} — 눌러서 내용 확인", "url": f"/c/{rcv['token']}" if rcv else "/", "tag": f"order-{did}"}
+        n_pri = len(p["farms"]) - n_urg
+        data = {"title": f"{'[시험] ' + p['name'] + ' 님께 갈 · ' if test else ''}업무요청 "
+                         + " · ".join(x for x in (f"긴급 {n_urg}" if n_urg else "", f"우선 {n_pri}" if n_pri else "") if x)
+                         + (" (오후 추가)" if slot == "pm" else ""),
+                "body": notice_body(p["farms"], guides), "url": f"/c/{rcv['token']}" if rcv else "/", "tag": f"order-{did}"}
         subs = admin_subs if test else (store.subs("r:" + rcv["id"]) if rcv else [])
         got = push(subs, data) if subs else 0
         store.dispatch_delivered(did, len(subs), got)
@@ -218,8 +233,9 @@ def run(store, slot: str, now: datetime | None = None, sender=None, vapid=None, 
         if not tgt or not subs or (test and (adm is None or u.uid != adm.uid)):
             continue
         n_u = sum(f["grade"] == "긴급" for f in tgt)
+        tgt.sort(key=lambda f: (f["grade"] != "긴급", -f["score"]))
         summary["team"] += push(subs, {"title": f"오늘 할 일 — 긴급 {n_u} · 우선 {len(tgt) - n_u}" if slot == "am"
-                                        else f"오후 추가 — {len(tgt)}곳", "body": ", ".join(f["name"] for f in tgt[:4]),
+                                        else f"오후 추가 — {len(tgt)}곳", "body": notice_body(tgt, guides, 3),
                                         "url": "/", "tag": f"team-{slot}"}) > 0
     # 시험 모드·'지금 실행'인데 관리자에게 아무것도 안 갔으면 → 이유를 알림으로(조용히 끝나지 않게)
     if (test or manual) and not summary["delivered"] and not summary["team"] and admin_subs:

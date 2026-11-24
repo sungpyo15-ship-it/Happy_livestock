@@ -52,10 +52,11 @@ CREATE TABLE IF NOT EXISTS contacts (   -- 목장별 담당자(딜러·판매과
     PRIMARY KEY (farm_id, idx)
 );
 CREATE TABLE IF NOT EXISTS push_subs (  -- 웹 푸시 구독(기기별). owner = u:<uid>(팀원) / r:<receiver id>(담당자)
-    endpoint TEXT PRIMARY KEY,
+    endpoint TEXT NOT NULL,             -- 한 기기가 팀원·담당자 알림을 둘 다 받을 수 있음
     owner    TEXT NOT NULL,
     p256dh   TEXT NOT NULL, auth TEXT NOT NULL,
-    ua       TEXT, created TEXT, last_ok TEXT, fails INTEGER DEFAULT 0
+    ua       TEXT, created TEXT, last_ok TEXT, fails INTEGER DEFAULT 0,
+    PRIMARY KEY (endpoint, owner)
 );
 CREATE TABLE IF NOT EXISTS receivers (  -- 담당자(딜러·판매과장) 알림 받기 링크
     id      TEXT PRIMARY KEY,
@@ -113,7 +114,13 @@ class CloudStore:
         self.admin = admin.strip().lower()
         self._lock = threading.Lock()
         with self._conn() as c:
+            old = c.execute("SELECT sql FROM sqlite_master WHERE name='push_subs'").fetchone()
+            if old and "PRIMARY KEY (endpoint, owner)" not in old[0]:     # 예전 구조(기기당 1명) → 바꿈
+                c.execute("ALTER TABLE push_subs RENAME TO push_subs_old")
             c.executescript(SCHEMA)
+            if old and "PRIMARY KEY (endpoint, owner)" not in old[0]:
+                c.execute("INSERT OR IGNORE INTO push_subs SELECT endpoint, owner, p256dh, auth, ua, created, last_ok, fails FROM push_subs_old")
+                c.execute("DROP TABLE push_subs_old")
 
     def _conn(self) -> sqlite3.Connection:
         c = sqlite3.connect(self.path, timeout=30)
@@ -266,8 +273,8 @@ class CloudStore:
     # ───────── 웹 푸시 구독 ─────────
     def add_sub(self, owner: str, sub: dict, ua: str = "") -> None:
         with self._lock, self._conn() as c:
-            c.execute("INSERT INTO push_subs VALUES (?,?,?,?,?,?,NULL,0) ON CONFLICT(endpoint) DO UPDATE SET "
-                      "owner=excluded.owner, p256dh=excluded.p256dh, auth=excluded.auth, ua=excluded.ua, fails=0",
+            c.execute("INSERT INTO push_subs VALUES (?,?,?,?,?,?,NULL,0) ON CONFLICT(endpoint, owner) DO UPDATE SET "
+                      "p256dh=excluded.p256dh, auth=excluded.auth, ua=excluded.ua, fails=0",
                       (sub["endpoint"], owner, sub["p256dh"], sub["auth"], ua[:120], _now()))
 
     def subs(self, owner: str) -> list[dict]:

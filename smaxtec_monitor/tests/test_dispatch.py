@@ -69,7 +69,9 @@ def test_dispatch_am_pm(tmp_path):
     store.kv_set("dispatch_test", "0")
     sm = run(store, "am", datetime(2026, 11, 23, 8, 0), sender=fp)
     dealer = [d for e, d in fp.sent if e.endswith("dealer")]
-    assert len(dealer) == 1 and dealer[0]["title"] == "업무요청 2곳 (긴급 1)" and dealer[0]["url"] == f"/c/{rcv['token']}"
+    assert len(dealer) == 1 and dealer[0]["title"] == "업무요청 긴급 1 · 우선 1" and dealer[0]["url"] == f"/c/{rcv['token']}"
+    body = dealer[0]["body"].split("\n")
+    assert body[0].startswith("[긴급] 가나 · 집단신호") and body[1].startswith("  → 체온 상승:") and body[2].startswith("[우선] 다라")
     assert sm["contacts"] == 1 and sm["farms"] == 2                            # 마바(관찰)는 대상 아님
     d = store.dispatches(phone="01011112222")[0]
     assert "가나 — 긴급(70점)" in d["text"] and "다라 — 우선(25점)" in d["text"] and "오늘 중" in d["text"]
@@ -150,3 +152,24 @@ def test_dispatch_tells_why_nothing_sent(tmp_path):
     fp.sent.clear()
     sm = run(store, "am", datetime(2026, 11, 23, 22, 0), sender=fp, manual=True)
     assert sm["farms"] == 1 and fp.sent[0][1]["title"].startswith("[시험] 김딜러")
+
+
+
+def test_one_device_team_and_receiver(tmp_path):
+    """같은 휴대폰이 팀원 알림과 담당자 알림을 둘 다 켜도 서로 덮어쓰지 않음 + 예전 구조 자동 변환."""
+    import sqlite3
+    root = tmp_path / "c"
+    root.mkdir()
+    old = sqlite3.connect(root / "cloud.db")   # 예전 구조(기기당 1명)
+    old.execute("CREATE TABLE push_subs (endpoint TEXT PRIMARY KEY, owner TEXT NOT NULL, p256dh TEXT NOT NULL, auth TEXT NOT NULL,"
+                " ua TEXT, created TEXT, last_ok TEXT, fails INTEGER DEFAULT 0)")
+    old.execute("INSERT INTO push_subs VALUES ('https://x/1','u:a','k','a','',NULL,NULL,0)")
+    old.commit()
+    old.close()
+    store = CloudStore(root, Fernet.generate_key(), ADMIN)
+    assert [x["endpoint"] for x in store.subs("u:a")] == ["https://x/1"]
+    sub = {"endpoint": "https://x/1", "p256dh": "k", "auth": "a"}
+    store.add_sub("r:dealer", sub)
+    assert store.subs("u:a") and store.subs("r:dealer")
+    store.sub_result("https://x/1", False, gone=True)
+    assert not store.subs("u:a") and not store.subs("r:dealer")

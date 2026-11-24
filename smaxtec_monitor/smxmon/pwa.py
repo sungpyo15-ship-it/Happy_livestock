@@ -29,12 +29,15 @@ MANIFEST = {
 }
 
 # 네트워크 우선(최신 데이터) → 실패하면 저장본(오프라인)
-SERVICE_WORKER = """const C='smxmon-v2';
+SERVICE_WORKER = """const C='smxmon-v3';
 self.addEventListener('push',e=>{let d={};try{d=e.data.json();}catch(x){d={title:'목장모니터',body:e.data?e.data.text():''};}
   e.waitUntil(self.registration.showNotification(d.title||'목장모니터',{body:d.body||'',tag:d.tag||undefined,renotify:!!d.tag,
     data:{url:d.url||'/'},icon:'/icon-192.png',badge:'/icon-192.png'}));});
 self.addEventListener('notificationclick',e=>{e.notification.close();const u=(e.notification.data&&e.notification.data.url)||'/';
-  e.waitUntil(clients.matchAll({type:'window',includeUncontrolled:true}).then(ws=>{for(const w of ws){if(new URL(w.url).pathname===u&&'focus' in w)return w.focus();}
+  // 앱이 이미 열려 있으면 그 창을 알림 주소로 이동(그냥 앞으로 가져오면 예전 화면이 보임), 없으면 새로 열기
+  e.waitUntil(clients.matchAll({type:'window',includeUncontrolled:true}).then(async ws=>{
+    for(const w of ws){ if(new URL(w.url).pathname===u&&'focus' in w) return w.focus(); }
+    for(const w of ws){ if('navigate' in w){ try{ const c=await w.navigate(u); if(c) return c.focus(); }catch(x){} } }
     return clients.openWindow(u);}));});
 self.addEventListener('install',e=>{self.skipWaiting();e.waitUntil(caches.open(C).then(c=>c.addAll(['./','manifest.webmanifest','icon-192.png'])));});
 self.addEventListener('activate',e=>e.waitUntil(self.clients.claim()));
