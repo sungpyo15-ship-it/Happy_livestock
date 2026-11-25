@@ -128,20 +128,41 @@ table.t td.n{text-align:right;font-family:var(--mono);font-variant-numeric:tabul
 pre.copy{white-space:pre-wrap;font-size:12.5px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:10px;max-height:260px;overflow:auto}
 .confirm{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+.src{font-size:11px;font-weight:600;border-radius:4px;padding:1px 6px;margin-left:6px;vertical-align:1px;white-space:nowrap}
+.src.k{background:color-mix(in srgb,var(--accent-2) 16%,transparent);color:var(--accent-2)}
+.src.l{background:var(--line);color:var(--muted)}
+.valrow{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.valrow input{width:130px;flex:0 0 auto}
+.valrow input.txt{flex:1 1 200px;width:auto}
+.valrow .u{font-size:13px;color:var(--muted)}
+.opts{display:flex;flex-wrap:wrap;gap:6px}
+.opts button{min-height:40px;padding:6px 10px;font-size:13.5px}
+.opts button[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);font-weight:600}
+.opts button .p{font-family:var(--mono);opacity:.75;margin-left:4px}
+.signs{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:10px}
+@media (max-width:380px){.signs{grid-template-columns:1fr}}
+.signs button{display:flex;justify-content:space-between;align-items:center;gap:8px;text-align:left;min-height:52px;padding:6px 10px;font-size:13px;line-height:1.3}
+.signs button .ct{font:600 18px var(--mono);min-width:22px;text-align:right}
+.signs button.on{border-color:var(--warn);background:var(--warn-bg)}
+.calc{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;margin-top:4px}
+.calc .stat .v{font-size:19px}
+nav.tabs .wrap{grid-template-columns:repeat(6,1fr)}
+nav.tabs button{font-size:11.5px}
 </style>
 </head>
 <body>
 <header class="top"><div class="wrap">
   <h1 id="hdrTitle">낙농 현장점검</h1>
-  <span class="score" id="hdrScore" title="CCCS 종합점수">—</span>
+  <span class="score" id="hdrScore" title="목장점검(CCCS) 종합점수">—</span>
 </div></header>
 
 <main class="wrap" id="main"></main>
 
 <nav class="tabs" aria-label="화면 전환"><div class="wrap" role="tablist">
   <button role="tab" data-tab="farm"><svg viewBox="0 0 24 24"><path d="M3 11l9-7 9 7v9H3z"/><path d="M9 20v-6h6v6"/></svg>농장</button>
-  <button role="tab" data-tab="cccs"><svg viewBox="0 0 24 24"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8l2 2 4-4M8 15h8"/></svg>CCCS</button>
+  <button role="tab" data-tab="cccs"><svg viewBox="0 0 24 24"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8l2 2 4-4M8 15h8"/></svg>목장점검</button>
   <button role="tab" data-tab="sig"><svg viewBox="0 0 24 24"><path d="M3 12h4l3-7 4 14 3-7h4"/></svg>카우시그널</button>
+  <button role="tab" data-tab="calf"><svg viewBox="0 0 24 24"><circle cx="12" cy="10" r="5"/><path d="M7 7L4 5M17 7l3-2M9 20h6M12 15v5"/></svg>송아지</button>
   <button role="tab" data-tab="report"><svg viewBox="0 0 24 24"><path d="M5 20V10M12 20V4M19 20v-7"/></svg>리포트</button>
   <button role="tab" data-tab="hist"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 8v4l3 2"/></svg>기록</button>
 </div></nav>
@@ -150,100 +171,181 @@ pre.copy{white-space:pre-wrap;font-size:12.5px;background:var(--bg);border:1px s
 
 <script>
 /* ============================================================
-   점검 기준 설정 (현장 양식에 맞게 이 부분만 수정하면 됩니다)
-   - CCCS: 섹션/항목/기준/개선조치
-   - SIGNALS: 카우시그널 지표, 우군별 '문제' 판정 기준과 허용 비율(limit, %)
+   점검 기준 설정
+   src 없음 = 퓨리나 CCCS 교육자료(2025.04) 「퓨리나 목장점검 리포트」·Cow Signal 점검표
+   s:"문헌" = 교재에 없어 일반 문헌·현장 권장치로 보완한 항목
+   u: 입력 단위("txt"=글 입력), j:[양호최소,양호최대,주의최소,주의최대] 자동판정, w: 배점 가중치(기본 2)
    ============================================================ */
+const INF=1e9;
 const CCCS = [
- {code:"A",name:"사료·사료조",items:[
-  {id:"a1",q:"사료조 폭 충분",std:"두당 60cm 이상, 분만전후군 75cm 이상 / 헤드록 1두 1칸",act:"사육밀도 조정 또는 사료조 확장, 분만전후군 과밀 우선 해소"},
-  {id:"a2",q:"사료 상시 접근 (빈 사료조 없음)",std:"하루 종일 사료조가 비지 않음, 밀어주기 하루 5회 이상",act:"밀어주기 횟수·시간표 고정, 급여량 상향(잔량 3~5% 기준)"},
-  {id:"a3",q:"잔량 3~5% 유지",std:"착유우 기준 잔량 3~5%, 매일 계량 기록",act:"잔량 계량 후 급여량 조정, 기록표 비치"},
-  {id:"a4",q:"TMR 균일·선별채식 없음",std:"PSPS 19mm 2~8%, 8mm 30~50%, 4mm 10~20%, 바닥 30~40% / 급여 직후와 잔량 차이 작음",act:"혼합시간·투입순서 점검, 건초 절단길이 조정, 수분 45~50% 맞추기"},
-  {id:"a5",q:"사료 신선도·사료조 청결",std:"발열·곰팡이·변질 사료 없음, 잔량 매일 제거",act:"잔량 매일 청소, 여름철 1일 2회 급여 검토"},
-  {id:"a6",q:"사일리지 절단면 관리",std:"절단면 매끈, 하루 굴진 15~30cm 이상, 2차발효 흔적 없음",act:"절단면 면적 축소, 쉐이버 사용, 필요시 보존제 검토"}]},
- {code:"B",name:"음수",items:[
-  {id:"b1",q:"음수 공간 충분",std:"두당 수조 길이 10cm 이상, 군당 2개소 이상",act:"수조 증설, 군당 최소 2개소 확보"},
-  {id:"b2",q:"수조 청결",std:"이끼·사료 찌꺼기 없음, 주 2회 이상 세척",act:"세척 일정표 운영, 배수 쉬운 수조로 교체 검토"},
-  {id:"b3",q:"급수 속도 충분",std:"수위가 빠르게 회복 (분당 10~20L 이상)",act:"배관 구경·수압 점검, 플로트 밸브 교체"},
-  {id:"b4",q:"착유 후 동선 음수 가능",std:"착유장 퇴장 직후 물을 마실 수 있음",act:"착유장 출구 측 수조 설치"}]},
- {code:"C",name:"우상·휴식",items:[
-  {id:"c1",q:"사육밀도 적정",std:"착유우 우상 대비 100% 이하, 분만전후군 80~85% 이하",act:"분만전후군부터 밀도 해소, 도태·군 재편성 검토"},
-  {id:"c2",q:"깔짚 충분·건조",std:"무릎 테스트(10초 꿇었을 때 젖지 않음) 통과, 깔짚 두께 유지",act:"깔짚 보충 주기 단축, 습한 뒷부분 매일 제거"},
-  {id:"c3",q:"우상 규격 적정",std:"홀스타인 기준 폭 1.15~1.25m, 길이 2.4~2.7m, 넥레일 높이 1.2~1.3m",act:"넥레일 위치 조정, 칸막이 개조"},
-  {id:"c4",q:"기립·착와 동작 자연스러움",std:"앞발만 올린 소(퍼칭) 적음, 기립 시 머리 부딪힘 없음",act:"브리스킷 로케이터·넥레일 전진 공간 확보"},
-  {id:"c5",q:"분만방·환축방 확보",std:"깔짚 방 두당 9~11㎡, 분만 예정 두수 대비 충분",act:"분만방 면적 확보, 깔짚 교체 주기 설정"}]},
- {code:"D",name:"환기·열스트레스",items:[
-  {id:"d1",q:"THI 기준 냉방 운영",std:"THI 68 이상이면 송풍·미스트 가동 (농장 탭에서 THI 자동 계산)",act:"온습도계 설치, THI 68 기준 자동 가동 설정"},
-  {id:"d2",q:"휴식구역 송풍 충분",std:"소 몸 높이에서 풍속 2m/s 이상, 팬 정상 작동",act:"팬 청소·벨트 점검, 팬 간격·각도 조정"},
-  {id:"d3",q:"착유대기장 냉방",std:"대기장에 팬+미스트(소킹) 설치, 대기 60분 이내",act:"대기장 소킹 설비 우선 설치, 착유 그룹 크기 조정"},
-  {id:"d4",q:"공기질 양호",std:"암모니아 냄새·결로·거미줄 과다 없음",act:"측창 개방, 배기 용량 점검"},
-  {id:"d5",q:"호흡수 정상",std:"휴식 중 호흡수 분당 60회 이하 (여름철 10두 이상 측정)",act:"냉방 강화, 급여시간 서늘한 시간대로 이동"}]},
- {code:"E",name:"바닥·보행·발굽",items:[
-  {id:"e1",q:"바닥 미끄럼 없음",std:"통로 그루빙 상태 양호, 소가 조심스럽게 걷지 않음",act:"그루빙 재시공, 고무매트 검토"},
-  {id:"e2",q:"분뇨 제거 적정",std:"하루 2회 이상 제거, 발굽 위로 분뇨가 차지 않음",act:"스크래퍼 주기 증가, 배수 경사 점검"},
-  {id:"e3",q:"정기 삭제·족욕",std:"연 2회 이상 정기 삭제, 족욕 주 2~3회 운영",act:"삭제 일정표 작성, 족욕 약제 농도·교체 주기 관리"},
-  {id:"e4",q:"파행우 조기 처치",std:"파행 발견 후 48시간 내 처치, 기록 유지",act:"보행점수 월 1회 실시, 처치 기록장 운영"}]},
- {code:"F",name:"착유·유방건강",items:[
-  {id:"f1",q:"착유 전처리 루틴",std:"전착유→프리딥(30초)→닦기→부착, 자극 후 60~90초 내 부착",act:"착유자 교육, 루틴 표준서 부착"},
-  {id:"f2",q:"착유기 정기 점검",std:"연 2회 이상 전문 점검, 라이너 교체주기 준수",act:"점검 업체 일정 확정, 라이너 교체 기록"},
-  {id:"f3",q:"체세포수 관리",std:"원유 체세포 20만/mL 이하 (1등급), 고체세포 개체 관리",act:"검정성적 고체세포우 목록화, CMT·배양 검사"},
-  {id:"f4",q:"유방염 치료 프로토콜",std:"임상 유방염 기록·치료 기준 문서화, 건유기 치료",act:"수의사와 치료 프로토콜 작성"}]},
- {code:"G",name:"전환기·번식",items:[
-  {id:"g1",q:"건유우 군 분리 사양",std:"건유 전기/분만 전 3주 군 분리, 별도 사료",act:"Close-up 군 신설, 음이온(DCAD) 사료 검토"},
-  {id:"g2",q:"분만 후 대사질환 모니터링",std:"분만 후 10일 체온 측정, 케토시스(BHB 1.2 mmol/L 이상) 검사",act:"분만우 체크리스트 운영, 대사질환 발생률 기록"},
-  {id:"g3",q:"번식 기록·발정 관찰",std:"분만~첫 수정 기록, 하루 2회 이상 발정 관찰 또는 활동량계",act:"번식 달력·활동량계 활용, 미수태우 점검"},
-  {id:"g4",q:"군 이동 스트레스 최소화",std:"분만 전후 군 이동 최소, 초산우 별도 관리 가능",act:"이동 횟수 줄이기, 초산우 그룹 분리"}]},
- {code:"H",name:"송아지",items:[
-  {id:"h1",q:"초유 급여",std:"출생 2시간 내 4L(체중 10%), 초유 Brix 22% 이상",act:"Brix 굴절계 비치, 초유 냉동 은행 운영"},
-  {id:"h2",q:"송아지 거처",std:"깔짚 건조, 외풍 차단, 겨울철 무릎 높이 깔짚(네스팅)",act:"깔짚 보충, 겨울 송아지 조끼 검토"},
-  {id:"h3",q:"포유량·인공유",std:"대용유 체중 15~20% 수준, 3일령부터 인공유·물 자유 급여",act:"포유 프로그램 재설계, 인공유 기호성 점검"}]}
+ {code:"E",name:"환경·환기",items:[
+  {id:"e1",q:"환기팬 설치",u:"txt",std:"팬 간격 = 팬 지름×10, 하향 각도 15°, 승가·축분 제거 장비에 닿지 않는 높이",act:"팬 간격·각도 재조정, 설치 높이 확인"},
+  {id:"e2",q:"소 위치 풍속",u:"m/s",j:[3,INF,1.5,3],std:"휴식구역 3 m/s 이상 (환기팬 1.5~3 m/s)",act:"팬 청소·벨트 점검, 팬 추가 또는 각도 조정"},
+  {id:"e3",q:"팬 가동 시작 온도",u:"℃",j:[0,25,25,27],std:"22~25℃부터 팬 가동, 습도 50% 이상이면 25℃부터 고온스트레스",act:"온도 센서 연동 자동 가동, 가동 기준 22~25℃로 낮추기"},
+  {id:"e4",q:"열스트레스 (THI)",auto:"thi",std:"농장 탭 온·습도로 자동 계산. THI 68 미만 양호, 68~72 주의, 72 이상 불량",act:"송풍·소킹 가동, 대기장 냉방, 음수 공간 확대, 고에너지 밀도·완충제 검토"},
+  {id:"e5",q:"암모니아 농도",u:"ppm",j:[0,1,1,10],std:"1 ppm 이하 (교재 리포트 기준)",act:"측창 개방, 배기 용량 점검, 분뇨 제거 주기 단축"},
+  {id:"e6",q:"조도",u:"Lux",j:[200,INF,50,200],std:"200 Lux 이상 권장, 최소 50 Lux",act:"조명 추가·교체, 사료조·휴식구역 조도 측정"},
+  {id:"e7",q:"점등 관리 (광주기)",std:"착유우 16~18시간 점등/6~8시간 소등 → 유량 약 2~2.5 kg/일 증가 (적용 4주 후, 9~4월 효과적) · 건유우는 6~8시간 점등",act:"타이머 설치, 건유우 단일광 적용"},
+  {id:"e8",q:"그늘막",u:"㎡/두",j:[1.5,INF,1.0,1.5],std:"두당 1.5 ㎡, 높이 4.5 m 이상, 남북 방향",act:"그늘막 면적·높이 확보"},
+  {id:"e9",q:"냉방 설비",std:"스프링클러, 흙 운동장, 착유우 브러시",act:"소킹 스프링클러·브러시 설치"}]},
+ {code:"R",name:"휴식공간·우상",items:[
+  {id:"r1",q:"두당 휴식공간",u:"㎡",j:[8,INF,6.5,8],std:"8 ㎡ 이상",act:"사육두수 조정 또는 휴식공간 확장"},
+  {id:"r2",q:"깔짚 두께",u:"cm",j:[15,INF,10,15],std:"15 cm 이상",act:"깔짚 보충 주기 단축"},
+  {id:"r3",q:"운동장 축분 깊이",u:"cm",j:[0,2.5,2.5,7.5],std:"2.5 cm 이하 (완전 건조 > 2.5 > 7.5 cm)",act:"축분 제거·교반 주기 단축"},
+  {id:"r4",q:"스탄천(헤드록) 개수",u:"개",info:"stanchion",std:"교재 기준 130%. 스탄천 상태·개수 파악이 매우 중요",act:"헤드록 증설 또는 두수 조정"},
+  {id:"r5",q:"깔짚 건조 (무릎 테스트)",s:"문헌",std:"10초 무릎 꿇었을 때 젖지 않음",act:"습한 뒷부분 매일 제거, 깔짚 교체"},
+  {id:"r6",q:"우상 수 대비 사육밀도",u:"%",j:[0,100,100,120],s:"문헌",std:"착유우 100% 이하, 분만전후군 80~85%",act:"분만전후군부터 밀도 해소"},
+  {id:"r7",q:"프리스톨 길이",u:"m",j:[2.4,3.05,2.2,2.4],s:"문헌",std:"홀스타인 앞 개방형 2.4~2.7 m, 앞이 막힌 경우 2.9~3.05 m",act:"앞쪽 막힘 제거 또는 우상 길이 연장"},
+  {id:"r8",q:"프리스톨 폭",u:"m",j:[1.15,1.3,1.1,1.35],s:"문헌",std:"1.15~1.27 m (성우)",act:"칸막이 간격 조정"},
+  {id:"r9",q:"넥레일·브리스킷 로케이터",s:"문헌",std:"넥레일: 뒷턱에서 1.7~1.8 m, 바닥에서 1.2~1.3 m / 로케이터: 뒷턱에서 1.7~1.8 m, 높이 10 cm 이하",act:"넥레일 전진·상향, 로케이터 높이 낮추기"},
+  {id:"r10",q:"머리 내밀 공간 (런지 공간)",s:"문헌",std:"기립 시 머리를 앞으로 내밀 공간 0.6~1.0 m가 막힘 없음",act:"전면 파이프·벽 제거, 측면 런지 공간 확보"},
+  {id:"r11",q:"바닥재",u:"txt",s:"문헌",std:"모래 깔짚 권장: 매트보다 발굽·관절 압력이 낮고 미끄럼이 적음. 매트는 깔짚 덮개 필수",act:"모래 전환 검토 또는 매트 위 깔짚량 증가"}]},
+ {code:"W",name:"급수조",items:[
+  {id:"w1",q:"급수조 개수·크기",u:"txt",std:"개수, 가로×세로 기록 / 설치 공간 30 cm (교재 표기)",act:"군당 최소 2개소 확보"},
+  {id:"w2",q:"사조에서 급수조 거리",u:"m",j:[0,15,15,20],std:"사조에서 15 m 이내, 급수조 간격 5~14 m",act:"사조 가까이 급수조 추가"},
+  {id:"w3",q:"급수조 높이 (외부)",u:"cm",j:[60,80,50,90],std:"지면에서 60~80 cm",act:"높이 조정, 발판 정비"},
+  {id:"w4",q:"급수조 깊이 (내부)",u:"cm",j:[15,30,10,40],std:"15~30 cm, 청소 여부 확인",act:"얕고 세척 쉬운 수조로 교체"},
+  {id:"w5",q:"수조 내 물 높이",u:"cm",j:[5,10,3,15],std:"5~10 cm",act:"플로트 높이 조정"},
+  {id:"w6",q:"물 재충전 시간",u:"초",j:[0,10,10,20],std:"10초 이내에 채워질 것",act:"배관 구경·수압 점검, 밸브 교체"},
+  {id:"w7",q:"급수조 청결·이용 방해",std:"아침 급여 후 세척, 여름철 우두머리 소 독점 여부, 겨울 온수·동파 확인",act:"세척 일정표 운영, 급수조 분산 설치"},
+  {id:"w8",q:"급수조·통로 주변 공간",std:"급수조 앞 반경 2 m(폭 4.3 m 반원) 확보, 통로 한 방향 1.2 m / 양방향 2.4 m",act:"급수조 주변 장애물 제거, 통로 폭 확보"}]},
+ {code:"F",name:"사조·건물섭취",items:[
+  {id:"f1",q:"급여+밀어주기 횟수",u:"회/일",j:[6,INF,4,6],std:"최소 6회 이상, 착유 전후 집중 관리, 여름철 사료 뒤집어 주기",act:"밀어주기 시간표 고정, 착유 직후 신선 사료 제공"},
+  {id:"f2",q:"두당 사조 폭",u:"cm",j:[80,INF,60,80],std:"80 cm 이상 (최소 60 cm)",act:"두수 조정 또는 사조 확장"},
+  {id:"f3",q:"사조 상태·바닥 타입",u:"txt",std:"사조 바닥 재질, 파손·이물 여부",act:"사조 바닥 코팅·보수"},
+  {id:"f4",q:"잔량 비율",u:"%",j:[3,5,1,8],std:"잔량 3~5% (섭취두수·섭취량·잔량 kg 기록)",act:"급여량 조정, 잔량 매일 계량"},
+  {id:"f5",q:"섭취 행동",std:"하루 최대 12회 섭취, 1회 약 23분 / 사조 앞 경쟁·밀림 없음",act:"사조 공간·급여 횟수 점검"},
+  {id:"f6",q:"사료 신선도·사조 청결",s:"문헌",std:"발열·곰팡이 사료 없음, 잔량 매일 제거",act:"잔량 매일 청소, 여름철 1일 2회 급여"},
+  {id:"f7",q:"사일리지 절단면",s:"문헌",std:"절단면 매끈, 하루 굴진 15~30 cm 이상, 2차 발효 없음",act:"절단면 축소, 쉐이버 사용, 보존제 검토"}]},
+ {code:"T",name:"TMR·배합비·조사료",items:[
+  {id:"t1",q:"입자도 상단",u:"%",j:[10,15,7,20],std:"10~15%",act:"건초 절단 길이·혼합 시간 조정"},
+  {id:"t2",q:"입자도 중단",u:"%",j:[30,50,25,55],std:"30~50%",act:"조사료 절단 길이 조정"},
+  {id:"t3",q:"입자도 하단",u:"%",j:[40,60,35,65],std:"40~60%",act:"농후사료 비율·혼합 시간 점검"},
+  {id:"t4",q:"제품 외형·수분",u:"txt",std:"TMR 외형, 수분(문헌 권장 45~50%), 선별채식 흔적",act:"물 첨가·투입 순서 조정"},
+  {id:"t5",q:"농후사료 비율",u:"%",j:[0,55,55,60],std:"알곡+단미사료 포함 비율 기록 (문헌: 건물 기준 60% 이하)",act:"농후사료 비율 낮추기, 물리적 섬유 보강"},
+  {id:"t6",q:"R-NDF (조사료 NDF)",u:"%",j:[19,INF,17,19],std:"배합비 R-NDF 기록 (문헌: 건물 중 19% 이상)",act:"조사료 비율·품질 상향"},
+  {id:"t7",q:"배합비·급여량",u:"txt",std:"베이스사료 %, 농축사료, 원물량·건물량(kg), 추가 농후·조사료",act:"실급여 배합비 기록 후 설계와 비교"},
+  {id:"t8",q:"조사료 품질",u:"txt",std:"알팔파 잎상태, 티모시 헤드 길이·갈잎, 연맥 종실 탈락, 클라인 부드러움, 톨페스큐 대공, 라이그라스, 옥수수 사일리지 발효·색상",act:"조사료 등급 확인, 대체 조사료 검토"}]},
+ {code:"D",name:"건유우",items:[
+  {id:"d1",q:"조사료 섭취량",u:"kg",j:[12,INF,10,12],std:"12 kg 이상 (초종 기록)",act:"기호성 좋은 조사료 확보, 사조 공간 점검"},
+  {id:"d2",q:"건유우 군 분리 사양",s:"문헌",std:"건유 전기·분만 전 3주 군 분리, 별도 사료",act:"Close-up 군 신설, DCAD 사료 검토"},
+  {id:"d3",q:"건유우 점등",std:"6~8시간 점등 / 16~18시간 소등 → 전환기 면역력 증가, 분만 후 유량 증가",act:"건유우사 조명 타이머 분리"},
+  {id:"d4",q:"건유·분만 공간",s:"문헌",std:"분만전후군 밀도 80~85% 이하, 분만방 깔짚 두당 9~11 ㎡",act:"분만방 면적 확보"}]},
+ {code:"M",name:"착유장",items:[
+  {id:"m1",q:"착유 대기장",w:10,u:"txt",std:"실제 면적과 대기 시간 실측이 중요 (문헌: 대기 60분 이내, 팬·미스트)",act:"대기장 냉방, 착유 그룹 크기 조정"},
+  {id:"m2",q:"착유실",w:5,std:"조도·환기, 청결",act:"착유실 조명·환기 보완"},
+  {id:"m3",q:"착유 후 이동로 (착유실~휴식장)",w:5,std:"미끄럼 방지 홈(그루빙), 발굽소독조 설치 권장",act:"그루빙 재시공, 발굽소독조 설치"},
+  {id:"m4",q:"자연환기",w:5,std:"측창·지붕 개방부",act:"개방부 확보"},
+  {id:"m5",q:"강제환기",w:5,std:"착유장 내 팬",act:"착유장 팬 설치·점검"},
+  {id:"m6",q:"착유 전처리 루틴",s:"문헌",std:"전착유→프리딥(30초)→닦기→부착, 자극 후 60~90초 내 부착",act:"착유자 교육, 표준서 부착"},
+  {id:"m7",q:"착유기 정기 점검",s:"문헌",std:"연 2회 이상 전문 점검, 라이너 교체 주기 준수",act:"점검 일정 확정, 라이너 교체 기록"}]},
+ {code:"H",name:"건강·번식 관리",items:[
+  {id:"h1",q:"분만 후 대사질환 모니터링",s:"문헌",std:"분만 후 10일 체온 측정, 케토시스(BHB 1.2 mmol/L 이상) 검사",act:"분만우 체크리스트 운영"},
+  {id:"h2",q:"유방염 치료 프로토콜",s:"문헌",std:"임상 유방염 기록, 수의사와 치료 기준 문서화",act:"치료 프로토콜 작성"},
+  {id:"h3",q:"정기 삭제·발굽소독조",std:"연 2회 이상 삭제, 포르말린 발굽소독조 운영",act:"삭제 일정표, 소독조 농도·교체 주기 관리"},
+  {id:"h4",q:"파행우 조기 처치",s:"문헌",std:"보행지수 3 이상 당일 처치, 처치 기록 유지",act:"보행지수 월 1회 실시"},
+  {id:"h5",q:"번식 기록·발정 관찰",s:"문헌",std:"분만~첫 수정 기록, 하루 2회 이상 관찰 또는 활동량계",act:"번식 달력·활동량계 활용"}]}
 ];
 
+/* 카우시그널: Cow Signal 점검표(교재) 우군 구분 */
 const GROUPS = [
- {id:"dry",name:"건유"},
- {id:"fresh",name:"분만전후 ±3주"},
+ {id:"heifer",name:"초산우"},
  {id:"early",name:"비유초기 ~100일"},
- {id:"mid",name:"비유중·후기"}
+ {id:"late",name:"착유우 100일~"},
+ {id:"dry",name:"건유우"}
+];
+const o=(a)=>a.map(v=>Array.isArray(v)?{v:v[0],l:v[1]}:{v,l:String(v)});
+/* mode "bad": 문제 점수 개체 비율이 limit(%) 미만이면 양호 / mode "mean": 평균이 목표 ±0.25 양호, ±0.5 주의 */
+const SIGNALS = [
+ {id:"bcs",name:"BCS 신체충실지수",how:"꼬리 위쪽, 좌골(핀본) 사이, 엉덩이, 요추 부위 지방으로 판정. 1 여윔 ~ 5 비만",
+  opts:o([[2.25,"≤2.25"],[2.5,"2.5"],[2.75,"2.75"],[3,"3.0"],[3.25,"3.25"],[3.5,"3.5"],[3.75,"≥3.75"]]),
+  bad:v=>v<2.5||v>=3.5,limit:20,target:"2.5~3.0 (리포트 기준 2.75) · 분만 전 2.5~3.0, 종부 전 2.0~3.0",
+  act:"평균 높음: 비유후기·건유기 과비 방지 / 평균 낮음: 건물섭취량·에너지 밀도 상향 / 분포 넓음: 우군 분리·개체별 급여"},
+ {id:"loco",name:"보행지수",how:"평지 보행 관찰. 1 정상 / 2 걸을 때 등 굽음 / 3 서도 걸어도 등 굽고 보폭 짧음 / 4 체중 못 실음 / 5 일어나기 힘듦",
+  opts:o([1,2,3,4,5]),bad:v=>v>=3,limit:20,target:"1~2 · 분포 1:50% 2:30% 3:15% 4:4% 5:1% 이하",
+  act:"3은 당일, 4는 즉시, 5는 전문 치료. 2 이상이 늘면 공태기간 16배·수정횟수 9배·도태율 8배 증가(미국 자료)"},
+ {id:"leg",name:"발목지수",how:"뒤에서 본 뒷발 방향. 1 정상(±17°) / 2 발굽피부염 의심 / 3 바깥으로 틀어짐·부종",
+  opts:o([1,2,3]),bad:v=>v>=2,limit:10,limitRef:true,target:"1 (±17° 이내)",
+  act:"포르말린 발굽소독조, 조농비 균형, 발굽 손질"},
+ {id:"rumen",name:"반추위 충만도",how:"왼쪽 겸부(옆구리) 관찰. 1 깊게 패인 직사각형 / 2 삼각형 / 3 피부가 수직으로 내려옴 / 4 바깥으로 볼록 / 5 요추가 안 보임",
+  opts:o([1,2,3,4,5]),bad:(v,g)=>g==="dry"?v<4:v<3,limit:15,limitRef:true,
+  targetBy:{heifer:"3",early:"3 (분만 첫 주는 2가 흔함)",late:"3",dry:"4~5"},
+  act:"섭취량 부족 신호: 사료 접근시간·기호성·밀어주기·음수 점검. 비유후기 2는 섭취 제한·통과속도 과다 의심"},
+ {id:"clean",name:"청결지수",how:"유방(앞·뒤·바닥·유두)과 뒷다리(무릎~발굽). 1 목표 / 2 허용 / 3 위험 / 4 심각 / 5 불허",
+  opts:o([1,2,3,4,5]),bad:v=>v>=3,limit:10,target:"1~2 · 3 이상 10% 이하",
+  act:"바닥·깔짚·환기·통로 청소 관리. 청결지수 1단계 악화 시 체세포 약 5만 증가(미네소타대)"},
+ {id:"manure",name:"분변지수",how:"1 물총 설사 / 2 묽어 멀리 튐 / 3 2~3 cm, 발자국 안 남음(이상적) / 4 손가락 높이 이상 / 5 말똥처럼 단단",
+  opts:o([1,2,3,4,5]),mode:"mean",tgtBy:{heifer:2.75,early:2.5,late:3.0,dry:3.25},
+  targetBy:{heifer:"평균 2.75 (고능력우)",early:"평균 2.5",late:"평균 2.75~3.25 (비유후기 3.25)",dry:"평균 3.25 (전기 3.5, 분만 2~3주 전 3.0)"},
+  act:"묽음: 단백질·가소화 NDF 과다, 전분 과다 점검 / 단단함: 섬유 과다·음수 부족 점검"},
+ {id:"dung",name:"미소화분변지수",how:"분변 체(screener)로 씻은 뒤 평가. 1 크림처럼 균질 / 3 섬유가 손가락에 묻음 / 5 큰 사료 덩어리가 확연",
+  opts:o([1,2,3,4,5]),bad:v=>v>=4,limit:20,limitRef:true,target:"1~2 (착유우는 유지방 유지를 위해 3 권장) · 씻은 뒤 절반 이하만 남아야 함",
+  act:"사료 통과속도 과다: 물리적 섬유·곡류 가공도·입자도 점검. 옥수수·면실 등 미소화 입자 확인"},
+ {id:"teat",name:"유두지수",how:"1 굳은 곳 없음 / 2 부드러운 링 / 3 거친 링 / 4 매우 거칠고 가장자리 닳음",groups:["heifer","early","late"],
+  opts:o([1,2,3,4]),bad:v=>v>=3,limit:20,target:"3~4 점이 20% 미만",
+  act:"착유기(진공압·맥동·자동탈착)와 착유 방법 점검"},
+ {id:"hoof",name:"발굽지수 (피부염·제엽염)",how:"0 정상 / 1 경미 / 2 중등 / 3 심함. 삭제·보정틀 작업 시 평가",
+  opts:o([0,1,2,3]),bad:v=>v>=1,limit:2,target:"발굽 이상 개체 2% 이하",
+  act:"삭제 주기, 발굽소독조, 산독증(제엽염) 원인인 조농비 점검"}
 ];
 
-/* bad(점수값, 우군) => 문제 개체 여부 / limit: 우군 내 문제 비율 허용치(%) */
-const SIGNALS = [
- {id:"loco",name:"보행점수",how:"평지에서 걷는 모습. 1 정상 / 3 등이 굽고 보폭 짧음 / 5 체중 못 실음",
-  opts:[{v:1,l:"1"},{v:2,l:"2"},{v:3,l:"3"},{v:4,l:"4"},{v:5,l:"5"}],
-  bad:(v)=>v>=3, limit:10, target:"점수 3 이상(파행) 10% 미만",
-  act:"파행우 즉시 삭제·처치, 우상 휴식시간·바닥·족욕 관리 점검 (E 섹션)"},
- {id:"rumen",name:"반추위 충만도",how:"좌측 겸부(허구리) 뒤에서 관찰. 1 깊게 꺼짐 / 3 피부가 겸부를 덮음 / 5 꽉 참",
-  opts:[{v:1,l:"1"},{v:2,l:"2"},{v:3,l:"3"},{v:4,l:"4"},{v:5,l:"5"}],
-  bad:(v,g)=> g==="dry" ? v<4 : v<3, limit:15,
-  targetBy:{dry:"건유우 4 이상 85% 이상",fresh:"3 이상 (2 이하 15% 미만)",early:"3 이상 (2 이하 15% 미만)",mid:"3 이상 (2 이하 15% 미만)"},
-  act:"채식량 부족 신호: 사료 접근시간·밀어주기·기호성·음수 점검, 분만전후는 케토시스 확인"},
- {id:"manure",name:"분변 점수",how:"1 물똥 / 3 쌓이면 2~3cm, 발자국 같은 오목함 / 5 단단한 덩어리",
-  opts:[{v:1,l:"1"},{v:2,l:"2"},{v:3,l:"3"},{v:4,l:"4"},{v:5,l:"5"}],
-  bad:(v,g)=> g==="dry" ? (v<=2||v>=5) : (v<=1||v>=4), limit:20,
-  targetBy:{dry:"3~4 (2 이하·5 비율 20% 미만)",fresh:"2~3 (1, 4 이상 비율 20% 미만)",early:"2~3 (1, 4 이상 비율 20% 미만)",mid:"2~3 (1, 4 이상 비율 20% 미만)"},
-  act:"묽음: 단백 과다·전분 과다(SARA)·물리성 부족 점검 / 단단함: 섬유 과다·음수 부족 점검. 분변 체질(소화되지 않은 곡류·섬유) 함께 확인"},
- {id:"bcs",name:"BCS",how:"1~5 척도 (0.25 단위). 꼬리뼈 주변·요각·좌골 지방 확인",
-  opts:[{v:2.5,l:"≤2.5"},{v:2.75,l:"2.75"},{v:3,l:"3.0"},{v:3.25,l:"3.25"},{v:3.5,l:"3.5"},{v:3.75,l:"≥3.75"}],
-  bad:(v,g)=> (g==="dry"||g==="fresh") ? (v<3||v>=3.75) : g==="early" ? (v<=2.5||v>=3.75) : (v<=2.5||v>=3.75), limit:20,
-  targetBy:{dry:"3.0~3.5 (과비 3.75 이상 주의)",fresh:"3.0~3.5",early:"2.75 이상 (분만 후 감소 0.5~0.75 이내)",mid:"2.75~3.5"},
-  act:"과비: 비유후기·건유기 에너지 조정 / 여윔: 비유초기 에너지·채식량·대사질환 점검"},
- {id:"hock",name:"비절(무릎) 상태",how:"0 정상 / 1 털 빠짐 / 2 부종·상처",
-  opts:[{v:0,l:"0"},{v:1,l:"1"},{v:2,l:"2"}],
-  bad:(v)=>v>=1, limit:20, target:"이상 개체(1~2) 20% 미만, 부종 5% 미만",
-  act:"우상 바닥 쿠션·깔짚량, 우상 규격 점검 (C 섹션)"},
- {id:"hyg",name:"청결도 (다리·유방)",how:"1 깨끗 / 2 약간 오염 / 3 오염 / 4 심한 오염",
-  opts:[{v:1,l:"1"},{v:2,l:"2"},{v:3,l:"3"},{v:4,l:"4"}],
-  bad:(v)=>v>=3, limit:20, target:"3~4 점 20% 미만",
-  act:"통로 분뇨 제거 주기, 우상 뒷부분 청결, 깔짚 교체"},
- {id:"teat",name:"유두끝 과각화",how:"1 정상 / 2 매끈한 링 / 3 거친 링 / 4 매우 거침",groups:["fresh","early","mid"],
-  opts:[{v:1,l:"1"},{v:2,l:"2"},{v:3,l:"3"},{v:4,l:"4"}],
-  bad:(v)=>v>=3, limit:20, target:"3~4 점 20% 미만",
-  act:"진공압·맥동·과착유(자동탈착 설정) 점검, 라이너 교체, 포스트딥 보습"}
+/* CowSignals 건강·복지 체크포인트 (포스터): 발견 두수 집계 → 원인 제시 */
+const SIGNS = [
+ ["neck","목 위 혹·굳은살","넥레일·사료조 펜스가 너무 낮음"],
+ ["shoulder","어깨 혹","사료조 펜스 설계 불량, 사료가 너무 멂"],
+ ["carpal","앞무릎 부종·탈모","우상 바닥이 딱딱함, 머리 공간 부족"],
+ ["hock","비절 부종·탈모","우상 바닥이 딱딱하거나 거침"],
+ ["backbone","등뼈 돌기 상처","우상 칸막이에 기대어 누움"],
+ ["rib","갈비뼈 손상","우상 칸막이"],
+ ["flank","옆구리 상처","젖은 휴식 바닥"],
+ ["arched","등 굽음","파행"],
+ ["hooflong","발굽 길고 말림","삭제 지연·미실시"],
+ ["coronary","제관 부종·딱지, 다리 들기","발굽 질환"],
+ ["udder","유방 오염","휴식공간·바닥 불결"],
+ ["eyes","눈 함몰","질병·탈수"],
+ ["ears","귀 처짐·차가움","질병"],
+ ["nose","콧물·고름","비염·호흡기 질환"],
+ ["drool","침 흘림·기침","입 통증·삼킴 문제 / 찬 공기·먼지"],
+ ["tail","꼬리 들림","산도 통증"],
+ ["pus","꼬리 고름","자궁내막염"],
+ ["pelvis","엉덩이 분변 오염","설사"],
+ ["belly","배 올라감","통증, 며칠간 섭취 부족"],
+ ["coat","피모 거칠고 윤기 없음","건강·영양 불량"]
+];
+
+/* 퓨리나 한우송아지 체크리스트 (200점) */
+const C=(id,q,opts)=>({id,q,opts});
+const YN=(p)=>[["예",p],["아니오",0]];
+const CALF=[
+ {name:"분만 환경",items:[C("c1","분만 시 청결한 청소 상태",YN(2)),C("c2","환축우와 완전 격리",YN(2)),C("c3","환기 상태 좋음",YN(2)),C("c4","바닥 건조·청결 (무릎 테스트 통과)",YN(2)),
+   C("c5","분만사 면적",[["14㎡/두 이상",2],["11~14㎡",1],["11㎡ 미만",0]])]},
+ {name:"분만 관찰·배꼽 소독",items:[C("c6","분만 시 관찰 및 관리율",[["90% 이상",5],["75~90%",3],["50~75%",2],["30~50%",1],["30% 미만",0]]),
+   C("c7","7% 요오드 배꼽 침지 (스프레이 안 됨)",[["100%",2],["50~100%",1],["50% 미만",0]])]},
+ {name:"초유",items:[C("c8","분만 후 첫 초유 섭취 확인",YN(5)),C("c9","초유 실패 시 대용초유 3.8 L 급여",YN(5)),C("c10","요네병 양성우 초유 사용 안 함",YN(2)),C("c11","당도계(Brix) 검사 10% 이상",[["검사·10% 이상",2],["미검사",0]]),
+   C("c12","혈청 단백질 분석 (면역 이행)",[["정기",2],["간헐",1],["안 함",0]])]},
+ {name:"기록·매뉴얼·도구",items:[C("c13","송아지 기록 관리",[["항상",3],["가끔",1],["안 함",0]]),C("c14","농장 관리 매뉴얼",[["출력해 따름",2],["적어만 둠",1],["없음",0]]),
+   C("c15","관리 도구 사용 (체중 측정, 초유 보충제, 식도 급여기 등)",[["사용",2],["일부",1],["없음",0]])]},
+ {name:"송아지방 환기 (5점에서 감점)",items:[{id:"c16",q:"감점 요인을 모두 고르세요",base:5,ded:[["실내 공기 쾌적하지 않음",1],["암모니아 냄새 경미",1],["암모니아 냄새 심함",3],["송아지 위로 바람이 붊",2]]}]},
+ {name:"송아지방 바닥·크기",items:[C("c17","바닥재 깨끗하고 건조",YN(3)),C("c18","우군 내 송아지 두수",[["5두 이하",3],["6~10두",2],["10두 이상",1]]),
+   C("c19","두당 면적",[["2.8㎡ 이상",2],["1.8~2.8㎡",1],["1.8㎡ 미만",0]]),C("c20","사료조 크기",[["45cm 이상",2],["30~45cm",1],["30cm 미만",0]]),C("c21","사료조 주기적 청소",YN(2))]},
+ {name:"급수",items:[C("c22","자유 음수 (두당 2.54cm 이상, 항상 깨끗)",[["항상 접근",5],["일반적 접근",3],["가끔 접근",1],["불가",0]])]},
+ {name:"대용유",items:[C("c23","매 급여 시 기구 청결",YN(2)),C("c24","적정 온도 (녹일 때 43~44℃, 급여 37~38℃)",YN(2)),C("c25","12시간 간격 일정한 포유",YN(2)),C("c26","깨끗한 장소 보관, 적정량 급여",YN(2)),C("c27","식물성 단백질 원료 없는 대용유",YN(2))]},
+ {name:"입붙임 사료",items:[C("c28","3일령에 급여 개시",YN(5)),C("c29","매일 신선한 사료로 교체",YN(5)),C("c30","입붙임 노력 (손으로 먹이기 등)",YN(5))]},
+ {name:"이유",items:[C("c31","이유 일령",[["90일 이내",10],["90~120일",5],["120일 이상",0]]),C("c32","이유 시 3일 연속 약 1 kg 섭취 확인",YN(5)),C("c33","이유 전 양질 조사료 소량 급여",YN(1)),C("c34","이유 후 1주간 이동 금지",YN(1))]},
+ {name:"송아지 사료",items:[C("c35","배합사료 급여 프로그램 준수",YN(3)),C("c36","최고 품질 건초",YN(3))]},
+ {name:"폐사율·증체",items:[C("c37","이유 전까지 폐사율",[["2% 이하",15],["2~4%",10],["5~8%",5],["8% 초과",0]]),
+   C("c38","포유기 일당증체 (목표 0.6~0.8)",[["0.4 이하",4],["0.4~0.6",8],["0.6~0.8",12],["0.8~1.0",16],["1.0 이상",20]]),
+   C("c39","이유 후 일당증체 (목표 1.0 이상)",[["0.4 이하",4],["0.4~0.6",8],["0.6~0.8",12],["0.8~1.0",16],["1.0 이상",20]])]},
+ {name:"우군편성·백신",items:[C("c40","우군 재편성 (필요 시마다 1점 감점)",[["필요 없음",5],["1회",4],["2회",3],["3회",2],["4회",1],["5회 이상",0]]),
+   {id:"c41",q:"백신 프로그램 (수의사 처방·출력된 프로토콜)",base:3,zero:"프로토콜 없음",ded:[["기록된 처방 없음",1],["수의사 처방 없음",1],["프로토콜 따르지 않음",1]]}]},
+ {name:"방역·위생",items:[C("c42","송아지방 청소·순환 사용 (교차오염 방지)",YN(1)),C("c43","송아지끼리 접촉 방지",YN(1)),C("c44","사람과 접촉 최소화",YN(1)),C("c45","바가지·기구 세척 사용",YN(1)),C("c46","환기·분뇨 청소를 어린 소→성축 순서로",YN(1)),
+   C("c47","6개월령 이내 사료 섭취 거부 없음",YN(1)),C("c48","외부 입식우 격리 시설",YN(1)),C("c49","성축·송아지 기구 분리 사용",YN(1)),C("c50","방역·위생 표지판 게시",YN(1))]},
+ {name:"설사 관리",items:[C("c51","탈수 증상(힘없음·안구함몰·결막충혈) 발견 즉시 조치",YN(5)),C("c52","전해질 제제 경구 투여",YN(5)),C("c53","수의사 호출·진단",YN(5)),
+   C("c54","설사 폐사 지속 시 진단",[["부검·샘플 검사 의뢰",3],["간헐적 진단·부검",2],["수의사 의뢰",1],["안 함",0]])]}
 ];
 
 /* ============================================================ */
-const KEY_DRAFT="hl_cccs_draft_v1", KEY_VISITS="hl_cccs_visits_v1";
+const KEY_DRAFT="hl_cccs_draft_v2", KEY_VISITS="hl_cccs_visits_v2";
 const store={
   get(k,d){try{const s=localStorage.getItem(k);return s?JSON.parse(s):d}catch(e){return d}},
   set(k,v){try{localStorage.setItem(k,JSON.stringify(v));return true}catch(e){return false}}
@@ -252,35 +354,58 @@ const $=(s,r=document)=>r.querySelector(s);
 const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const today=()=>{const d=new Date();return new Date(d-d.getTimezoneOffset()*6e4).toISOString().slice(0,10)};
 const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+const num=v=>{const n=parseFloat(String(v??"").replace(/,/g,""));return isNaN(n)?null:n};
+const ALL_ITEMS=CCCS.flatMap(s=>s.items.map(it=>({...it,sec:s})));
+const ITEM=Object.fromEntries(ALL_ITEMS.map(i=>[i.id,i]));
+const CALF_ITEMS=CALF.flatMap(s=>s.items);
 
 function blank(){
-  return {id:uid(),example:false,farm:{name:"",owner:"",date:today(),inspector:"",herd:"",milking:"",dry:"",milk:"",scc:"",fat:"",prot:"",mun:"",temp:"",rh:"",notes:""},
-    cccs:{},memo:{},signals:{},comfort:{}};
+  return {id:uid(),example:false,
+    farm:{name:"",owner:"",date:today(),inspector:"",milking:"",sick:"",dry:"",heifer:"",parity:"",ci:"",afc:"",ship:"",scc:"",fat:"",prot:"",mun:"",temp:"",rh:"",notes:""},
+    chk:{},val:{},memo:{},signals:{},sx:{},signs:{},comfort:{},calf:{}};
 }
 function sample(){
   const s=blank(); s.example=true;
-  Object.assign(s.farm,{name:"예시 목장",owner:"홍길동",inspector:"",herd:"82",milking:"68",dry:"14",milk:"31.5",scc:"24",fat:"3.82",prot:"3.21",mun:"15.8",temp:"29",rh:"72",notes:"예시 데이터입니다."});
-  const v={a1:1,a2:0,a3:1,a4:2,a5:2,a6:1,b1:1,b2:0,b3:2,b4:2,c1:0,c2:1,c3:2,c4:1,c5:2,d1:0,d2:1,d3:0,d4:2,d5:1,e1:2,e2:1,e3:1,e4:0,f1:2,f2:2,f3:1,f4:2,g1:1,g2:0,g3:2,g4:1,h1:2,h2:2,h3:1};
-  s.cccs=v; s.memo={a2:"오후 3~6시 사료조 비어 있음",c1:"착유우 68두 / 우상 60칸 (113%)",d3:"대기장 팬 없음"};
+  Object.assign(s.farm,{name:"예시 목장",owner:"홍길동",milking:"68",sick:"2",dry:"10",heifer:"35",parity:"2.3",ci:"440",afc:"26",ship:"2150",scc:"24",fat:"3.82",prot:"3.21",mun:"15.8",temp:"27",rh:"70",notes:"예시 데이터입니다."});
+  s.val={e2:"1.8",e3:"28",e5:"5",e6:"120",e8:"",r1:"7.2",r2:"8",r3:"4",r4:"60",r6:"113",r7:"2.45",r8:"1.15",w2:"22",w3:"75",w4:"25",w5:"8",w6:"14",f1:"4",f2:"62",f4:"1.5",t1:"18",t2:"34",t3:"48",t5:"52",d1:"9",
+    w1:"2개 / 240×60cm",t8:"옥수수 사일리지 발효 양호, 티모시 갈잎 다소",r11:"고무매트+톱밥",m1:"대기 약 70분, 팬 없음"};
+  s.chk={e1:1,e7:0,e9:1,r5:1,r9:1,r10:2,w7:0,w8:1,f3:2,f5:1,f6:2,f7:1,t4:1,t7:2,d2:1,d3:0,d4:1,m1:0,m2:2,m3:1,m4:2,m5:1,m6:2,m7:2,h1:0,h2:2,h3:1,h4:0,h5:2,r11:1,w1:1,t8:2};
+  s.memo={f1:"오후 3~6시 사조가 비어 있음",r4:"헤드록 60개 / 착유 68두"};
   s.signals={
-    early:{loco:[9,5,3,2,1],rumen:[0,4,7,8,1],manure:[0,3,9,7,1],bcs:[3,5,6,4,2,0],hock:[10,7,3],hyg:[6,8,5,1],teat:[8,7,4,1]},
-    mid:{loco:[12,6,3,1,0],rumen:[0,1,6,11,4],manure:[0,2,12,7,1],bcs:[0,2,6,8,5,1],hock:[12,8,2],hyg:[9,8,4,1],teat:[10,8,3,1]},
-    dry:{rumen:[0,1,3,6,4],manure:[0,1,4,7,2],bcs:[0,0,3,4,4,3],loco:[8,4,2,0,0]}
+    early:{bcs:[3,4,6,4,2,1,0],loco:[9,5,3,2,1],leg:[14,4,2],rumen:[0,4,8,7,1],clean:[4,9,5,2,0],manure:[1,7,8,3,1],dung:[2,6,7,4,1],teat:[8,7,4,1]},
+    late:{bcs:[0,2,6,8,5,2,1],loco:[12,6,3,1,0],leg:[18,3,1],rumen:[0,1,6,11,4],clean:[6,10,4,2,0],manure:[0,3,11,7,1],dung:[3,8,8,2,1],teat:[10,8,3,1]},
+    dry:{bcs:[0,0,2,4,4,3,1],loco:[8,4,2,0,0],rumen:[0,1,3,6,4],manure:[0,1,4,7,2],clean:[5,6,2,1,0]}
   };
-  s.comfort={early:{lying:28,stand:7,perch:3,alley:6,feed:10,rumi:13},mid:{lying:22,stand:3,perch:1,alley:4,feed:6,rumi:14}};
+  s.sx={early:{resp:"42",urin:"6",chew:"52",ids:"312 (외음부 분비물), 287 (앞무릎 부종)"},late:{resp:"34",chew:"58"}};
+  s.signs={early:{carpal:3,hock:5,udder:4,arched:3,pus:1},late:{hock:4,neck:2,udder:3}};
+  s.comfort={early:{lying:28,stand:5,perch:3,alley:6,feed:10,drink:2,rumi:17},late:{lying:22,stand:2,perch:1,alley:4,feed:6,drink:1,rumi:16}};
   return s;
 }
+function migrate(x){ if(!x||!x.farm)return null; const b=blank(); for(const k in b) if(x[k]===undefined) x[k]=b[k]; for(const k in b.farm) if(x.farm[k]===undefined) x.farm[k]=""; return x; }
 
-let S=store.get(KEY_DRAFT,null)||sample();
+let S=migrate(store.get(KEY_DRAFT,null))||sample();
 let tab=(location.hash||"").slice(1)||"farm";
-let grp="early", minus=false, openSec={};
+let grp="early", minus=false, openSec={E:true};
 function save(){S._t=Date.now();store.set(KEY_DRAFT,S);updateHeader()}
 
 /* ---------- 계산 ---------- */
+function thi(){
+  const T=num(S.farm.temp), RH=num(S.farm.rh);
+  if(T==null||RH==null)return null;
+  return Math.round(((1.8*T+32)-(0.55-0.0055*RH)*(1.8*T-26))*10)/10;
+}
+function thiLevel(t){ if(t==null)return null; return t<68?["good","정상"]:t<72?["warn","경미한 스트레스"]:t<80?["bad","중등도 스트레스"]:["bad","심한 스트레스"] }
+const ST={2:"good",1:"warn",0:"bad"}, STL={2:"양호",1:"주의",0:"불량",[-1]:"해당없음"};
+function autoStatus(it){
+  if(it.auto==="thi"){const t=thi(); return t==null?null:t<68?2:t<72?1:0}
+  if(!it.j)return null; const v=num(S.val[it.id]); if(v==null)return null;
+  const [g1,g2,w1,w2]=it.j; return (v>=g1&&v<=g2)?2:(v>=w1&&v<=w2)?1:0;
+}
+function status(it){const m=S.chk[it.id]; if(m!==undefined&&m!==null)return m; return autoStatus(it)}
 function cccsScore(sec){
-  const items=sec?sec.items:CCCS.flatMap(s=>s.items);
+  const items=sec?sec.items:ALL_ITEMS;
   let got=0,max=0,done=0,n=0,bad=0,warn=0;
-  items.forEach(it=>{const v=S.cccs[it.id];n++;if(v===undefined||v===null)return;done++;if(v<0)return;got+=v;max+=2;if(v===0)bad++;if(v===1)warn++});
+  items.forEach(it=>{n++;const v=status(it);if(v==null)return;done++;if(v<0)return;const w=it.w||2;got+=w*v/2;max+=w;if(v===0)bad++;if(v===1)warn++});
   return {pct:max?Math.round(got/max*100):null,done,n,bad,warn};
 }
 function grade(p){return p==null?"—":p>=85?"A":p>=70?"B":p>=55?"C":"D"}
@@ -288,47 +413,77 @@ function indFor(g){return SIGNALS.filter(x=>!x.groups||x.groups.includes(g))}
 function sigStat(g,ind){
   const c=(S.signals[g]||{})[ind.id]; if(!c)return null;
   const n=c.reduce((a,b)=>a+b,0); if(!n)return null;
-  let b=0,sum=0; c.forEach((k,i)=>{sum+=k*ind.opts[i].v; if(ind.bad(ind.opts[i].v,g))b+=k});
-  const pct=Math.round(b/n*100);
-  return {n,bad:b,pct,mean:sum/n,status:pct<ind.limit?"good":pct<ind.limit*1.5?"warn":"bad"};
+  let b=0,sum=0; c.forEach((k,i)=>{sum+=k*ind.opts[i].v; if(ind.bad&&ind.bad(ind.opts[i].v,g))b+=k});
+  const mean=sum/n, pct=Math.round(b/n*100);
+  if(ind.mode==="mean"){const t=ind.tgtBy[g], d=Math.abs(mean-t); return {n,mean,pct:null,tgt:t,status:d<=0.25?"good":d<=0.5?"warn":"bad"}}
+  return {n,bad:b,pct,mean,status:pct<=ind.limit?"good":pct<=ind.limit*1.5?"warn":"bad"};
 }
+function groupN(g){return Math.max(0,...Object.values(S.signals[g]||{}).map(c=>c.reduce((a,b)=>a+b,0)))}
 function comfortStat(g){
   const c=S.comfort[g]; if(!c)return null;
-  const L=+c.lying||0,St=+c.stand||0,P=+c.perch||0,A=+c.alley||0,F=+c.feed||0,R=+c.rumi||0;
-  const inStall=L+St+P, notFeed=L+St+P+A;
-  return {
-    cci: inStall? Math.round(L/inStall*100):null,
-    perch: inStall? Math.round(P/inStall*100):null,
-    sui: notFeed? Math.round(L/notFeed*100):null,
-    rumi: L? Math.round(R/L*100):null,
-    total:L+St+P+A+F
-  };
+  const L=+c.lying||0,St=+c.stand||0,P=+c.perch||0,A=+c.alley||0,F=+c.feed||0,D=+c.drink||0,R=+c.rumi||0;
+  const inStall=L+St+P;
+  return {lieP:inStall?Math.round(L/inStall*100):null, standP:inStall?Math.round((St+P)/inStall*100):null,
+    perch:inStall?Math.round(P/inStall*100):null, rumi:L?Math.round(R/L*100):null, total:L+St+P+A+F+D};
 }
-function thi(){
-  const T=parseFloat(S.farm.temp), RH=parseFloat(S.farm.rh);
-  if(isNaN(T)||isNaN(RH))return null;
-  return Math.round(((1.8*T+32)-(0.55-0.0055*RH)*(1.8*T-26))*10)/10;
+function herd(){
+  const f=S.farm, M=num(f.milking), ci=num(f.ci), par=num(f.parity), afc=num(f.afc), ship=num(f.ship);
+  const r={total:["milking","sick","dry","heifer"].reduce((a,k)=>a+(num(f[k])||0),0)};
+  if(M&&ci)r.dryNeed=Math.round(M*(ci/365)-M);
+  if(M&&par)r.replace=Math.round(M/par);
+  if(r.replace&&afc)r.heiferNeed=Math.round(r.replace*afc/12);
+  if(M&&ship)r.perHead=Math.round(ship/M*10)/10;
+  const scc=num(f.scc); if(scc!=null)r.sccLoss=scc>=120?2000:scc>=80?1600:scc>=40?1200:scc>=20?800:0;
+  return r;
 }
-function thiLevel(t){ if(t==null)return null; return t<68?["good","정상"]:t<72?["warn","경미한 스트레스"]:t<80?["bad","중등도 스트레스"]:["bad","심한 스트레스"] }
 function milkFlags(){
-  const f=S.farm, out=[], fat=parseFloat(f.fat), pr=parseFloat(f.prot), mun=parseFloat(f.mun), scc=parseFloat(f.scc);
-  if(fat&&pr){const r=fat/pr; if(r<1.0)out.push({p:1,t:`유지율/유단백 비 ${r.toFixed(2)} — 1.0 미만`,a:"아급성 반추위산증(SARA) 의심: 물리적 섬유(peNDF)·전분 수준·선별채식 점검"});
-    else if(r>1.4)out.push({p:2,t:`유지율/유단백 비 ${r.toFixed(2)} — 1.4 초과`,a:"에너지 부족·체지방 동원(케토시스) 의심: 비유초기 채식량, BHB 검사"});}
-  if(mun){ if(mun>18)out.push({p:2,t:`MUN ${mun} mg/dL — 높음`,a:"단백질 과잉 또는 에너지 부족: RDP/에너지 균형 점검 (참고 범위 10~16)"});
-           else if(mun<10)out.push({p:2,t:`MUN ${mun} mg/dL — 낮음`,a:"반추위 분해단백질 부족 가능성: 단백질 수준 점검"});}
-  if(scc&&scc>20)out.push({p:scc>40?1:2,t:`체세포수 ${scc}만/mL`,a:"착유 위생·고체세포우 관리 (F 섹션)"});
+  const f=S.farm, out=[], fat=num(f.fat), pr=num(f.prot), mun=num(f.mun), scc=num(f.scc), h=herd();
+  if(fat&&pr){const r=fat/pr; if(r<1.0)out.push({p:1,t:`유지방/유단백 비 ${r.toFixed(2)} — 1.0 미만`,a:"아급성 반추위산증(SARA) 의심: 물리적 섬유·전분 수준·선별채식 점검"});
+    else if(r>1.4)out.push({p:2,t:`유지방/유단백 비 ${r.toFixed(2)} — 1.4 초과`,a:"에너지 부족·체지방 동원 의심: 비유초기 섭취량, BHB 검사"});}
+  if(fat&&fat<4.0&&!(pr&&fat/pr<1.0))out.push({p:2,t:`유지방 ${fat}% — 목표 4.0%`,a:"조사료 품질·R-NDF·입자도 점검"});
+  if(pr&&pr<3.3)out.push({p:2,t:`유단백 ${pr}% — 목표 3.3%`,a:"에너지(전분) 공급·건물섭취량 점검"});
+  if(mun){ if(mun>18)out.push({p:2,t:`MUN ${mun} mg/dL — 높음`,a:"단백질 과잉 또는 에너지 부족 (참고 10~16)"});
+           else if(mun<10)out.push({p:2,t:`MUN ${mun} mg/dL — 낮음`,a:"반추위 분해단백질 부족 가능성"});}
+  if(scc!=null&&scc>19.9)out.push({p:scc>40?1:2,t:`체세포수 ${scc}만/mL — 목표 19.9만 이하`,a:`경산우 두당 약 ${h.sccLoss} kg 유량 손실 구간(교재 표). 착유 위생·고체세포우 관리`});
+  if(h.perHead&&h.perHead<33)out.push({p:2,t:`두당 산유량 ${h.perHead} L — 목표 33 L 이상`,a:"건물섭취량·카우컴포트 제한 요인 우선 점검"});
   return out;
 }
 function findings(){
   const out=[];
-  CCCS.forEach(sec=>sec.items.forEach(it=>{const v=S.cccs[it.id]; if(v===0||v===1) out.push({p:v===0?1:2,src:`CCCS ${sec.code}`,t:it.q+(S.memo[it.id]?` — ${S.memo[it.id]}`:""),a:it.act})}));
-  GROUPS.forEach(g=>indFor(g.id).forEach(ind=>{const st=sigStat(g.id,ind); if(st&&st.status!=="good") out.push({p:st.status==="bad"?1:2,src:`카우시그널 · ${g.name}`,t:`${ind.name} 문제 개체 ${st.pct}% (${st.bad}/${st.n}두, 기준 ${ind.limit}% 미만)`,a:ind.act})}));
-  GROUPS.forEach(g=>{const c=comfortStat(g.id); if(!c)return;
-    if(c.cci!=null&&c.cci<85) out.push({p:c.cci<75?1:2,src:`카우시그널 · ${g.name}`,t:`카우컴포트지수(CCI) ${c.cci}% — 목표 85% 이상`,a:"우상 편안함 부족: 깔짚·규격·사육밀도 점검 (착유 1~2시간 전 측정 기준)"});
-    if(c.rumi!=null&&c.rumi<50) out.push({p:c.rumi<40?1:2,src:`카우시그널 · ${g.name}`,t:`누운 소 중 반추 비율 ${c.rumi}% — 목표 50% 이상`,a:"물리적 섬유 부족·선별채식·휴식 방해 가능성: TMR 입자도와 사료조 관찰"});});
-  const t=thi(), tl=thiLevel(t); if(tl&&tl[0]!=="good") out.push({p:t>=72?1:2,src:"환경",t:`THI ${t} — ${tl[1]}`,a:"송풍·소킹 가동, 대기장 냉방, 음수 공간 확대, 고에너지 밀도·완충제 검토"});
-  milkFlags().forEach(m=>out.push({...m,src:"검정성적"}));
+  ALL_ITEMS.forEach(it=>{const v=status(it); if(v===0||v===1){const val=S.val[it.id]; out.push({p:v===0?1:2,src:`목장점검 ${it.sec.code} ${it.sec.name}`,t:it.q+(val&&it.u&&it.u!=="txt"?` ${val}${it.u}`:"")+(S.memo[it.id]?` — ${S.memo[it.id]}`:""),a:`${it.act} (기준: ${it.std})`})}});
+  GROUPS.forEach(g=>{
+    indFor(g.id).forEach(ind=>{const st=sigStat(g.id,ind); if(!st||st.status==="good")return;
+      const t=ind.mode==="mean"?`${ind.name} 평균 ${st.mean.toFixed(2)} (목표 ${st.tgt})`:`${ind.name} 문제 개체 ${st.pct}% (${st.bad}/${st.n}두, 기준 ${ind.limit}% 이하)`;
+      out.push({p:st.status==="bad"?1:2,src:`카우시그널 · ${g.name}`,t,a:ind.act})});
+    const c=comfortStat(g.id);
+    if(c&&c.lieP!=null&&c.lieP<90) out.push({p:c.lieP<80?1:2,src:`카우시그널 · ${g.name}`,t:`우상에 누운 소 ${c.lieP}% — 목표 90% 이상`,a:"우상 편안함 부족: 깔짚·우상 규격·사육밀도 점검 (R 섹션)"});
+    if(c&&c.rumi!=null&&c.rumi<80) out.push({p:c.rumi<60?1:2,src:`카우시그널 · ${g.name}`,t:`누운 소 중 반추 ${c.rumi}% — 목표 80% 이상`,a:"물리적 섬유 부족·선별채식·휴식 방해 가능성: TMR 입자도 확인"});
+    const x=S.sx[g.id]||{};
+    if(num(x.resp)!=null&&num(x.resp)>30) out.push({p:num(x.resp)>60?1:2,src:`카우시그널 · ${g.name}`,t:`호흡수 ${x.resp}회/분 — 기준 18~30회`,a:"열스트레스 또는 호흡기 질환: 냉방·환기 점검, 개체 체온 확인"});
+    if(num(x.chew)!=null&&num(x.chew)<55) out.push({p:2,src:`카우시그널 · ${g.name}`,t:`반추 저작 ${x.chew}회/덩이 — 기준 60회 이상`,a:"섬유 부족 또는 입자도 과소: 조사료 길이·R-NDF 점검"});
+    if(num(x.urin)!=null&&num(x.urin)<5) out.push({p:2,src:`카우시그널 · ${g.name}`,t:`평균 배뇨 시간 ${x.urin}초 — 기준 5초 이상`,a:"음수량 부족 가능성: 급수조 수·유량·청결 점검"});
+    if(x.ids) out.push({p:1,src:`카우시그널 · ${g.name}`,t:`개체 조치: ${x.ids}`,a:"외상·분비물 개체 개별 확인 및 수의사 진료"});
+    const n=groupN(g.id);
+    SIGNS.forEach(([id,name,cause])=>{const k=(S.signs[g.id]||{})[id]; if(!k)return; const pc=n?Math.round(k/n*100):null;
+      out.push({p:pc!=null&&pc>=15?1:2,src:`체크포인트 · ${g.name}`,t:`${name} ${k}두${pc!=null?` (${pc}%)`:""}`,a:`원인 추정: ${cause}`})});
+  });
+  const t=thi(), tl=thiLevel(t); if(tl&&tl[0]!=="good"&&status(ITEM.e4)==null) out.push({p:t>=72?1:2,src:"환경",t:`THI ${t} — ${tl[1]}`,a:"송풍·소킹 가동, 대기장 냉방"});
+  milkFlags().forEach(m=>out.push({...m,src:"검정·생산성"}));
+  const h=herd(), dry=num(S.farm.dry), hf=num(S.farm.heifer);
+  if(h.dryNeed!=null&&dry!=null&&Math.abs(dry-h.dryNeed)>Math.max(2,h.dryNeed*0.25)) out.push({p:2,src:"사육현황",t:`건유우 ${dry}두 — 분만간격 기준 적정 ${h.dryNeed}두`,a:"건유 시기·분만간격 점검"});
+  if(h.heiferNeed!=null&&hf!=null&&hf<h.heiferNeed*0.9) out.push({p:2,src:"사육현황",t:`육성우 ${hf}두 — 요구 ${h.heiferNeed}두`,a:"갱신 계획 대비 육성우 부족: 후보우 확보·초산월령 단축"});
   return out.sort((a,b)=>a.p-b.p);
+}
+function calfPts(it){
+  const v=S.calf[it.id];
+  if(it.base!=null){ if(v==null)return null; if(v.zero)return 0; return Math.max(0,it.base-it.ded.reduce((a,d,i)=>a+(v.d&&v.d[i]?d[1]:0),0)) }
+  if(v==null)return null; return it.opts[v][1];
+}
+const calfMax=it=>it.base!=null?it.base:Math.max(...it.opts.map(x=>x[1]));
+function calfScore(sec){
+  const items=sec?sec.items:CALF_ITEMS; let got=0,max=0,done=0;
+  items.forEach(it=>{const p=calfPts(it);max+=calfMax(it);if(p!=null){got+=p;done++}});
+  return {got,max,done,n:items.length};
 }
 
 /* ---------- 화면 ---------- */
@@ -337,145 +492,209 @@ function updateHeader(){
   $("#hdrTitle").textContent=(S.farm.name||"새 점검")+(S.farm.date?` · ${S.farm.date}`:"");
   $("#hdrScore").textContent=sc.pct==null?"—":`${sc.pct}점 ${grade(sc.pct)}`;
 }
-function exampleBanner(){ return S.example?`<div class="banner"><span><b>예시 데이터</b> 화면 구성을 보여주기 위한 가상 농장입니다.</span><button class="primary" data-act="new">새 점검 시작</button></div>`:"" }
+function exampleBanner(){ return S.example?`<div class="banner"><span><b>예시 데이터</b> 화면 구성을 보여주기 위한 가상 목장입니다.</span><button class="primary" data-act="new">새 점검 시작</button></div>`:"" }
+const pillCls=v=>v==null?"na":v<0?"na":ST[v];
 
 function vFarm(){
   const f=S.farm, t=thi(), tl=thiLevel(t);
-  const inp=(k,l,type="text",ph="",mode="")=>`<label class="f">${l}<input id="f_${k}" data-farm="${k}" type="${type}" ${mode?`inputmode="${mode}"`:""} placeholder="${ph}" value="${esc(f[k])}"></label>`;
+  const inp=(k,l,ph="",mode="decimal",type="text")=>`<label class="f">${l}<input id="f_${k}" data-farm="${k}" type="${type}" ${mode?`inputmode="${mode}"`:""} placeholder="${ph}" value="${esc(f[k])}"></label>`;
   return `${exampleBanner()}
   <h2>농장 정보</h2>
+  <div class="card stack"><div class="grid2">${inp("name","목장명","","")}${inp("owner","대표자","","")}${inp("date","점검일","","","date")}${inp("inspector","점검자","","")}</div></div>
+  <h2>사육두수</h2>
   <div class="card stack">
-    <div class="grid2">${inp("name","농장명")}${inp("owner","대표자")}${inp("date","점검일","date")}${inp("inspector","점검자")}</div>
-    <div class="grid2">${inp("herd","총 사육두수","text","두","numeric")}${inp("milking","착유두수","text","두","numeric")}${inp("dry","건유두수","text","두","numeric")}${inp("milk","두당 유량 (kg/일)","text","","decimal")}</div>
+    <div class="grid2">${inp("milking","착유두수","두","numeric")}${inp("sick","환축우","두","numeric")}${inp("dry","건유우","두","numeric")}${inp("heifer","육성우","두","numeric")}</div>
   </div>
-  <h2>검정성적 (선택)</h2>
+  <h2>번식·생산성</h2>
   <div class="card stack">
-    <div class="grid2">${inp("fat","유지율 (%)","text","3.8","decimal")}${inp("prot","유단백 (%)","text","3.2","decimal")}${inp("mun","MUN (mg/dL)","text","","decimal")}${inp("scc","체세포 (만/mL)","text","","decimal")}</div>
-    <div id="milkOut" class="small"></div>
+    <div class="grid2">${inp("parity","평균산차 (산)","검정평균 2.4")}${inp("ci","분만간격 (일)","검정평균 465.9")}${inp("afc","초산분만월령 (개월)","검정평균 27.8")}${inp("ship","납유량 (L/일)","2,000 이상")}
+    ${inp("scc","체세포 (만/mL)","19.9 이하")}${inp("fat","유지방 (%)","4.0")}${inp("prot","유단백 (%)","3.3")}${inp("mun","MUN (mg/dL)","")}</div>
+    <div class="small muted">자리표시 값은 교재 기준(2015 검정평균: 305일 10,289 kg, 산차 2.4, 분만간격 465.9일, 초산 27.8개월)입니다.</div>
   </div>
+  <div id="herdOut"></div>
   <h2>열스트레스 (THI)</h2>
   <div class="card stack">
-    <div class="grid2">${inp("temp","우사 내 온도 (℃)","text","","decimal")}${inp("rh","상대습도 (%)","text","","decimal")}</div>
-    <div class="row" id="thiOut">${t==null?'<span class="muted small">온도와 습도를 넣으면 THI가 계산됩니다.</span>':`<span class="mono" style="font-size:22px;font-weight:600">THI ${t}</span><span class="pill ${tl[0]}">${tl[1]}</span>`}</div>
-    <div class="small muted">THI = (1.8T+32) − (0.55 − 0.0055·RH)(1.8T − 26). 착유우는 THI 68부터 유량 감소가 시작됩니다 (Zimbelman 등, 2009).</div>
+    <div class="grid2">${inp("temp","우사 내 온도 (℃)")}${inp("rh","상대습도 (%)")}</div>
+    <div class="row" id="thiOut">${thiHtml(t,tl)}</div>
+    <div class="small muted">THI = (1.8T+32) − (0.55 − 0.0055·RH)(1.8T − 26). 착유우는 THI 68부터 유량이 줄기 시작합니다 (Zimbelman 등, 2009).</div>
   </div>
   <h2>메모</h2>
   <div class="card"><label class="f">특이사항<textarea id="f_notes" data-farm="notes">${esc(f.notes)}</textarea></label></div>
-  <div class="row" style="margin-top:14px"><button class="primary" data-go="cccs">CCCS 점검 시작</button></div>`;
+  <div class="row" style="margin-top:14px"><button class="primary" data-go="cccs">목장점검 시작</button></div>`;
 }
-function milkOutHtml(){
-  const m=milkFlags(), f=S.farm, fat=parseFloat(f.fat), pr=parseFloat(f.prot);
-  const r=fat&&pr?`<span class="mono">지/단 비 ${(fat/pr).toFixed(2)}</span> `:"";
-  return r+(m.length?m.map(x=>`<div><span class="pill ${x.p===1?"bad":"warn"}">확인</span> ${esc(x.t)}</div>`).join(""):(r?'<span class="pill good">정상 범위</span>':""));
+function thiHtml(t,tl){return t==null?'<span class="muted small">온도와 습도를 넣으면 THI가 계산됩니다.</span>':`<span class="mono" style="font-size:22px;font-weight:600">THI ${t}</span><span class="pill ${tl[0]}">${tl[1]}</span>`}
+function herdHtml(){
+  const h=herd(), f=S.farm, st=(k,v,sub)=>`<div class="stat"><div class="v">${v??"—"}</div><div class="k">${k}${sub?`<br>${sub}`:""}</div></div>`;
+  const m=milkFlags();
+  return `<h2>자동 계산</h2><div class="calc">
+    ${st("총 사육두수",h.total||null)}
+    ${st("적정 건유우 두수",h.dryNeed,"착유×(분만간격/365)−착유")}
+    ${st("연간 갱신두수",h.replace,"착유÷평균산차")}
+    ${st("육성우 요구두수",h.heiferNeed,"갱신×초산월령÷12")}
+    ${st("두당 산유량 (L)",h.perHead,"목표 33 L 이상")}
+    ${st("체세포 손실 (kg/두)",h.sccLoss,"경산우, 교재 표")}
+  </div>${m.length?`<div class="card stack" style="margin-top:10px">${m.map(x=>`<div class="small"><span class="pill ${x.p===1?"bad":"warn"}">확인</span> ${esc(x.t)}</div>`).join("")}</div>`:""}`;
+}
+
+function itemHtml(it){
+  const v=S.chk[it.id], a=autoStatus(it), eff=status(it);
+  const b=(val,l)=>`<button data-item="${it.id}" data-v="${val}" aria-pressed="${v===val||(v==null&&a===val)}">${l}</button>`;
+  let input="";
+  if(it.u==="txt") input=`<div class="valrow"><input class="txt" id="v_${it.id}" data-val="${it.id}" placeholder="측정·관찰 내용" value="${esc(S.val[it.id])}"></div>`;
+  else if(it.u) input=`<div class="valrow"><input id="v_${it.id}" data-val="${it.id}" inputmode="decimal" placeholder="측정값" value="${esc(S.val[it.id])}"><span class="u">${it.u}</span><span id="a_${it.id}">${autoHtml(it)}</span></div>`;
+  else if(it.auto==="thi") input=`<div class="valrow"><span id="a_${it.id}">${autoHtml(it)}</span></div>`;
+  return `<div class="item"><div class="q"><span class="mono small muted">${it.id.toUpperCase()}</span> ${esc(it.q)}${it.w&&it.w!==2?` <span class="mono small muted">${it.w}점</span>`:""}<span class="src ${it.s?"l":"k"}">${it.s||"교재"}</span></div>
+    <div class="std">기준: ${esc(it.std)}</div>${input}
+    <div class="seg">${b(2,"양호")}${b(1,"주의")}${b(0,"불량")}${b(-1,"해당없음")}</div>
+    <input class="memo" id="m_${it.id}" data-memo="${it.id}" placeholder="메모" value="${esc(S.memo[it.id])}"></div>`;
+}
+function autoHtml(it){
+  let extra="";
+  if(it.info==="stanchion"){const v=num(S.val[it.id]),M=num(S.farm.milking); if(v&&M) extra=`<span class="small muted">착유두수 대비 ${Math.round(v/M*100)}%</span> `}
+  if(it.auto==="thi"){const t=thi(); extra=t==null?'<span class="small muted">농장 탭에서 온·습도를 입력하세요</span> ':`<span class="mono">THI ${t}</span> `}
+  const a=autoStatus(it); if(a==null)return extra;
+  return extra+`<span class="pill ${ST[a]}">자동 ${STL[a]}</span>${S.chk[it.id]!=null&&S.chk[it.id]!==a?' <span class="small muted">(수동 판정 우선)</span>':""}`;
 }
 
 function vCCCS(){
   const sc=cccsScore();
-  let h=`${exampleBanner()}<h2>CCCS 카우컴포트 체크시트</h2>
-  <div class="small muted">항목마다 양호(2) · 주의(1) · 불량(0) · 해당없음을 선택하세요. 해당없음은 점수에서 제외됩니다.</div>
+  let h=`${exampleBanner()}<h2>목장점검 (CCCS)</h2>
+  <div class="small muted">퓨리나 목장점검 리포트 항목입니다. 측정값을 넣으면 기준에 따라 자동 판정되고, 판정 버튼을 누르면 수동 판정이 우선합니다. <span class="src k">교재</span> CCCS 교육자료 <span class="src l">문헌</span> 보완 항목</div>
   <div class="card" style="margin-top:10px"><div class="row" style="justify-content:space-between">
     <div><div class="mono" style="font-size:26px;font-weight:600">${sc.pct??"—"}<span style="font-size:15px"> 점</span> <span class="pill ${sc.pct==null?"na":sc.pct>=85?"good":sc.pct>=70?"warn":"bad"}">등급 ${grade(sc.pct)}</span></div>
-    <div class="small muted">입력 ${sc.done}/${sc.n} · 불량 ${sc.bad} · 주의 ${sc.warn}</div></div>
+    <div class="small muted">판정 ${sc.done}/${sc.n} · 불량 ${sc.bad} · 주의 ${sc.warn}</div></div>
     <button class="ghost" data-act="expandAll">${Object.values(openSec).some(Boolean)?"모두 접기":"모두 펼치기"}</button></div></div>`;
   CCCS.forEach(sec=>{
     const s=cccsScore(sec), open=openSec[sec.code];
     h+=`<div class="card sec"><button class="sec-head" data-sec="${sec.code}" aria-expanded="${!!open}">
       <span class="code">${sec.code}</span><h3>${sec.name}</h3><span class="small muted mono">${s.done}/${s.n}</span>
-      <span class="meter"><i style="width:${s.pct??0}%;background:${s.pct==null?"var(--line)":s.pct>=85?"var(--good)":s.pct>=70?"var(--warn)":"var(--bad)"}"></i></span><span class="pct">${s.pct??"—"}</span></button>`;
-    if(open){
-      h+=`<div>`+sec.items.map(it=>{const v=S.cccs[it.id];
-        const b=(val,l)=>`<button data-item="${it.id}" data-v="${val}" aria-pressed="${v===val}">${l}</button>`;
-        return `<div class="item"><div class="q"><span class="mono small muted">${it.id.toUpperCase()}</span> ${esc(it.q)}</div><div class="std">기준: ${esc(it.std)}</div>
-          <div class="seg">${b(2,"양호")}${b(1,"주의")}${b(0,"불량")}${b(-1,"해당없음")}</div>
-          <input class="memo" id="m_${it.id}" data-memo="${it.id}" placeholder="메모 (수치·위치 등)" value="${esc(S.memo[it.id])}"></div>`}).join("")+`</div>`;
-    }
-    h+=`</div>`;
+      <span class="meter"><i style="width:${s.pct??0}%;background:${barCol(s.pct)}"></i></span><span class="pct">${s.pct??"—"}</span></button>
+      ${open?`<div>${sec.items.map(itemHtml).join("")}</div>`:""}</div>`;
   });
-  h+=`<div class="row" style="margin-top:14px"><button class="primary" data-go="sig">카우시그널로</button></div>`;
-  return h;
+  return h+`<div class="row" style="margin-top:14px"><button class="primary" data-go="sig">카우시그널로</button></div>`;
 }
+const barCol=p=>p==null?"var(--line)":p>=85?"var(--good)":p>=70?"var(--warn)":"var(--bad)";
 
 function vSig(){
   let h=`${exampleBanner()}<div class="toolbar">
-    <div class="chips" role="group" aria-label="우군 선택">${GROUPS.map(g=>{const n=Object.values((S.signals[g.id]||{})).reduce((a,c)=>Math.max(a,c.reduce((x,y)=>x+y,0)),0);return `<button data-grp="${g.id}" aria-pressed="${grp===g.id}">${g.name}${n?` <span class="mono">${n}</span>`:""}</button>`}).join("")}</div>
+    <div class="chips" role="group" aria-label="우군 선택">${GROUPS.map(g=>{const n=groupN(g.id);return `<button data-grp="${g.id}" aria-pressed="${grp===g.id}">${g.name}${n?` <span class="mono">${n}</span>`:""}</button>`}).join("")}</div>
     <label class="switch"><input type="checkbox" id="minus" ${minus?"checked":""}> 빼기 모드 (잘못 누른 경우)</label>
   </div>
-  <div class="small muted">우군을 고르고 소를 한 마리씩 관찰하며 해당 점수를 누르세요. 우군당 최소 10두, 가능하면 20두 이상을 권장합니다.</div>
+  <div class="small muted">30분 이상 관찰하면서 소를 한 마리씩 보고 해당 점수를 누르세요. 우군당 10두 이상, 가능하면 20두 이상을 권장합니다.</div>
   <div class="stack ${minus?"minus-on":""}" style="margin-top:10px">`;
   indFor(grp).forEach(ind=>{
     const c=(S.signals[grp]||{})[ind.id]||ind.opts.map(()=>0), st=sigStat(grp,ind);
     const tgt=ind.targetBy?ind.targetBy[grp]:ind.target;
-    h+=`<div class="card"><div class="ind-head"><div style="min-width:0"><h3>${ind.name}</h3><div class="small muted">${esc(ind.how)}</div><div class="small">목표: ${esc(tgt)}</div></div>
-      ${st?`<span class="pill ${st.status}">${st.pct}% · ${st.n}두</span>`:'<span class="pill na">미입력</span>'}</div>
-      <div class="tally" style="grid-template-columns:repeat(${ind.opts.length},1fr)">${ind.opts.map((o,i)=>`<button data-tally="${ind.id}" data-i="${i}" class="${ind.bad(o.v,grp)?"isbad":""}" aria-label="${ind.name} ${o.l}점, 현재 ${c[i]}두"><span class="lb">${o.l}</span><span class="ct">${c[i]}</span></button>`).join("")}</div>
-      ${st&&ind.id==="bcs"?`<div class="small muted" style="margin-top:6px">평균 BCS <span class="mono">${st.mean.toFixed(2)}</span></div>`:""}
-      ${st&&ind.id!=="bcs"&&ind.id!=="hock"?`<div class="small muted" style="margin-top:6px">평균 <span class="mono">${st.mean.toFixed(2)}</span></div>`:""}
+    const pill=!st?'<span class="pill na">미입력</span>':ind.mode==="mean"?`<span class="pill ${st.status}">평균 ${st.mean.toFixed(2)} · ${st.n}두</span>`:`<span class="pill ${st.status}">${st.pct}% · ${st.n}두</span>`;
+    h+=`<div class="card"><div class="ind-head"><div style="min-width:0"><h3>${ind.name}</h3><div class="small muted">${esc(ind.how)}</div><div class="small">목표: ${esc(tgt)}${ind.limitRef?' <span class="src l">허용 비율 참고치</span>':""}</div></div>${pill}</div>
+      <div class="tally" style="grid-template-columns:repeat(${ind.opts.length},1fr)">${ind.opts.map((op,i)=>`<button data-tally="${ind.id}" data-i="${i}" class="${ind.bad&&ind.bad(op.v,grp)?"isbad":""}" aria-label="${ind.name} ${op.l}, 현재 ${c[i]}두"><span class="lb">${op.l}</span><span class="ct">${c[i]}</span></button>`).join("")}</div>
+      ${st&&ind.mode!=="mean"?`<div class="small muted" style="margin-top:6px">평균 <span class="mono">${st.mean.toFixed(2)}</span></div>`:""}
     </div>`;
   });
+  const x=S.sx[grp]||{};
+  const xi=(k,l,ph,mode="decimal")=>`<label class="f">${l}<input id="x_${grp}_${k}" data-sx="${k}" ${mode?`inputmode="${mode}"`:""} placeholder="${ph}" value="${esc(x[k]??"")}"></label>`;
+  h+=`<div class="card"><h3>외관 관찰</h3><div class="small muted">교재 점검표 6번 항목과 리포트 소의 상태 기준</div>
+    <div class="num-grid" style="margin-top:10px">${xi("resp","분당 호흡수 (평균)","18~30회")}${xi("urin","평균 배뇨 시간 (초)","5초 이상")}${xi("chew","반추 저작 (회/덩이)","60회 이상")}</div>
+    <div style="margin-top:10px">${xi("ids","외상·분비물 개체번호","예: 312 외음부 분비물","")}</div></div>`;
+  const sg=S.signs[grp]||{};
+  h+=`<div class="card"><h3>건강·복지 체크포인트</h3><div class="small muted">CowSignals 포스터의 이상 신호입니다. 발견한 소마다 누르면 리포트에 원인과 함께 표시됩니다.</div>
+    <div class="signs">${SIGNS.map(([id,name,cause])=>`<button data-sign="${id}" class="${sg[id]?"on":""}" title="${esc(cause)}"><span>${name}<br><span class="small muted">${cause}</span></span><span class="ct">${sg[id]||0}</span></button>`).join("")}</div></div>`;
   const c=S.comfort[grp]||{}, cs=comfortStat(grp);
   const ni=(k,l)=>`<label class="f">${l}<input id="c_${grp}_${k}" data-comfort="${k}" inputmode="numeric" value="${esc(c[k]??"")}"></label>`;
-  h+=`<div class="card"><h3>우사 행동 관찰 (카우컴포트 지수)</h3>
-    <div class="small muted">착유 1~2시간 전, 사료 급여 직후가 아닌 시간에 우군 전체를 한 번에 세어 주세요.</div>
-    <div class="num-grid" style="margin-top:10px">${ni("lying","우상에 누운 소")}${ni("stand","우상에 4발 서 있는 소")}${ni("perch","앞발만 올린 소")}${ni("alley","통로에 서 있는 소")}${ni("feed","채식 중인 소")}${ni("rumi","누운 소 중 반추 중")}</div>
+  h+=`<div class="card"><h3>소 상태 두수 카운팅</h3>
+    <div class="small muted">착유 1~2시간 전, 급여 직후가 아닌 시간에 우군 전체를 한 번에 세어 주세요.</div>
+    <div class="num-grid" style="margin-top:10px">${ni("lying","우상에 누운 소")}${ni("stand","우상에 서 있는 소")}${ni("perch","앞발만 올린 소")}${ni("alley","통로에 서 있는 소")}${ni("feed","사료 섭취 중")}${ni("drink","물 섭취 중")}${ni("rumi","누운 소 중 반추 중")}</div>
     <div id="comfortOut" style="margin-top:10px">${comfortHtml(cs)}</div></div>`;
   return h+`</div><div class="row" style="margin-top:14px"><button class="primary" data-go="report">리포트 보기</button></div>`;
 }
 function comfortHtml(cs){
   if(!cs||!cs.total)return '<span class="muted small">숫자를 넣으면 지수가 계산됩니다.</span>';
-  const row=(k,v,t,good)=>`<div class="kv"><span>${k}<br><span class="small muted">${t}</span></span><span class="row"><span class="mono">${v==null?"—":v+"%"}</span>${v==null?"":`<span class="pill ${good(v)}">${good(v)==="good"?"양호":good(v)==="warn"?"주의":"불량"}</span>`}</span></div>`;
-  return row("카우컴포트지수 CCI",cs.cci,"우상 접촉 소 중 누운 소 · 목표 85% 이상",v=>v>=85?"good":v>=75?"warn":"bad")
-   +row("퍼칭 비율",cs.perch,"우상 접촉 소 중 앞발만 올린 소 · 참고 10% 미만",v=>v<10?"good":v<20?"warn":"bad")
-   +row("반추 비율",cs.rumi,"누운 소 중 반추 중 · 목표 50% 이상",v=>v>=50?"good":v>=40?"warn":"bad")
-   +`<div class="kv"><span>우상 이용 지수 SUI<br><span class="small muted">채식 중 아닌 소 중 누운 소 · 참고 지표</span></span><span class="mono">${cs.sui==null?"—":cs.sui+"%"}</span></div>`;
+  const row=(k,v,t,fn)=>{const s=v==null?null:fn(v);return `<div class="kv"><span>${k}<br><span class="small muted">${t}</span></span><span class="row"><span class="mono">${v==null?"—":v+"%"}</span>${s?`<span class="pill ${s}">${s==="good"?"양호":s==="warn"?"주의":"불량"}</span>`:""}</span></div>`};
+  return row("우상에 누운 소",cs.lieP,"우상 접촉 소 중 · 목표 90% 이상 (문헌 CCI 85%)",v=>v>=90?"good":v>=80?"warn":"bad")
+   +row("우상에 서 있는 소",cs.standP,"앞발만 올린 소 포함 · 목표 10% 이하",v=>v<=10?"good":v<=20?"warn":"bad")
+   +row("반추 비율",cs.rumi,"누운 소 중 · 목표 80% 이상 (문헌 50~60%)",v=>v>=80?"good":v>=60?"warn":"bad")
+   +`<div class="kv"><span>관찰 두수</span><span class="mono">${cs.total}두</span></div>`;
+}
+
+function vCalf(){
+  const t=calfScore();
+  let h=`${exampleBanner()}<h2>한우송아지 체크리스트</h2>
+  <div class="small muted">퓨리나 한우송아지 체크리스트 200점 배점을 그대로 옮겼습니다. 젖소 송아지 점검에도 참고로 쓸 수 있습니다.</div>
+  <div class="card" style="margin-top:10px"><div class="mono" style="font-size:26px;font-weight:600">${t.got}<span style="font-size:15px"> / 200점</span> <span class="pill ${t.done?(t.got/2>=85?"good":t.got/2>=70?"warn":"bad"):"na"}">${t.done?Math.round(t.got/2)+"%":"미입력"}</span></div>
+  <div class="small muted">입력 ${t.done}/${t.n} · 입력한 항목 만점 대비 ${(()=>{let m=0;CALF_ITEMS.forEach(it=>{if(calfPts(it)!=null)m+=calfMax(it)});return m?Math.round(t.got/m*100)+"%":"—"})()}</div></div>`;
+  CALF.forEach((sec,si)=>{
+    const s=calfScore(sec);
+    h+=`<div class="card sec"><div class="row" style="justify-content:space-between"><h3>${sec.name}</h3><span class="mono small">${s.got} / ${s.max}</span></div><div>`;
+    sec.items.forEach(it=>{
+      const v=S.calf[it.id];
+      if(it.base!=null){
+        const d=(v&&v.d)||[], z=v&&v.zero;
+        h+=`<div class="item"><div class="q">${esc(it.q)} <span class="mono small muted">${calfPts(it)??"—"}/${it.base}</span></div><div class="opts">
+          <button data-calfok="${it.id}" aria-pressed="${!!v&&!z&&!d.some(Boolean)}">감점 없음</button>
+          ${it.zero?`<button data-calfzero="${it.id}" aria-pressed="${!!z}">${it.zero} <span class="p">0</span></button>`:""}
+          ${it.ded.map((x,i)=>`<button data-calfded="${it.id}" data-i="${i}" aria-pressed="${!!d[i]&&!z}">${x[0]} <span class="p">−${x[1]}</span></button>`).join("")}</div></div>`;
+      } else {
+        h+=`<div class="item"><div class="q">${esc(it.q)}</div><div class="opts">${it.opts.map((x,i)=>`<button data-calf="${it.id}" data-i="${i}" aria-pressed="${v===i}">${x[0]} <span class="p">${x[1]}</span></button>`).join("")}</div></div>`;
+      }
+    });
+    h+=`</div></div>`;
+  });
+  return h+`<div class="row" style="margin-top:14px"><button class="primary" data-go="report">리포트 보기</button></div>`;
 }
 
 function vReport(){
-  const sc=cccsScore(), F=findings(), t=thi();
+  const sc=cccsScore(), F=findings(), t=thi(), cs=calfScore();
   const p1=F.filter(x=>x.p===1).length;
-  let h=`${exampleBanner()}<h2>점검 리포트</h2>
-  <div class="small muted">${esc(S.farm.name||"농장명 미입력")} · ${esc(S.farm.date)}${S.farm.inspector?` · 점검자 ${esc(S.farm.inspector)}`:""}</div>
+  return `${exampleBanner()}<h2>점검 리포트</h2>
+  <div class="small muted">${esc(S.farm.name||"목장명 미입력")} · ${esc(S.farm.date)}${S.farm.inspector?` · 점검자 ${esc(S.farm.inspector)}`:""}</div>
   <div class="summary" style="margin-top:10px">
-    <div class="stat"><div class="v">${sc.pct??"—"}</div><div class="k">CCCS 점수 · 등급 ${grade(sc.pct)}</div></div>
+    <div class="stat"><div class="v">${sc.pct??"—"}</div><div class="k">목장점검 · 등급 ${grade(sc.pct)}</div></div>
     <div class="stat"><div class="v" style="color:var(--bad)">${p1}</div><div class="k">우선 개선 항목</div></div>
-    <div class="stat"><div class="v">${t??"—"}</div><div class="k">THI</div></div>
+    <div class="stat"><div class="v">${cs.done?cs.got:t??"—"}</div><div class="k">${cs.done?"송아지 /200":"THI"}</div></div>
   </div>
-  <h2>섹션별 점수</h2><div class="card">${CCCS.map(sec=>{const s=cccsScore(sec);return `<div class="kv"><span><span class="mono muted">${sec.code}</span> ${sec.name}</span><span class="row"><span class="meter"><i style="width:${s.pct??0}%;background:${s.pct==null?"var(--line)":s.pct>=85?"var(--good)":s.pct>=70?"var(--warn)":"var(--bad)"}"></i></span><span class="pct">${s.pct??"—"}</span></span></div>`}).join("")}</div>
+  <h2>섹션별 점수</h2><div class="card">${CCCS.map(sec=>{const s=cccsScore(sec);return `<div class="kv"><span><span class="mono muted">${sec.code}</span> ${sec.name}</span><span class="row"><span class="meter"><i style="width:${s.pct??0}%;background:${barCol(s.pct)}"></i></span><span class="pct">${s.pct??"—"}</span></span></div>`}).join("")}</div>
   <h2>개선 우선순위</h2>
   <div class="card">${F.length?F.map(x=>`<div class="finding p${x.p}"><span class="bar"></span><div style="min-width:0"><div class="small muted">${x.p===1?"우선":"개선"} · ${esc(x.src)}</div><div class="t">${esc(x.t)}</div><div class="a">→ ${esc(x.a)}</div></div></div>`).join(""):'<span class="muted">입력된 문제 항목이 없습니다.</span>'}</div>
   <h2>카우시그널 요약</h2>${sigTable()}
+  ${cs.done?`<h2>송아지 체크리스트</h2><div class="card">${CALF.map(sec=>{const s=calfScore(sec);return `<div class="kv"><span>${sec.name}</span><span class="mono">${s.done?s.got:"—"} / ${s.max}</span></div>`}).join("")}</div>`:""}
   <h2>내보내기</h2>
   <div class="card stack">
     <div class="row"><button class="primary" data-act="saveVisit">점검 기록 저장</button><button data-act="copyText">카톡용 요약 복사</button><button data-act="csv">CSV 저장</button></div>
-    <div class="small muted">CSV는 엑셀에서 바로 열 수 있습니다. 저장이 막힌 환경에서는 내용이 클립보드로 복사됩니다.</div>
+    <div class="small muted">CSV는 엑셀에서 바로 열 수 있습니다. 파일 저장이 막힌 화면에서는 내용이 클립보드로 복사됩니다.</div>
     <pre class="copy" id="sumText">${esc(summaryText())}</pre>
   </div>`;
-  return h;
 }
 function sigTable(){
-  const rows=[];
-  GROUPS.forEach(g=>indFor(g.id).forEach(ind=>{const st=sigStat(g.id,ind); if(st) rows.push(`<tr><td>${g.name}</td><td>${ind.name}</td><td class="n">${st.n}</td><td class="n">${st.mean.toFixed(2)}</td><td class="n">${st.pct}%</td><td><span class="pill ${st.status}">${st.status==="good"?"양호":st.status==="warn"?"주의":"불량"}</span></td></tr>`)}));
-  GROUPS.forEach(g=>{const c=comfortStat(g.id); if(c&&c.total){ if(c.cci!=null)rows.push(`<tr><td>${g.name}</td><td>CCI</td><td class="n">${c.total}</td><td class="n">—</td><td class="n">${c.cci}%</td><td><span class="pill ${c.cci>=85?"good":c.cci>=75?"warn":"bad"}">${c.cci>=85?"양호":c.cci>=75?"주의":"불량"}</span></td></tr>`);
-    if(c.rumi!=null)rows.push(`<tr><td>${g.name}</td><td>반추 비율</td><td class="n">${S.comfort[g.id].lying}</td><td class="n">—</td><td class="n">${c.rumi}%</td><td><span class="pill ${c.rumi>=50?"good":c.rumi>=40?"warn":"bad"}">${c.rumi>=50?"양호":c.rumi>=40?"주의":"불량"}</span></td></tr>`);}});
+  const rows=[], pl=s=>`<span class="pill ${s}">${s==="good"?"양호":s==="warn"?"주의":"불량"}</span>`;
+  GROUPS.forEach(g=>{indFor(g.id).forEach(ind=>{const st=sigStat(g.id,ind); if(st) rows.push(`<tr><td>${g.name}</td><td>${ind.name}</td><td class="n">${st.n}</td><td class="n">${st.mean.toFixed(2)}</td><td class="n">${st.pct==null?"목표 "+st.tgt:st.pct+"%"}</td><td>${pl(st.status)}</td></tr>`)});
+    const c=comfortStat(g.id); if(c&&c.total){ if(c.lieP!=null)rows.push(`<tr><td>${g.name}</td><td>우상 누운 소</td><td class="n">${c.total}</td><td class="n">—</td><td class="n">${c.lieP}%</td><td>${pl(c.lieP>=90?"good":c.lieP>=80?"warn":"bad")}</td></tr>`);
+      if(c.rumi!=null)rows.push(`<tr><td>${g.name}</td><td>반추 비율</td><td class="n">${S.comfort[g.id].lying}</td><td class="n">—</td><td class="n">${c.rumi}%</td><td>${pl(c.rumi>=80?"good":c.rumi>=60?"warn":"bad")}</td></tr>`);}});
   if(!rows.length)return '<div class="card muted">카우시그널 입력이 없습니다.</div>';
-  return `<div class="card scroll"><table class="t"><thead><tr><th>우군</th><th>지표</th><th>두수</th><th>평균</th><th>문제·지수</th><th>판정</th></tr></thead><tbody>${rows.join("")}</tbody></table></div>`;
+  return `<div class="card scroll"><table class="t"><thead><tr><th>우군</th><th>지표</th><th>두수</th><th>평균</th><th>문제 비율</th><th>판정</th></tr></thead><tbody>${rows.join("")}</tbody></table></div>`;
 }
 function summaryText(){
-  const sc=cccsScore(), F=findings(), t=thi();
-  let s=`[낙농 현장점검] ${S.farm.name||""} ${S.farm.date}\n`;
-  if(S.farm.milking)s+=`착유 ${S.farm.milking}두`+(S.farm.milk?` / 두당 ${S.farm.milk}kg`:"")+"\n";
-  s+=`CCCS ${sc.pct??"-"}점 (등급 ${grade(sc.pct)}) · 불량 ${sc.bad} · 주의 ${sc.warn}\n`;
+  const sc=cccsScore(), F=findings(), t=thi(), h=herd(), cs=calfScore(), f=S.farm;
+  let s=`[목장점검] ${f.name||""} ${f.date}\n`;
+  if(f.milking)s+=`착유 ${f.milking}두`+(h.perHead?` / 두당 ${h.perHead}L`:"")+(f.scc?` / 체세포 ${f.scc}만`:"")+"\n";
+  s+=`목장점검 ${sc.pct??"-"}점 (등급 ${grade(sc.pct)}) · 불량 ${sc.bad} · 주의 ${sc.warn}\n`;
+  if(cs.done)s+=`송아지 체크리스트 ${cs.got}/200점\n`;
   if(t!=null)s+=`THI ${t} (${thiLevel(t)[1]})\n`;
-  s+=`\n■ 우선 개선\n`; const p1=F.filter(x=>x.p===1); s+=p1.length?p1.map((x,i)=>`${i+1}. ${x.t}\n   → ${x.a}`).join("\n"):"없음";
+  const p1=F.filter(x=>x.p===1); s+=`\n■ 우선 개선\n`+(p1.length?p1.map((x,i)=>`${i+1}. ${x.t}\n   → ${x.a.split(" (기준:")[0]}`).join("\n"):"없음");
   const p2=F.filter(x=>x.p===2); if(p2.length) s+=`\n\n■ 개선 권장\n`+p2.map((x,i)=>`${i+1}. ${x.t}`).join("\n");
   return s;
 }
 function csv(){
-  const L=[["구분","섹션/우군","항목/지표","값","판정","메모·기준"]];
-  L.push(["농장",S.farm.name,S.farm.date,S.farm.milking,"",S.farm.notes]);
-  CCCS.forEach(sec=>sec.items.forEach(it=>{const v=S.cccs[it.id];L.push(["CCCS",sec.code+" "+sec.name,it.q,v==null?"":v<0?"해당없음":v,v===2?"양호":v===1?"주의":v===0?"불량":"",S.memo[it.id]||it.std])}));
-  GROUPS.forEach(g=>indFor(g.id).forEach(ind=>{const c=(S.signals[g.id]||{})[ind.id];const st=sigStat(g.id,ind);if(!st)return;
-    L.push(["카우시그널",g.name,ind.name,st.pct+"%",st.status,ind.opts.map((o,i)=>`${o.l}:${c[i]}`).join(" ")])}));
-  GROUPS.forEach(g=>{const c=comfortStat(g.id);if(c&&c.total)L.push(["행동관찰",g.name,"CCI/반추/퍼칭",`${c.cci}% / ${c.rumi}% / ${c.perch}%`,"",""])});
+  const L=[["구분","섹션/우군","항목/지표","값","판정","메모·기준"]], f=S.farm, h=herd();
+  L.push(["농장",f.name,f.date,"","",f.notes]);
+  [["착유두수",f.milking],["환축우",f.sick],["건유우",f.dry],["육성우",f.heifer],["평균산차",f.parity],["분만간격",f.ci],["초산분만월령",f.afc],["납유량",f.ship],["체세포(만)",f.scc],["유지방",f.fat],["유단백",f.prot],["MUN",f.mun],["적정 건유우",h.dryNeed],["갱신두수",h.replace],["육성우 요구",h.heiferNeed],["THI",thi()]]
+    .forEach(([k,v])=>L.push(["사육·생산","",k,v??"","",""]));
+  ALL_ITEMS.forEach(it=>{const v=status(it);L.push(["목장점검",it.sec.code+" "+it.sec.name,it.q,S.val[it.id]||"",v==null?"":STL[v],(S.memo[it.id]?S.memo[it.id]+" / ":"")+it.std])});
+  GROUPS.forEach(g=>{indFor(g.id).forEach(ind=>{const c=(S.signals[g.id]||{})[ind.id];const st=sigStat(g.id,ind);if(!st)return;
+    L.push(["카우시그널",g.name,ind.name,ind.mode==="mean"?st.mean.toFixed(2):st.pct+"%",st.status,ind.opts.map((op,i)=>`${op.l}:${c[i]}`).join(" ")])});
+    const x=S.sx[g.id]||{}; if(x.resp||x.urin||x.chew||x.ids)L.push(["외관",g.name,"호흡/배뇨/저작/개체",`${x.resp||""} / ${x.urin||""} / ${x.chew||""}`,"",x.ids||""]);
+    SIGNS.forEach(([id,name,cause])=>{const k=(S.signs[g.id]||{})[id];if(k)L.push(["체크포인트",g.name,name,k,"",cause])});
+    const c=comfortStat(g.id);if(c&&c.total)L.push(["두수카운팅",g.name,"누운소/서있는소/반추",`${c.lieP}% / ${c.standP}% / ${c.rumi}%`,"",""]);});
+  CALF.forEach(sec=>sec.items.forEach(it=>{const p=calfPts(it);if(p!=null)L.push(["송아지",sec.name,it.q,p,"/"+calfMax(it),""])}));
   return "﻿"+L.map(r=>r.map(x=>`"${String(x??"").replace(/"/g,'""')}"`).join(",")).join("\r\n");
 }
 
@@ -486,8 +705,8 @@ function vHist(){
   <div class="stack" style="margin-top:12px">`;
   if(!V.length)h+=`<div class="card muted">저장된 점검이 없습니다. 리포트 화면에서 <b>점검 기록 저장</b>을 누르면 여기에 쌓입니다.</div>`;
   V.slice().sort((a,b)=>(b.farm.date||"").localeCompare(a.farm.date||"")).forEach(v=>{
-    const keep=S; S=v; const sc=cccsScore(), F=findings(); S=keep;
-    h+=`<div class="card"><div class="row" style="justify-content:space-between"><div style="min-width:0"><h3>${esc(v.farm.name||"농장명 없음")}</h3><div class="small muted">${esc(v.farm.date)} · CCCS ${sc.pct??"—"}점 ${grade(sc.pct)} · 우선개선 ${F.filter(x=>x.p===1).length}건</div></div>
+    const keep=S; S=migrate(v); const sc=cccsScore(), F=findings(); S=keep;
+    h+=`<div class="card"><div class="row" style="justify-content:space-between"><div style="min-width:0"><h3>${esc(v.farm.name||"목장명 없음")}</h3><div class="small muted">${esc(v.farm.date)} · 목장점검 ${sc.pct??"—"}점 ${grade(sc.pct)} · 우선개선 ${F.filter(x=>x.p===1).length}건</div></div>
       <div class="row" id="hv_${v.id}"><button data-load="${v.id}">열기</button><button class="ghost danger" data-del="${v.id}">삭제</button></div></div></div>`;
   });
   return h+`</div>`;
@@ -495,11 +714,12 @@ function vHist(){
 
 function render(){
   document.querySelectorAll("nav.tabs button").forEach(b=>b.setAttribute("aria-selected",b.dataset.tab===tab));
-  const views={farm:vFarm,cccs:vCCCS,sig:vSig,report:vReport,hist:vHist};
+  const views={farm:vFarm,cccs:vCCCS,sig:vSig,calf:vCalf,report:vReport,hist:vHist};
   $("#main").innerHTML=(views[tab]||vFarm)();
-  if(tab==="farm")$("#milkOut").innerHTML=milkOutHtml();
+  if(tab==="farm")$("#herdOut").innerHTML=herdHtml();
   updateHeader();
 }
+function rerenderKeep(sel){const el=document.querySelector(sel);const y=el?el.getBoundingClientRect().top:0;render();const n=document.querySelector(sel);if(n&&el)window.scrollBy(0,n.getBoundingClientRect().top-y);return n}
 function go(t){tab=t;try{history.replaceState(null,"","#"+t)}catch(e){}render();window.scrollTo(0,0)}
 function toast(m){const d=document.createElement("div");d.className="toast";d.textContent=m;document.body.appendChild(d);setTimeout(()=>d.remove(),2200)}
 async function copy(text){try{await navigator.clipboard.writeText(text);toast("복사했습니다");return true}catch(e){const p=$("#sumText");if(p){const r=document.createRange();r.selectNodeContents(p);const s=getSelection();s.removeAllRanges();s.addRange(r)}toast("복사가 막혀 있어 텍스트를 선택해 두었습니다");return false}}
@@ -509,61 +729,70 @@ function download(name,text,type){
   try{const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([text],{type}));a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},500);toast("파일을 저장했습니다");}
   catch(e){copy(text)}
 }
-const fname=ext=>`점검_${(S.farm.name||"농장").replace(/[\\/:*?"<>|\s]+/g,"_")}_${S.farm.date}.${ext}`;
+const fname=ext=>`점검_${(S.farm.name||"목장").replace(/[\\/:*?"<>|\s]+/g,"_")}_${S.farm.date}.${ext}`;
+const vib=()=>{try{navigator.vibrate&&navigator.vibrate(15)}catch(_){}};
 
 /* ---------- 이벤트 ---------- */
 document.addEventListener("click",e=>{
   const b=e.target.closest("button"); if(!b)return;
-  if(b.dataset.tab)return go(b.dataset.tab);
-  if(b.dataset.go)return go(b.dataset.go);
-  if(b.dataset.sec){openSec[b.dataset.sec]=!openSec[b.dataset.sec];return render()}
-  if(b.dataset.item){const v=+b.dataset.v;S.cccs[b.dataset.item]=S.cccs[b.dataset.item]===v?null:v;save();
-    const y=b.getBoundingClientRect().top;render();const nb=document.querySelector(`[data-item="${b.dataset.item}"][data-v="${b.dataset.v}"]`);if(nb)window.scrollBy(0,nb.getBoundingClientRect().top-y);return}
-  if(b.dataset.grp){grp=b.dataset.grp;return render()}
-  if(b.dataset.tally){
-    const ind=SIGNALS.find(x=>x.id===b.dataset.tally),i=+b.dataset.i;
+  const d=b.dataset;
+  if(d.tab)return go(d.tab);
+  if(d.go)return go(d.go);
+  if(d.sec){openSec[d.sec]=!openSec[d.sec];return render()}
+  if(d.item){const v=+d.v, it=ITEM[d.item];
+    const cur=status(it); S.chk[d.item]=(cur===v&&S.chk[d.item]!=null)?null:v; save();
+    rerenderKeep(`[data-item="${d.item}"][data-v="${d.v}"]`);return}
+  if(d.grp){grp=d.grp;return render()}
+  if(d.tally){
+    const ind=SIGNALS.find(x=>x.id===d.tally),i=+d.i;
     S.signals[grp]=S.signals[grp]||{}; const c=S.signals[grp][ind.id]=S.signals[grp][ind.id]||ind.opts.map(()=>0);
-    c[i]=Math.max(0,c[i]+(minus?-1:1)); save();
-    try{navigator.vibrate&&navigator.vibrate(15)}catch(_){}
-    const y=b.getBoundingClientRect().top;render();
-    const nb=document.querySelector(`[data-tally="${ind.id}"][data-i="${i}"]`); if(nb){window.scrollBy(0,nb.getBoundingClientRect().top-y);nb.classList.add("flash");setTimeout(()=>nb.classList.remove("flash"),180)}
+    c[i]=Math.max(0,c[i]+(minus?-1:1)); save(); vib();
+    const nb=rerenderKeep(`[data-tally="${ind.id}"][data-i="${i}"]`); if(nb){nb.classList.add("flash");setTimeout(()=>nb.classList.remove("flash"),180)}
     return;
   }
-  if(b.dataset.load){const v=store.get(KEY_VISITS,[]).find(x=>x.id===b.dataset.load);if(v){S=JSON.parse(JSON.stringify(v));save();toast("점검을 불러왔습니다");go("report")}return}
-  if(b.dataset.del){const box=$("#hv_"+b.dataset.del);box.innerHTML=`<span class="confirm"><span class="small">삭제할까요?</span><button class="danger" data-delok="${b.dataset.del}">삭제</button><button data-act="cancelDel">취소</button></span>`;return}
-  if(b.dataset.delok){store.set(KEY_VISITS,store.get(KEY_VISITS,[]).filter(x=>x.id!==b.dataset.delok));toast("삭제했습니다");return render()}
-  const a=b.dataset.act;
+  if(d.sign){S.signs[grp]=S.signs[grp]||{};S.signs[grp][d.sign]=Math.max(0,(S.signs[grp][d.sign]||0)+(minus?-1:1));save();vib();rerenderKeep(`[data-sign="${d.sign}"]`);return}
+  if(d.calf){const i=+d.i;S.calf[d.calf]=S.calf[d.calf]===i?null:i;save();rerenderKeep(`[data-calf="${d.calf}"][data-i="${i}"]`);return}
+  if(d.calfok){S.calf[d.calfok]={d:[]};save();rerenderKeep(`[data-calfok="${d.calfok}"]`);return}
+  if(d.calfzero){const v=S.calf[d.calfzero];S.calf[d.calfzero]=v&&v.zero?null:{zero:true,d:[]};save();rerenderKeep(`[data-calfzero="${d.calfzero}"]`);return}
+  if(d.calfded){const id=d.calfded,i=+d.i;const v=S.calf[id]&&!S.calf[id].zero?S.calf[id]:{d:[]};v.d=v.d||[];v.d[i]=!v.d[i];S.calf[id]=v;save();rerenderKeep(`[data-calfded="${id}"][data-i="${i}"]`);return}
+  if(d.load){const v=store.get(KEY_VISITS,[]).find(x=>x.id===d.load);if(v){S=migrate(JSON.parse(JSON.stringify(v)));save();toast("점검을 불러왔습니다");go("report")}return}
+  if(d.del){$("#hv_"+d.del).innerHTML=`<span class="confirm"><span class="small">삭제할까요?</span><button class="danger" data-delok="${d.del}">삭제</button><button data-act="cancelDel">취소</button></span>`;return}
+  if(d.delok){store.set(KEY_VISITS,store.get(KEY_VISITS,[]).filter(x=>x.id!==d.delok));toast("삭제했습니다");return render()}
+  const a=d.act;
   if(a==="cancelDel")return render();
   if(a==="expandAll"){const any=Object.values(openSec).some(Boolean);CCCS.forEach(s=>openSec[s.code]=!any);return render()}
   if(a==="new"){
-    if(!S.example && !b.dataset.sure && (Object.keys(S.cccs).length||Object.keys(S.signals).length)){b.dataset.sure="1";b.textContent="현재 내용 지우고 시작";toast("저장하지 않은 내용은 사라집니다. 한 번 더 누르세요");return}
-    S=blank(); save(); openSec={A:true}; toast("새 점검을 시작합니다"); return go("farm");
+    const dirty=!S.example&&(Object.keys(S.chk).length||Object.keys(S.val).length||Object.keys(S.signals).length||Object.keys(S.calf).length);
+    if(dirty&&!d.sure){d.sure="1";b.textContent="현재 내용 지우고 시작";toast("저장하지 않은 내용은 사라집니다. 한 번 더 누르세요");return}
+    S=blank();save();openSec={E:true};toast("새 점검을 시작합니다");return go("farm");
   }
-  if(a==="saveVisit"){const V=store.get(KEY_VISITS,[]);const i=V.findIndex(x=>x.id===S.id);const copyS=JSON.parse(JSON.stringify(S));if(i>=0)V[i]=copyS;else V.push(copyS);toast(store.set(KEY_VISITS,V)?"점검 기록을 저장했습니다":"이 브라우저에서는 저장할 수 없습니다. 백업 파일을 사용하세요");return}
+  if(a==="saveVisit"){const V=store.get(KEY_VISITS,[]);const i=V.findIndex(x=>x.id===S.id);const c=JSON.parse(JSON.stringify(S));if(i>=0)V[i]=c;else V.push(c);toast(store.set(KEY_VISITS,V)?"점검 기록을 저장했습니다":"이 브라우저에서는 저장할 수 없습니다. 백업 파일을 사용하세요");return}
   if(a==="copyText")return copy(summaryText());
   if(a==="csv")return download(fname("csv"),csv(),"text/csv;charset=utf-8");
   if(a==="backup")return download(`점검기록_백업_${today()}.json`,JSON.stringify({visits:store.get(KEY_VISITS,[]),draft:S},null,1),"application/json");
   if(a==="restore")return $("#fileIn").click();
 });
 document.addEventListener("input",e=>{
-  const t=e.target;
-  if(t.dataset.farm){S.farm[t.dataset.farm]=t.value;save();
-    if(["temp","rh"].includes(t.dataset.farm)){const th=thi(),tl=thiLevel(th);$("#thiOut").innerHTML=th==null?'<span class="muted small">온도와 습도를 넣으면 THI가 계산됩니다.</span>':`<span class="mono" style="font-size:22px;font-weight:600">THI ${th}</span><span class="pill ${tl[0]}">${tl[1]}</span>`}
-    if(["fat","prot","mun","scc"].includes(t.dataset.farm))$("#milkOut").innerHTML=milkOutHtml();}
-  if(t.dataset.memo){S.memo[t.dataset.memo]=t.value;save()}
-  if(t.dataset.comfort){S.comfort[grp]=S.comfort[grp]||{};S.comfort[grp][t.dataset.comfort]=t.value.replace(/[^0-9]/g,"");save();$("#comfortOut").innerHTML=comfortHtml(comfortStat(grp))}
+  const t=e.target, d=t.dataset;
+  if(d.farm){S.farm[d.farm]=t.value;save();
+    if(["temp","rh"].includes(d.farm)){const th=thi();$("#thiOut").innerHTML=thiHtml(th,thiLevel(th))}
+    else if(d.farm!=="notes"&&$("#herdOut"))$("#herdOut").innerHTML=herdHtml();}
+  if(d.val){S.val[d.val]=t.value;save();const it=ITEM[d.val];const a=$("#a_"+d.val);if(a)a.innerHTML=autoHtml(it);
+    if(S.chk[d.val]==null){const av=autoStatus(it);t.closest(".item").querySelectorAll(".seg button").forEach(x=>x.setAttribute("aria-pressed",+x.dataset.v===av))}}
+  if(d.memo){S.memo[d.memo]=t.value;save()}
+  if(d.sx){S.sx[grp]=S.sx[grp]||{};S.sx[grp][d.sx]=t.value;save()}
+  if(d.comfort){S.comfort[grp]=S.comfort[grp]||{};S.comfort[grp][d.comfort]=t.value.replace(/[^0-9]/g,"");save();$("#comfortOut").innerHTML=comfortHtml(comfortStat(grp))}
 });
 document.addEventListener("change",e=>{
   if(e.target.id==="minus"){minus=e.target.checked;render()}
-  if(e.target.id==="fileIn"){const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{try{const d=JSON.parse(r.result);const V=store.get(KEY_VISITS,[]);(d.visits||[]).forEach(v=>{if(!V.some(x=>x.id===v.id))V.push(v)});store.set(KEY_VISITS,V);toast(`${(d.visits||[]).length}건을 불러왔습니다`);render()}catch(err){toast("백업 파일 형식이 아닙니다")}};r.readAsText(f);e.target.value=""}
+  if(e.target.id==="fileIn"){const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{try{const dd=JSON.parse(r.result);const V=store.get(KEY_VISITS,[]);(dd.visits||[]).forEach(v=>{if(!V.some(x=>x.id===v.id))V.push(v)});store.set(KEY_VISITS,V);toast(`${(dd.visits||[]).length}건을 불러왔습니다`);render()}catch(err){toast("백업 파일 형식이 아닙니다")}};r.readAsText(f);e.target.value=""}
 });
 window.addEventListener("hashchange",()=>{const t=location.hash.slice(1);if(t&&t!==tab){tab=t;render()}});
 
-if(!S.example && !Object.keys(S.cccs).length) openSec={A:true}; else openSec={A:true,C:true};
+if(S.example) openSec={E:true,R:true};
 render();
 
-/* 오프라인 사용(PWA): 독립 배포 시에만 동작 */
-try{ if("serviceWorker" in navigator && location.protocol==="https:" && !location.hostname.endsWith("claude.ai") && !location.hostname.endsWith("claudeusercontent.com")) navigator.serviceWorker.register("sw.js").catch(()=>{}) }catch(e){}
+try{ if("serviceWorker" in navigator && location.protocol==="https:" && !/claude(usercontent)?\.(ai|com)$/.test(location.hostname)) navigator.serviceWorker.register("sw.js").catch(()=>{}) }catch(e){}
 </script>
 </body>
 </html>
