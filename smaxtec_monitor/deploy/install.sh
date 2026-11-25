@@ -4,6 +4,8 @@
 #   DuckDNS 토큰을 넣으면 서버 IP 가 바뀌어도 주소가 자동으로 따라감(5분마다 갱신)
 set -euo pipefail
 DOMAIN="${1:-}"; ADMIN="${2:-}"; DUCK_TOKEN="${3:-}"
+DOMAIN=$(echo "$DOMAIN" | tr 'A-Z' 'a-z'); DOMAIN=${DOMAIN#https://}; DOMAIN=${DOMAIN%%/*}
+while [[ "$DOMAIN" == *.duckdns.org.duckdns.org ]]; do DOMAIN=${DOMAIN%.duckdns.org}; done   # '.duckdns.org' 두 번 입력 방지
 if [ -z "$DOMAIN" ] || [ -z "$ADMIN" ]; then
   echo "사용법: sudo bash install.sh 내주소.duckdns.org 관리자아이디@example.com [DuckDNS토큰]"; exit 1; fi
 [ "$(id -u)" = 0 ] || { echo "sudo 를 붙여 실행하세요"; exit 1; }

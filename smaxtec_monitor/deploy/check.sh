@@ -32,6 +32,7 @@ except Exception as e:
 PY
 )"
 
+echo "    앱 주소: $(awk '/\{/{sub(/\{.*/,""); print; exit}' /etc/caddy/Caddyfile 2>/dev/null) — 바꾸기: sudo smxmon-domain 새주소.duckdns.org"
 echo "[2] 서비스"
 for s in smxmon-web caddy; do systemctl is-active --quiet $s && ok "$s 실행 중" || ng "$s 꺼짐 → sudo systemctl restart $s"; done
 systemctl is-active --quiet smxmon-collect.timer && ok "자동 수집 타이머 켜짐" || ng "자동 수집 타이머 꺼짐"
