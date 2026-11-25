@@ -1,0 +1,11 @@
+{
+  "name": "낙농 현장점검 CCCS · 카우시그널",
+  "short_name": "현장점검",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f3f5f4",
+  "theme_color": "#16324a",
+  "lang": "ko",
+  "icons": [{"src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable"}]
+}
