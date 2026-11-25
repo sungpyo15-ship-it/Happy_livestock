@@ -504,6 +504,8 @@ function go(t){tab=t;try{history.replaceState(null,"","#"+t)}catch(e){}render();
 function toast(m){const d=document.createElement("div");d.className="toast";d.textContent=m;document.body.appendChild(d);setTimeout(()=>d.remove(),2200)}
 async function copy(text){try{await navigator.clipboard.writeText(text);toast("복사했습니다");return true}catch(e){const p=$("#sumText");if(p){const r=document.createRange();r.selectNodeContents(p);const s=getSelection();s.removeAllRanges();s.addRange(r)}toast("복사가 막혀 있어 텍스트를 선택해 두었습니다");return false}}
 function download(name,text,type){
+  let framed=true;try{framed=window.top!==window.self}catch(_){}
+  if(framed){copy(text);return}
   try{const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([text],{type}));a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},500);toast("파일을 저장했습니다");}
   catch(e){copy(text)}
 }
