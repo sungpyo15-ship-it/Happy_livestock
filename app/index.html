@@ -568,6 +568,8 @@ function sample(){
   };
   s.sx={early:{resp:"42",urin:"6",chew:"52",ids:"312 (외음부 분비물), 287 (앞무릎 부종)"}};
   s.signs={early:{carpal:3,hock:5,udder:4,arched:3,pus:1},hfat2:{hooflong:4,coat:3}};
+  s.fb={opinion:"여름철 대기장 냉방과 급수조 증설을 먼저 하시면 유량 회복이 빠를 것으로 봅니다. 비유초기 우군은 연변과 유단백 3.0% 이하가 함께 보여 에너지 보강을 검토하겠습니다."};
+  s.opinion.report={short:"팬 가동 기준 25℃로 조정, 급수조 1개 추가, 건유우 건초 세절 급여",next:"비유초기 분변지수·반추 횟수 재측정"};
   s.comfort={early:{lying:31,stand:9,feed:10,drink:2,rumi:17},late:{lying:26,stand:3,feed:6,drink:1,rumi:16}};
   return s;
 }
@@ -718,6 +720,36 @@ function findings(){
   return out.sort((a,b)=>a.p-b.p);
 }
 function topRec(F){const out=[],seen=new Set();for(const x of F){const k=x.m+"|"+x.src.replace(/ · .*/,"");if(seen.has(k))continue;seen.add(k);out.push(x);if(out.length===3)break}return out}
+/* ---------- 농가 피드백 (자동 작성) · 평가자 소견 ---------- */
+function strengths(){
+  const out=[];
+  activeMods().forEach(id=>{const m=MOD[id]; if(m.diag)return;
+    m.secs.forEach(sec=>{if(sec.items.every(i=>i.obs))return; const sc=m.kind==="judge"?dScore(sec):pScore(m,sec);
+      if(sc.pct!=null&&sc.pct>=85&&sc.done>=Math.min(2,sc.n))out.push({pct:sc.pct,t:`${m.grp==="dairy"?"낙농 ":""}${m.name} · ${sec.name.replace(/ \(.*\)$/,"")} ${m.kind==="pts"?`(${sc.got}/${sc.max}점)`:`(${sc.pct}%)`}`})})});
+  visGroups().forEach(g=>indFor(g.id).forEach(ind=>{const st=sigStat(g.id,ind);if(st&&st.status==="good"&&st.n>=10)out.push({pct:90,t:`${g.name} ${ind.name}`})}));
+  const c=[]; visGroups().forEach(g=>{const x=comfortStat(g.id);if(x&&x.lieP!=null&&x.lieP>=90)c.push(`${g.name} 휴식(누운 소 ${x.lieP}%)`)});
+  c.forEach(t=>out.push({pct:95,t}));
+  return out.sort((a,b)=>b.pct-a.pct).slice(0,3).map(x=>x.t);
+}
+function autoFeedback(){
+  const f=S.farm, F=findings(), top=topRec(F), good=strengths(), r=S.opinion.report||{};
+  const who=f.owner?`${f.owner} 대표님`:(f.name?`${f.name} 대표님`:"대표님");
+  let t=`${who}, 오늘 점검에 시간 내 주셔서 감사합니다. 점검 결과를 정리해 드립니다.\n`;
+  t+=`\n[잘하고 계신 점]\n`+(good.length?good.map(x=>`- ${x}`).join("\n"):"- 이번 점검에서 기준을 충분히 넘은 항목은 아직 적습니다. 아래 항목부터 함께 개선해 보겠습니다.");
+  t+=`\n\n[먼저 개선하면 좋은 점]\n`+(top.length?top.map((x,i)=>`${i+1}. ${x.t}\n   → ${x.a.split(" (기준:")[0]}`).join("\n"):"- 큰 문제 항목이 없습니다. 지금 관리 수준을 유지해 주세요.");
+  if(f.goal)t+=`\n\n말씀하신 목표(${f.goal})를 위해 위 항목을 우선 실천하시기를 권합니다.`;
+  t+=`\n\n[다음 방문까지]\n`+(r.short?r.short:"위 항목을 실천해 보시고, 다음 방문 때 변화를 함께 확인하겠습니다.");
+  if(r.next)t+=`\n다음 방문 때 확인할 것: ${r.next}`;
+  return t;
+}
+function fbText(){S.fb=S.fb||{};return S.fb.edited&&S.fb.text!=null?S.fb.text:autoFeedback()}
+function fbHtml(){
+  S.fb=S.fb||{};
+  return `<div class="small muted">${S.fb.edited?"직접 고친 내용입니다. 점검 결과가 바뀌어도 그대로 유지됩니다.":"점검 결과로 자동 작성했습니다. 고치면 고친 내용이 유지됩니다."}</div>
+    <label class="f">농가에 전할 피드백<textarea id="fb_text" data-fb="text" rows="14" style="min-height:280px">${esc(fbText())}</textarea></label>
+    <div class="row">${S.fb.edited?`<button data-act="fbReset">자동 내용으로 다시 쓰기</button>`:""}<button data-act="fbCopy">피드백 복사</button></div>
+    <label class="f">평가자 소견<textarea id="fb_op" data-fb="opinion" rows="5" placeholder="평가자의 개인 의견, 현장에서 느낀 점, 제품·관리 제안 등을 적어 주세요">${esc(S.fb.opinion||"")}</textarea></label>`;
+}
 function calving(){const c=num(S.pv.k29c),n=num(S.pv.k29n);return c!=null&&n?Math.round(c/n*100):null}
 
 /* ---------- 화면 ---------- */
@@ -948,6 +980,8 @@ function vReport(){
   <h2>개체관찰 요약</h2>${sigTable()}
   <h2>목표와 후속 조치</h2>
   <div class="card stack">${[["short","단기 목표 (약 2개월)"],["long","장기 목표 (6개월~1년)"],["next","다음 방문 때 확인할 것"]].map(([k,l])=>`<label class="f">${l}<textarea id="op_report_${k}" data-op="report" data-ok="${k}">${esc((S.opinion.report||{})[k])}</textarea></label>`).join("")}</div>
+  <h2>농가 피드백</h2>
+  <div class="card stack" id="fbCard">${fbHtml()}</div>
   <h2>보고서 보내기</h2>
   <div class="card stack" id="sendCard">${sendHtml()}</div>
   <h2>기록·내보내기</h2>
@@ -973,9 +1007,9 @@ function summaryText(){
   if(h.htotal)s+=`한우 ${h.htotal}두 (번식 ${f.hcow||0} · 육성 ${f.hgrow||0} · 비육 ${f.hfat||0} · 송아지 ${f.hcalf||0})\n`;
   activeMods().forEach(id=>{const m=MOD[id],sc=modScore(id);s+=`${m.grp==="dairy"?"낙농 ":""}${m.name} ${sc.label}${m.diag||m.kind==="judge"?"":"점"}${m.diag?"":` (${grade(sc.pct,m)})`}\n`});
   if(t!=null)s+=`THI ${t} (${thiLevel(t)[1]})\n`;
-  const r=S.opinion.report||{}; if(f.goal)s+=`목표: ${f.goal}\n`;
-  const top=topRec(F); s+=`\n■ 핵심 권고\n`+top.map((x,i)=>`${i+1}. ${x.t}\n   → ${x.a.split(" (기준:")[0]}`).join("\n");
-  if(r.short)s+=`\n\n■ 단기 목표\n${r.short}`; if(r.next)s+=`\n\n■ 다음 방문 확인\n${r.next}`;
+
+  const top=topRec(F); s+=`\n${fbText()}`;
+  if(S.fb&&S.fb.opinion)s+=`\n\n■ 평가자 소견\n${S.fb.opinion}`;
   const rest=F.filter(x=>!top.includes(x)), p1=rest.filter(x=>x.p===1), lim=(a)=>a.slice(0,10).map((x,i)=>`${i+1}. [${x.m}] ${x.t}`).join("\n")+(a.length>10?`\n외 ${a.length-10}건`:"");
   if(p1.length) s+=`\n\n■ 그 밖의 우선 개선\n`+lim(p1);
   const p2=rest.filter(x=>x.p===2); if(p2.length) s+=`\n\n■ 개선 권장\n`+lim(p2);
@@ -1110,8 +1144,10 @@ function reportHtml(note,full){
   if(h.htotal)info.push(`한우 ${h.htotal}두`);
   if(t!=null)info.push(`THI ${t} (${thiLevel(t)[1]})`);
   if(info.length)o+=`<p ${P}>${info.join(" · ")}</p>`;
-  if(f.goal||f.concern)o+=`<p ${P}><b>목장 목표</b> ${esc(f.goal)}<br><b>고민</b> ${esc(f.concern)}</p>`;
-  o+=`<h3 ${H3}>핵심 권고</h3><ol style="padding-left:20px;margin:0">${top.map(x=>`<li style="margin-bottom:6px"><b>${esc(x.t)}</b><br>→ ${esc(x.a.split(" (기준:")[0])}</li>`).join("")||"<li>문제 항목 없음</li>"}</ol>`;
+  o+=`<h3 ${H3}>농가 피드백</h3><div style="background:#f3f5f4;border-radius:8px;padding:12px 14px;white-space:normal">${esc(fbText()).replace(/\n/g,"<br>")}</div>`;
+  if(S.fb&&S.fb.opinion)o+=`<h3 ${H3}>평가자 소견</h3><div style="border-left:3px solid #2f6f8f;padding:4px 12px">${esc(S.fb.opinion).replace(/\n/g,"<br>")}</div>`;
+  if(f.goal||f.concern)o+=`<p style="margin:12px 0 8px"><b>목장 목표</b> ${esc(f.goal)}<br><b>고민</b> ${esc(f.concern)}</p>`;
+  o+=`<h3 ${H3}>핵심 권고 (상세)</h3><ol style="padding-left:20px;margin:0">${top.map(x=>`<li style="margin-bottom:6px"><b>${esc(x.t)}</b><br>→ ${esc(x.a.split(" (기준:")[0])}</li>`).join("")||"<li>문제 항목 없음</li>"}</ol>`;
   const p1=rest.filter(x=>x.p===1),p2=rest.filter(x=>x.p===2);
   if(p1.length)o+=`<h3 ${H3}>그 밖의 우선 개선</h3><ul style="padding-left:20px;margin:0">${li(p1)}</ul>`;
   if(p2.length)o+=`<h3 ${H3}>개선 권장</h3><ul style="padding-left:20px;margin:0">${li(p2)}</ul>`;
@@ -1178,6 +1214,8 @@ document.addEventListener("click",e=>{
   if(a==="mailSend")return gmail("send");
   if(a==="mailSendOk")return gmail("send");
   if(a==="mailDraft")return gmail("draft");
+  if(a==="fbReset"){S.fb=S.fb||{};S.fb.edited=false;S.fb.text=null;save();$("#fbCard").innerHTML=fbHtml();$("#sumText").textContent=summaryText();toast("자동 내용으로 다시 썼습니다");return}
+  if(a==="fbCopy")return copy(fbText()+(S.fb&&S.fb.opinion?`\n\n■ 평가자 소견\n${S.fb.opinion}`:""));
   if(a==="mailCancel"){mail.confirm=false;setMailMsg("","");return}
   if(a==="share")return shareReport();
   if(a==="mailto")return mailtoReport();
@@ -1193,6 +1231,7 @@ document.addEventListener("input",e=>{
   if(d.val){S.val[d.val]=t.value;save();const it=DITEM[d.val];const a=$("#a_"+d.val);if(a)a.innerHTML=autoHtml(it);
     if(S.chk[d.val]==null){const av=autoStatus(it);t.closest(".item").querySelectorAll(".seg button").forEach(x=>x.setAttribute("aria-pressed",+x.dataset.v===av))}}
   if(d.memo){S.memo[d.memo]=t.value;save()}
+  if(d.fb){S.fb=S.fb||{};if(d.fb==="text"){S.fb.text=t.value;if(!S.fb.edited){S.fb.edited=true;const n=t.parentElement.parentElement.querySelector(".small.muted");if(n)n.textContent="직접 고친 내용입니다. 점검 결과가 바뀌어도 그대로 유지됩니다."}}else S.fb.opinion=t.value;save();const st=$("#sumText");if(st)st.textContent=summaryText()}
   if(d.mail){S.mail=S.mail||{};S.mail[d.mail]=t.value;save();if(mail.confirm&&d.mail==="to"){mail.confirm=false;const c=$("#sendCard");if(c){const pos=t.selectionStart;c.innerHTML=sendHtml();const n=$("#mail_to");n.focus();try{n.setSelectionRange(pos,pos)}catch(_){}}}}
   if(d.pv){S.pv[d.pv]=t.value;save();const it=Object.values(PITEM).find(i=>i.f&&i.f.some(f=>f[0]===d.pv));if(it){if($("#pa_"+it.id))$("#pa_"+it.id).innerHTML=pAutoHtml(it);
     if(it.rule&&!it.obs){const a=it.rule(S.pv),mx=maxOf(it);const el=$("#pr_"+it.id);if(el)el.innerHTML=a==null?'<span class="small muted">측정값을 넣으면 점수가 계산됩니다</span>':`<span class="pill ${barCls(Math.max(0,a)/mx)}">자동 ${Math.max(0,Math.min(mx,a))}점</span>`}
@@ -1200,7 +1239,7 @@ document.addEventListener("input",e=>{
   if(d.pn){const v=t.value.replace(/[^0-9]/g,"");S.pts[d.pn]=v===""?null:{n:v};save()}
   if(d.room!=null&&d.room!==""&&d.rk){const r=S.rooms[+d.room];r[d.rk]=t.value;save();const o=$("#rc_"+d.room);if(o)o.innerHTML=roomOut(roomCalc(r))}
   if(d.rec&&d.rk){S.rec[d.rec]=S.rec[d.rec]||{};S.rec[d.rec][d.rk]=t.value;save()}
-  if(d.op){S.opinion[d.op]=S.opinion[d.op]||{};S.opinion[d.op][d.ok]=t.value;save()}
+  if(d.op){S.opinion[d.op]=S.opinion[d.op]||{};S.opinion[d.op][d.ok]=t.value;save();if(d.op==="report"&&!(S.fb&&S.fb.edited)&&$("#fb_text")){$("#fb_text").value=fbText();$("#sumText").textContent=summaryText()}}
   if(d.sx){S.sx[grp]=S.sx[grp]||{};S.sx[grp][d.sx]=t.value;save()}
   if(d.comfort){S.comfort[grp]=S.comfort[grp]||{};S.comfort[grp][d.comfort]=t.value.replace(/[^0-9]/g,"");save();$("#comfortOut").innerHTML=comfortHtml(comfortStat(grp))}
 });
