@@ -1239,7 +1239,7 @@ function csv(){
 
 function vHist(){
   const V=store.get(KEY_VISITS,[]);
-  let h=(team.mode==="owner"?`<h2>팀 관리</h2><div class="card stack" id="teamCard">${teamAdminHtml()}</div>`:"")+(team.mode==="fbadmin"?`<h2>팀 관리</h2><div class="card stack" id="teamCard">${fbAdminHtml()}</div>`:"")+(FBM()?`<div class="card stack" style="margin-top:12px"><div class="row" style="justify-content:space-between"><span><b>${esc(FBM().name||"")}</b> <span class="mono small">${esc(FBM().id)}</span>${FBM().isAdmin?' <span class="pill good">관리자</span>':""}<br><span class="small muted">${FBM().isAdmin?"저장한 점검 기록은 팀 기록에 함께 보관됩니다.":"저장한 점검 기록은 관리자와 자동으로 공유됩니다."}</span></span><button data-act="fbLogout">로그아웃</button></div></div>`:"")+(team.mode==="member"&&team.status==="approved"?`<div class="banner" style="border-style:solid">관리자 승인으로 사용 중입니다. 저장한 점검 기록은 관리자와 공유됩니다.</div>`:"")+`<h2>점검 기록</h2><div class="small muted">기록은 이 기기의 브라우저에 저장됩니다. 기기를 바꾸거나 브라우저 데이터를 지우기 전에 백업 파일을 받아 두세요.</div>
+  let h=(team.mode==="owner"?`<h2>팀 관리</h2><div class="card stack" id="teamCard">${teamAdminHtml()}</div>`:"")+(team.mode==="fbadmin"?`<h2>팀 관리</h2><div class="card stack" id="teamCard">${fbAdminHtml()}</div>`:"")+(FBM()?`<div class="card stack" style="margin-top:12px"><div class="row" style="justify-content:space-between"><span><b>${esc(FBM().name||"")}</b> <span class="mono small">${esc(FBM().id)}</span>${FBM().isAdmin?' <span class="pill good">관리자</span>':""}<br><span class="small muted">${FBM().isAdmin?"저장한 점검 기록은 팀 기록에 함께 보관됩니다.":"저장한 점검 기록은 관리자와 자동으로 공유됩니다."}</span></span><button data-act="fbLogout">로그아웃</button></div>${fbAccountHtml()}</div>`:"")+(team.mode==="member"&&team.status==="approved"?`<div class="banner" style="border-style:solid">관리자 승인으로 사용 중입니다. 저장한 점검 기록은 관리자와 공유됩니다.</div>`:"")+`<h2>점검 기록</h2><div class="small muted">기록은 이 기기의 브라우저에 저장됩니다. 기기를 바꾸거나 브라우저 데이터를 지우기 전에 백업 파일을 받아 두세요.</div>
   <div class="row" style="margin-top:10px"><button class="primary" data-act="new">새 점검 시작</button><button data-act="backup">백업 파일 저장</button><button data-act="restore">백업·팀원 기록 불러오기</button></div>
   ${!framed&&!FBM()?`<div class="card stack" style="margin-top:12px"><b>팀 설정 (이 기기)</b>
     <div class="small muted">점검자: ${esc(teamLocal().name||"미설정")}${teamLocal().access?` (로그인: ${esc(teamLocal().access)})`:""}. 팀원은 점검 후 리포트 화면의 "관리자에게 기록 보내기"로 기록 파일을 보내고, 관리자는 받은 파일을 위 "백업·팀원 기록 불러오기"로 엽니다.</div>
@@ -1459,12 +1459,12 @@ function helpManual(){
    <li>승인된 팀원이 "점검 기록 저장"을 누르면 기록이 관리자와 공유되고, 관리자는 팀 관리의 <b>점검 기록</b>에서 열어 볼 수 있습니다. 팀원끼리는 서로의 기록을 볼 수 없습니다.</li></ol>
   <p class="small muted">관리자가 팀원 기록을 열면 관리자 화면의 현재 점검 내용이 그 기록으로 바뀝니다. 작성 중인 점검은 먼저 저장하세요.</p>
   <h3>아이디로 쓰는 배포판 (Claude 계정 없이)</h3>
-  <ol><li>관리자가 알려준 앱 주소를 휴대폰 브라우저로 열고 <b>가입 신청</b>을 누릅니다. 아이디(영문 소문자·숫자), 비밀번호(6자 이상), 이름, 소속·연락처를 넣습니다.</li>
+  <ol><li>관리자가 알려준 앱 주소를 휴대폰 브라우저로 열고 <b>가입 신청</b>을 누릅니다. 아이디(영문 소문자·숫자), 비밀번호(6자 이상), 이름, 비밀번호 찾기용 이메일, 소속·연락처를 넣습니다.</li>
    <li>"승인 대기 중" 화면이 나옵니다. 관리자가 승인하면 그 화면이 자동으로 열립니다.</li>
    <li>관리자는 <b>기록 탭 → 팀 관리</b>에서 가입 신청을 <b>승인·거절</b>하고, 팀원을 <b>중지·다시 허용</b>합니다. 중지하면 그 팀원은 바로 쓸 수 없습니다.</li>
    <li>팀원이 리포트에서 <b>점검 기록 저장</b>을 누르면 관리자에게 자동 공유됩니다. 관리자는 팀원별 <b>점검 기록</b>에서 열어 봅니다.</li>
    <li>휴대폰 브라우저 메뉴의 <b>홈 화면에 추가</b>를 누르면 앱처럼 쓸 수 있습니다.</li></ol>
-  <p class="small muted">비밀번호를 잊은 팀원은 관리자가 Firebase 콘솔의 Authentication에서 그 계정을 삭제한 뒤 다시 가입하게 합니다. 점검 기준과 해설은 암호화되어 있어 승인된 사람만 볼 수 있습니다.</p>
+  <p class="small muted"><b>비밀번호를 잊었을 때</b>: 로그인 화면의 "비밀번호를 잊으셨나요?"에 아이디를 넣으면 가입 때 등록한 이메일로 재설정 링크가 갑니다(스팸함도 확인). 이메일을 등록하지 않은 예전 계정은 로그인한 뒤 <b>기록 탭 → 내 정보</b>에서 이메일을 등록해 두세요. 비밀번호 변경도 같은 곳에서 합니다. 이메일도 없이 비밀번호를 잊었다면 관리자가 Firebase 콘솔의 Authentication에서 그 계정을 삭제한 뒤 다시 가입하게 합니다. 점검 기준과 해설은 암호화되어 있어 승인된 사람만 볼 수 있습니다.</p>
   <h2 id="h-faq">7. 자주 묻는 질문</h2>
   <ul><li><b>화면이 하얗게 나와요</b>: 페이지를 새로고침하세요. 계속되면 다른 브라우저에서 열어 보세요.</li>
    <li><b>예시 데이터를 지우고 싶어요</b>: "새 점검 시작"을 누르면 빈 점검으로 시작합니다.</li>
@@ -1660,6 +1660,23 @@ async function fbOpen(key){const [uid,vid]=key.split("|");const F=FBM();try{cons
 async function fbShare(){const F=FBM();if(!F)return false;try{const body=JSON.stringify(S);if(body.length>900000)return false;
   await F.db.doc(`visits/${F.uid}/list/${S.id}`).set({farm:S.farm.name||"",date:S.farm.date||"",savedAt:Date.now(),by:F.id,name:F.name||"",visit:body});return true}catch(e){return false}}
 
+function fbAccountHtml(){const F=FBM();if(!F||!F.account)return "";const em=F.account.email();
+  return `<details class="why" style="margin-top:6px"><summary>내 정보 (비밀번호 변경 · 비밀번호 찾기용 이메일)</summary><div class="stack" style="gap:8px">
+    <div class="small">비밀번호 찾기용 이메일: <b>${em?esc(em):"등록 안 됨"}</b>${em?"":" (등록해 두면 비밀번호를 잊었을 때 로그인 화면에서 재설정 메일을 받을 수 있습니다)"}</div>
+    <label class="f">현재 비밀번호 (변경·등록할 때 확인용)<input id="acc_cur" type="password" autocomplete="current-password"></label>
+    <label class="f">새 비밀번호 (6자 이상)<input id="acc_new" type="password" autocomplete="new-password"></label>
+    <button data-act="accPw">비밀번호 변경</button>
+    <label class="f">${em?"새 이메일":"등록할 이메일"}<input id="acc_mail" type="email" autocomplete="email" placeholder="예: name@gmail.com"></label>
+    <button data-act="accMail">${em?"이메일 변경":"이메일 등록"}</button>
+    <div class="small" id="accMsg"></div></div></details>`}
+const ACCERR={"auth/wrong-password":"현재 비밀번호가 맞지 않습니다","auth/invalid-credential":"현재 비밀번호가 맞지 않습니다","auth/invalid-login-credentials":"현재 비밀번호가 맞지 않습니다","auth/weak-password":"새 비밀번호는 6자 이상이어야 합니다","auth/email-already-in-use":"다른 계정에서 쓰는 이메일입니다","auth/invalid-email":"이메일 형식을 확인해 주세요","auth/too-many-requests":"시도가 많아 잠시 막혔습니다. 잠시 후 다시 해 주세요","auth/requires-recent-login":"다시 로그인한 뒤 해 주세요"};
+async function accAct(kind){const F=FBM(),m=$("#accMsg"),say=(t,ok)=>{m.textContent=t;m.style.color=ok?"var(--good)":"var(--bad)"};
+  const cur=$("#acc_cur").value||""; if(!cur)return say("현재 비밀번호를 넣어 주세요");
+  try{ if(kind==="pw"){const np=$("#acc_new").value||"";if(np.length<6)return say("새 비밀번호는 6자 이상이어야 합니다");await F.account.changePassword(cur,np);say("비밀번호를 바꿨습니다",true)}
+       else{const mail=($("#acc_mail").value||"").trim().toLowerCase();if(!validMail(mail))return say("이메일 형식을 확인해 주세요");await F.account.setEmail(cur,mail,F.id);say(mail+" 로 확인 메일을 보냈습니다. 메일의 링크를 누르면 등록이 끝납니다 (스팸함도 확인)",true)}
+       $("#acc_cur").value="";$("#acc_new").value="";
+  }catch(e){say(ACCERR[e&&e.code]||"처리하지 못했습니다 ("+((e&&e.code)||"오류")+")")}}
+
 /* ---------- 이벤트 ---------- */
 document.addEventListener("click",e=>{
   const jl=e.target.closest("[data-jump]"); if(jl){e.preventDefault();const el=document.getElementById(jl.dataset.jump);if(el)window.scrollTo({top:el.getBoundingClientRect().top+window.scrollY-60,behavior:"smooth"});return}
@@ -1731,6 +1748,7 @@ document.addEventListener("click",e=>{
   if(a==="fbCopy")return copy(fbText()+(S.fb&&S.fb.opinion?`\n\n■ 평가자 소견\n${S.fb.opinion}`:""));
   if(a==="mailCancel"){mail.confirm=false;setMailMsg("","");return}
   if(a==="fbLogout"){if(b.dataset.sure!=="1"){b.dataset.sure="1";b.textContent="정말 로그아웃";return}return FBM()&&FBM().logout()}
+  if(a==="accPw")return accAct("pw"); if(a==="accMail")return accAct("mail");
   if(a==="share")return shareReport();
   if(a==="shareAdmin")return shareAdmin();
   if(a==="saveRecord")return download(recordName(),recordData(),"application/json");

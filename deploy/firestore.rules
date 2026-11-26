@@ -1,17 +1,36 @@
 rules_version = '2';
 // 현장점검 앱 보안 규칙
-// - 관리자: admin@farmcheck.team 계정 (앱에서는 아이디 "admin")
+// - ids/{아이디}: 아이디 → 계정 연결 (아이디 중복 방지, 로그인·비밀번호 찾기용 이메일 조회)
+// - 관리자: ids/admin 에 연결된 계정 (처음엔 admin@farmcheck.team 계정만 등록 가능)
 // - 팀원: 가입하면 '승인 대기'로만 등록, 승인·중지는 관리자만
 // - 앱 키(secrets): 관리자와 승인된 팀원만 읽기
 // - 점검 기록(visits): 승인된 팀원은 자기 기록만, 관리자는 전체
 service cloud.firestore {
   match /databases/{database}/documents {
     function signedIn() { return request.auth != null; }
-    function isAdmin() { return signedIn() && request.auth.token.email == 'admin@farmcheck.team'; }
+    function isAdmin() {
+      return signedIn()
+        && exists(/databases/$(database)/documents/ids/admin)
+        && get(/databases/$(database)/documents/ids/admin).data.uid == request.auth.uid;
+    }
     function approved() {
       return signedIn()
         && exists(/databases/$(database)/documents/users/$(request.auth.uid))
         && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.status == 'approved';
+    }
+
+    match /ids/{id} {
+      allow get: if true;
+      allow list: if isAdmin();
+      allow create: if signedIn()
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.keys().hasOnly(['uid', 'email', 'pending'])
+        && (id != 'admin' || request.auth.token.email == 'admin@farmcheck.team');
+      allow update: if signedIn()
+        && resource.data.uid == request.auth.uid
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.keys().hasOnly(['uid', 'email', 'pending']);
+      allow delete: if isAdmin();
     }
 
     match /users/{uid} {
