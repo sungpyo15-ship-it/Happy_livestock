@@ -530,7 +530,7 @@ const PITEM=Object.fromEntries(MODS.filter(m=>m.kind==="pts").flatMap(m=>m.secs.
 
 function blank(){
   return {id:uid(),example:false,mods:["dairy"],
-    farm:{name:"",owner:"",date:today(),inspector:"",milking:"",sick:"",dry:"",heifer:"",parity:"",ci:"",afc:"",ship:"",scc:"",bac:"",fat:"",prot:"",snf:"",mun:"",efat:"",eprot:"",lprot:"",yield:"",bw:"",env:"",dmi:"",goal:"",concern:"",
+    farm:{name:"",owner:"",date:today(),inspector:"",milking:"",sick:"",dry:"",heifer:"",parity:"",ci:"",afc:"",ship:"",scc:"",bac:"",fat:"",prot:"",snf:"",mun:"",efat:"",eprot:"",lprot:"",yield:"",bw:"",env:"",dmi:"",goal:"",concern:"",email:"",
       hcow:"",hgrow:"",hfat:"",hcalf:"",temp:"",rh:"",notes:""},
     chk:{},val:{},memo:{},pts:{},pv:{},rooms:[],rec:{},opinion:{},signals:{},sx:{},signs:{},comfort:{}};
 }
@@ -734,7 +734,7 @@ function vFarm(){
   const inp=(k,l,ph="",mode="decimal",type="text")=>`<label class="f">${l}<input id="f_${k}" data-farm="${k}" type="${type}" ${mode?`inputmode="${mode}"`:""} placeholder="${ph}" value="${esc(f[k])}"></label>`;
   let h=`${exampleBanner()}
   <h2>농장 정보</h2>
-  <div class="card stack"><div class="grid2">${inp("name","목장명","","")}${inp("owner","대표자","","")}${inp("date","점검일","","","date")}${inp("inspector","점검자","","")}</div></div>
+  <div class="card stack"><div class="grid2">${inp("name","목장명","","")}${inp("owner","대표자","","")}${inp("date","점검일","","","date")}${inp("inspector","점검자","","")}</div>${inp("email","목장 이메일 (보고서 받는 사람)","","email","email")}</div>
   <h2>점검 분야</h2>
   <div class="card stack"><div class="small muted">해당 분야를 모두 고르세요. 한우 일관사육 농장은 번식우·송아지·비육을 함께 고르면 됩니다.</div>
     <div class="opts">${GRP.map(m=>`<button data-mod="${m.id}" aria-pressed="${on(m.id)}">${m.name}</button>`).join("")}</div>
@@ -948,10 +948,12 @@ function vReport(){
   <h2>개체관찰 요약</h2>${sigTable()}
   <h2>목표와 후속 조치</h2>
   <div class="card stack">${[["short","단기 목표 (약 2개월)"],["long","장기 목표 (6개월~1년)"],["next","다음 방문 때 확인할 것"]].map(([k,l])=>`<label class="f">${l}<textarea id="op_report_${k}" data-op="report" data-ok="${k}">${esc((S.opinion.report||{})[k])}</textarea></label>`).join("")}</div>
-  <h2>내보내기</h2>
+  <h2>보고서 보내기</h2>
+  <div class="card stack" id="sendCard">${sendHtml()}</div>
+  <h2>기록·내보내기</h2>
   <div class="card stack">
-    <div class="row"><button class="primary" data-act="saveVisit">점검 기록 저장</button><button data-act="copyText">카톡용 요약 복사</button><button data-act="csv">CSV 저장</button></div>
-    <div class="small muted">CSV는 엑셀에서 바로 열 수 있습니다. 파일 저장이 막힌 화면에서는 내용이 클립보드로 복사됩니다.</div>
+    <div class="row"><button class="primary" data-act="saveVisit">점검 기록 저장</button><button data-act="copyText">카톡용 요약 복사</button><button data-act="saveReport">보고서 파일 저장</button><button data-act="csv">CSV 저장</button></div>
+    <div class="small muted">보고서 파일(.html)은 휴대폰·PC 어디서나 열리고, 브라우저 인쇄로 PDF를 만들 수 있습니다. CSV는 엑셀에서 열립니다.</div>
     <pre class="copy" id="sumText">${esc(summaryText())}</pre>
   </div>`;
   return h;
@@ -1020,14 +1022,118 @@ function rerenderKeep(sel){const el=document.querySelector(sel);const y=el?el.ge
 function go(t){tab=t;try{history.replaceState(null,"","#"+t)}catch(e){}render();window.scrollTo(0,0)}
 function toast(m){const d=document.createElement("div");d.className="toast";d.textContent=m;document.body.appendChild(d);setTimeout(()=>d.remove(),2200)}
 async function copy(text){try{await navigator.clipboard.writeText(text);toast("복사했습니다");return true}catch(e){const p=$("#sumText");if(p){const r=document.createRange();r.selectNodeContents(p);const s=getSelection();s.removeAllRanges();s.addRange(r)}toast("복사가 막혀 있어 텍스트를 선택해 두었습니다");return false}}
-function download(name,text,type){
-  let framed=true;try{framed=window.top!==window.self}catch(_){}
-  if(framed){copy(text);return}
+async function download(name,text,type){
+  if(framed){
+    const dl=await getCap("downloads");
+    if(!dl){copy(text);return}
+    try{const r=await dl.save({filename:name,data:text});if(r==="saved"||(r&&r.status==="saved")||r)toast("파일을 저장했습니다")}
+    catch(e){const c=e&&e.code; if(c==="declined")return; if(c==="host_unavailable"){toast("이 앱에서는 파일을 저장할 수 없습니다. 브라우저에서 열어 주세요");return} copy(text)}
+    return;
+  }
   try{const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([text],{type}));a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},500);toast("파일을 저장했습니다");}
   catch(e){copy(text)}
 }
 const fname=ext=>`점검_${(S.farm.name||"목장").replace(/[\\/:*?"<>|\s]+/g,"_")}_${S.farm.date}.${ext}`;
 const vib=()=>{try{navigator.vibrate&&navigator.vibrate(15)}catch(_){}};
+
+
+/* ---------- 보고서 문서 · 보내기 ---------- */
+const framed=(()=>{try{return window.top!==window.self}catch(_){return true}})();
+const capCache={};
+function getCap(n){if(!capCache[n])capCache[n]=(window.claude&&window.claude.use)?window.claude.use(n).catch(()=>null):Promise.resolve(null);return capCache[n]}
+let mailCap=undefined; getCap("mcp").then(m=>{mailCap=m;if(tab==="report"&&$("#sendCard"))$("#sendCard").innerHTML=sendHtml()});
+let mail={confirm:false,busy:false,msg:"",msgCls:"",link:""};
+const MAILKEY="hl_mail_last_v1";
+function mailState(){S.mail=S.mail||{};const last=store.get(MAILKEY,{});return {to:S.mail.to??(S.farm.email||last.to||""),cc:S.mail.cc??(last.cc||""),subject:S.mail.subject??`[현장점검] ${S.farm.name||"목장"} ${S.farm.date}`,note:S.mail.note??"",sig:S.mail.sig??true,att:S.mail.att??true}}
+const emails=v=>String(v||"").split(/[,;\s]+/).map(x=>x.trim()).filter(Boolean);
+const validMail=x=>/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(x);
+function sendHtml(){
+  const m=mailState(), canShare=!framed&&navigator.share, gm=mailCap;
+  const ti=(k,l,ph,type="text")=>`<label class="f">${l}<input id="mail_${k}" data-mail="${k}" type="${type}" placeholder="${ph}" value="${esc(m[k])}"></label>`;
+  let h=`<div class="grid2">${ti("to","받는 사람","목장주·동료 이메일 (여러 명은 쉼표)","email")}${ti("cc","참조","선택","email")}</div>
+    ${ti("subject","제목","")}
+    <label class="f">인사말·추가 메모<textarea id="mail_note" data-mail="note" placeholder="예: 오늘 점검 결과입니다. 다음 방문 때 핵심 권고 3가지를 함께 확인하겠습니다.">${esc(m.note)}</textarea></label>
+    <div class="row small"><label class="switch"><input type="checkbox" id="mail_att" data-mailc="att" ${m.att?"checked":""}> 보고서 파일·CSV 첨부</label><label class="switch"><input type="checkbox" id="mail_sig" data-mailc="sig" ${m.sig?"checked":""}> Gmail 서명 넣기</label></div>`;
+  if(gm){
+    if(mail.confirm){h+=`<div class="banner" style="border-style:solid"><span><b>${esc(emails(m.to).join(", "))}</b>에게 지금 보냅니다.</span><div class="row"><button class="primary" data-act="mailSendOk" ${mail.busy?"disabled":""}>${mail.busy?"보내는 중…":"보내기"}</button><button data-act="mailCancel">취소</button></div></div>`}
+    else h+=`<div class="row"><button class="primary" data-act="mailSend" ${mail.busy?"disabled":""}>Gmail로 보내기</button><button data-act="mailDraft" ${mail.busy?"disabled":""}>Gmail 초안 만들기</button></div>
+      <div class="small muted">내 Gmail 계정에서 보냅니다. 처음 한 번은 Gmail 연결 허용을 묻습니다. 초안으로 만들면 Gmail에서 확인 후 직접 보낼 수 있습니다.</div>`;
+  } else if(framed){
+    h+=`<div class="small muted">${mailCap===undefined?"Gmail 연결을 확인하는 중입니다…":"이 화면에서는 Gmail 연결을 쓸 수 없습니다. claude.ai에서 Gmail 커넥터를 연결하면 여기서 바로 보낼 수 있습니다. 지금은 아래 카톡용 요약 복사나 보고서 파일 저장을 이용하세요."}</div>`;
+  }
+  if(!framed){
+    h+=`<div class="row">${canShare?`<button class="primary" data-act="share">공유하기 (카톡·메일·문자)</button>`:""}<button data-act="mailto">메일 앱으로 보내기</button></div>
+      <div class="small muted">${canShare?"공유하기는 휴대폰의 공유 창을 열어 카카오톡, 메일, 문자 등으로 보고서 파일과 요약을 보냅니다. ":""}메일 앱으로 보내기는 요약만 본문에 넣습니다 (파일 첨부는 보고서 파일 저장 후 직접).</div>`;
+  }
+  if(mail.msg)h+=`<div class="small"><span class="pill ${mail.msgCls}">${esc(mail.msg)}</span>${mail.link?` <a href="${esc(mail.link)}" target="_blank" rel="noopener">Gmail에서 열기</a>`:""}</div>`;
+  return h;
+}
+function setMailMsg(msg,cls,link){mail.msg=msg;mail.msgCls=cls;mail.link=link&&/^https:\/\//.test(link)?link:"";const c=$("#sendCard");if(c)c.innerHTML=sendHtml()}
+const b64=str=>{const bytes=new TextEncoder().encode(str);let bin="";for(let i=0;i<bytes.length;i+=0x8000)bin+=String.fromCharCode.apply(null,bytes.subarray(i,i+0x8000));return btoa(bin)};
+async function gmail(kind){
+  const m=mailState(), to=emails(m.to), cc=emails(m.cc);
+  if(!to.length){setMailMsg("받는 사람 이메일을 넣어 주세요","bad");return}
+  const bad=[...to,...cc].filter(x=>!validMail(x)); if(bad.length){setMailMsg(`이메일 형식을 확인해 주세요: ${bad.join(", ")}`,"bad");return}
+  if(kind==="send"&&!mail.confirm){mail.confirm=true;setMailMsg("","");return}
+  const mc=await getCap("mcp"); if(!mc){setMailMsg("Gmail 연결을 쓸 수 없습니다","bad");return}
+  mail.busy=true;setMailMsg("","");
+  const input={to,subject:m.subject||`[현장점검] ${S.farm.name||"목장"}`,body:(m.note?m.note+"\n\n":"")+summaryText(),htmlBody:reportHtml(m.note,false),includeSignature:!!m.sig};
+  if(cc.length)input.cc=cc;
+  if(m.att)input.attachments=[{filename:fname("html"),mimeType:"text/html",content:b64(reportDoc())},{filename:fname("csv"),mimeType:"text/csv",content:b64(csv())}];
+  try{
+    const r=await mc.callTool("Gmail",kind==="send"?"send_message":"create_draft",input,{cache:false});
+    const pl=r&&r.payload||{}; store.set(MAILKEY,{to:m.to,cc:m.cc});
+    mail.busy=false;mail.confirm=false;
+    S.mail.sent=S.mail.sent||[];S.mail.sent.push({at:new Date().toISOString(),kind,to:m.to});save();
+    setMailMsg(kind==="send"?`${to.join(", ")}에게 보냈습니다`:"Gmail 임시보관함에 초안을 만들었습니다","good",pl.viewUrl||(pl.message&&pl.message.viewUrl)||"");
+  }catch(e){
+    mail.busy=false;mail.confirm=false;
+    const c=e&&e.code, msgs={needs_reauth:"Gmail 연결이 만료되었습니다. claude.ai 설정 → 커넥터에서 Gmail을 다시 연결하세요",server_not_connected:"Gmail이 연결되어 있지 않습니다. claude.ai 설정 → 커넥터에서 Gmail을 추가하세요",
+      not_in_manifest:"이 페이지의 Gmail 사용이 허용되지 않았습니다. 페이지의 권한 메뉴에서 허용할 수 있습니다",approval_required:"보내기 승인이 필요합니다. 다시 눌러 승인해 주세요",blocked_by_policy:"조직 정책으로 Gmail 보내기가 막혀 있습니다",
+      tool_error:"Gmail이 요청을 거절했습니다. 이메일 주소와 첨부 크기를 확인하세요",cancelled:"취소되었습니다"};
+    setMailMsg(msgs[c]||`보내지 못했습니다 (${c||"오류"}). 잠시 후 다시 시도하세요`,"bad");
+  }
+}
+function reportHtml(note,full){
+  const F=findings(), top=topRec(F), rest=F.filter(x=>!top.includes(x)), f=S.farm, h=herd(), t=thi();
+  const P='style="margin:0 0 8px"', H3='style="font-size:15px;margin:18px 0 6px;color:#16324a"', TD='style="border-bottom:1px solid #d9e0e3;padding:5px 8px;text-align:left"';
+  const lim=full?999:12, li=a=>a.slice(0,lim).map(x=>`<li style="margin-bottom:4px"><b>${esc(x.t)}</b><br><span style="color:#5d6b75">${esc(x.m)} · ${esc(x.a.split(" (기준:")[0])}</span></li>`).join("")+(a.length>lim?`<li style="color:#5d6b75">외 ${a.length-lim}건 (첨부 보고서 참고)</li>`:"");
+  const r=S.opinion.report||{};
+  let o=`<div style="font-family:'Apple SD Gothic Neo','Malgun Gothic',sans-serif;max-width:680px;color:#16232e;font-size:14px;line-height:1.55">
+  <h2 style="font-size:19px;margin:0 0 4px;color:#16324a">현장점검 결과 · ${esc(f.name||"목장")}</h2>
+  <p style="margin:0 0 12px;color:#5d6b75">${esc(f.date)}${f.inspector?` · 점검자 ${esc(f.inspector)}`:""}</p>
+  ${note?`<p ${P}>${esc(note).replace(/\n/g,"<br>")}</p>`:""}
+  <table style="border-collapse:collapse;width:100%;margin:8px 0"><tr><th ${TD}>분야</th><th ${TD}>점수</th><th ${TD}>평가</th></tr>
+  ${activeMods().map(id=>{const m=MOD[id],sc=modScore(id);return `<tr><td ${TD}>${m.grp==="dairy"?"낙농 ":""}${esc(m.name)}</td><td ${TD}>${esc(sc.label)}</td><td ${TD}>${m.diag?"":esc(grade(sc.pct,m))}</td></tr>`}).join("")}</table>`;
+  const info=[];
+  if(S.mods.includes("dairy")&&f.milking)info.push(`착유 ${esc(f.milking)}두`+(h.perHead?` · 두당 ${h.perHead} L`:"")+(f.scc?` · 체세포 ${esc(f.scc)}만(${h.sccGrade})`:""));
+  if(h.htotal)info.push(`한우 ${h.htotal}두`);
+  if(t!=null)info.push(`THI ${t} (${thiLevel(t)[1]})`);
+  if(info.length)o+=`<p ${P}>${info.join(" · ")}</p>`;
+  if(f.goal||f.concern)o+=`<p ${P}><b>목장 목표</b> ${esc(f.goal)}<br><b>고민</b> ${esc(f.concern)}</p>`;
+  o+=`<h3 ${H3}>핵심 권고</h3><ol style="padding-left:20px;margin:0">${top.map(x=>`<li style="margin-bottom:6px"><b>${esc(x.t)}</b><br>→ ${esc(x.a.split(" (기준:")[0])}</li>`).join("")||"<li>문제 항목 없음</li>"}</ol>`;
+  const p1=rest.filter(x=>x.p===1),p2=rest.filter(x=>x.p===2);
+  if(p1.length)o+=`<h3 ${H3}>그 밖의 우선 개선</h3><ul style="padding-left:20px;margin:0">${li(p1)}</ul>`;
+  if(p2.length)o+=`<h3 ${H3}>개선 권장</h3><ul style="padding-left:20px;margin:0">${li(p2)}</ul>`;
+  const rows=[]; visGroups().forEach(g=>indFor(g.id).forEach(ind=>{const st=sigStat(g.id,ind);if(st)rows.push(`<tr><td ${TD}>${esc(g.name)}</td><td ${TD}>${esc(ind.name)}</td><td ${TD}>${st.n}</td><td ${TD}>${st.pct==null?`평균 ${st.mean.toFixed(2)} (목표 ${st.tgt})`:st.pct+"%"}</td><td ${TD}>${st.status==="good"?"양호":st.status==="warn"?"주의":"불량"}</td></tr>`)}));
+  if(rows.length)o+=`<h3 ${H3}>개체관찰 요약</h3><table style="border-collapse:collapse;width:100%"><tr><th ${TD}>우군</th><th ${TD}>지표</th><th ${TD}>두수</th><th ${TD}>문제 비율</th><th ${TD}>판정</th></tr>${rows.join("")}</table>`;
+  if(r.short||r.long||r.next)o+=`<h3 ${H3}>목표와 후속 조치</h3>${r.short?`<p ${P}><b>단기 (약 2개월)</b> ${esc(r.short)}</p>`:""}${r.long?`<p ${P}><b>장기 (6개월~1년)</b> ${esc(r.long)}</p>`:""}${r.next?`<p ${P}><b>다음 방문 확인</b> ${esc(r.next)}</p>`:""}`;
+  o+=`<p style="margin-top:18px;color:#8a959c;font-size:12px">현장점검 앱으로 작성한 보고서입니다.${full?"":" 전체 항목은 첨부 파일을 확인하세요."}</p></div>`;
+  return o;
+}
+function reportDoc(){return `<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>현장점검 ${esc(S.farm.name||"")} ${esc(S.farm.date)}</title>
+<style>body{margin:0;padding:24px 16px;background:#fff}@media print{body{padding:0}}</style></head><body>${reportHtml(mailState().note,true)}</body></html>`}
+async function shareReport(){
+  const text=summaryText(), file=new File([reportDoc()],fname("html"),{type:"text/html"});
+  try{
+    if(navigator.canShare&&navigator.canShare({files:[file]}))await navigator.share({title:`현장점검 ${S.farm.name||""}`,text,files:[file]});
+    else await navigator.share({title:`현장점검 ${S.farm.name||""}`,text});
+  }catch(e){if(e&&e.name!=="AbortError")toast("공유하지 못했습니다. 카톡용 요약 복사를 이용하세요")}
+}
+function mailtoReport(){
+  const m=mailState(); const body=((m.note?m.note+"\n\n":"")+summaryText()).slice(0,1800);
+  location.href=`mailto:${encodeURIComponent(emails(m.to).join(","))}?subject=${encodeURIComponent(m.subject)}${m.cc?`&cc=${encodeURIComponent(emails(m.cc).join(","))}`:""}&body=${encodeURIComponent(body)}`;
+}
 
 /* ---------- 이벤트 ---------- */
 document.addEventListener("click",e=>{
@@ -1068,6 +1174,13 @@ document.addEventListener("click",e=>{
   }
   if(a==="saveVisit"){const V=store.get(KEY_VISITS,[]);const i=V.findIndex(x=>x.id===S.id);const c=JSON.parse(JSON.stringify(S));if(i>=0)V[i]=c;else V.push(c);toast(store.set(KEY_VISITS,V)?"점검 기록을 저장했습니다":"이 브라우저에서는 저장할 수 없습니다. 백업 파일을 사용하세요");return}
   if(a==="copyText")return copy(summaryText());
+  if(a==="saveReport")return download(fname("html"),reportDoc(),"text/html;charset=utf-8");
+  if(a==="mailSend")return gmail("send");
+  if(a==="mailSendOk")return gmail("send");
+  if(a==="mailDraft")return gmail("draft");
+  if(a==="mailCancel"){mail.confirm=false;setMailMsg("","");return}
+  if(a==="share")return shareReport();
+  if(a==="mailto")return mailtoReport();
   if(a==="csv")return download(fname("csv"),csv(),"text/csv;charset=utf-8");
   if(a==="backup")return download(`점검기록_백업_${today()}.json`,JSON.stringify({visits:store.get(KEY_VISITS,[]),draft:S},null,1),"application/json");
   if(a==="restore")return $("#fileIn").click();
@@ -1080,6 +1193,7 @@ document.addEventListener("input",e=>{
   if(d.val){S.val[d.val]=t.value;save();const it=DITEM[d.val];const a=$("#a_"+d.val);if(a)a.innerHTML=autoHtml(it);
     if(S.chk[d.val]==null){const av=autoStatus(it);t.closest(".item").querySelectorAll(".seg button").forEach(x=>x.setAttribute("aria-pressed",+x.dataset.v===av))}}
   if(d.memo){S.memo[d.memo]=t.value;save()}
+  if(d.mail){S.mail=S.mail||{};S.mail[d.mail]=t.value;save();if(mail.confirm&&d.mail==="to"){mail.confirm=false;const c=$("#sendCard");if(c){const pos=t.selectionStart;c.innerHTML=sendHtml();const n=$("#mail_to");n.focus();try{n.setSelectionRange(pos,pos)}catch(_){}}}}
   if(d.pv){S.pv[d.pv]=t.value;save();const it=Object.values(PITEM).find(i=>i.f&&i.f.some(f=>f[0]===d.pv));if(it){if($("#pa_"+it.id))$("#pa_"+it.id).innerHTML=pAutoHtml(it);
     if(it.rule&&!it.obs){const a=it.rule(S.pv),mx=maxOf(it);const el=$("#pr_"+it.id);if(el)el.innerHTML=a==null?'<span class="small muted">측정값을 넣으면 점수가 계산됩니다</span>':`<span class="pill ${barCls(Math.max(0,a)/mx)}">자동 ${Math.max(0,Math.min(mx,a))}점</span>`}
     if(it.obs&&it.rule&&S.pts[it.id]==null){const a=it.rule(S.pv);t.closest(".item").querySelectorAll("[data-pt]").forEach(x=>x.setAttribute("aria-pressed",+x.dataset.i===a))}}}
@@ -1092,6 +1206,7 @@ document.addEventListener("input",e=>{
 });
 document.addEventListener("change",e=>{
   if(e.target.id==="minus"){minus=e.target.checked;render()}
+  if(e.target.dataset.mailc){S.mail=S.mail||{};S.mail[e.target.dataset.mailc]=e.target.checked;save()}
   if(e.target.id==="fileIn"){const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{try{const dd=JSON.parse(r.result);const V=store.get(KEY_VISITS,[]);(dd.visits||[]).forEach(v=>{if(!V.some(x=>x.id===v.id))V.push(v)});store.set(KEY_VISITS,V);toast(`${(dd.visits||[]).length}건을 불러왔습니다`);render()}catch(err){toast("백업 파일 형식이 아닙니다")}};r.readAsText(f);e.target.value=""}
 });
 window.addEventListener("hashchange",()=>{const t=location.hash.slice(1);if(t&&t!==tab){tab=t;render()}});
