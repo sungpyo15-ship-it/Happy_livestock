@@ -203,7 +203,8 @@ nav.tabs button{position:relative}
    ============================================================ */
 const INF=1e9;
 /* ---------- 단독 배포판 설정 (Claude 없이 링크로 쓰는 버전) ----------
-   codeHash: 팀 코드의 SHA-256 값 (빈 문자열이면 잠금 없음). 기본 팀 코드: HAPPY2026
+   Cloudflare Access 뒤에 배포하면 로그인 계정을 자동으로 읽고 팀 코드는 묻지 않음 (권장)
+   codeHash: Access 없이 배포할 때만 쓰는 팀 코드의 SHA-256 값 (빈 문자열이면 잠금 없음). 기본 팀 코드: HAPPY2026
    adminEmail: 팀원이 기록을 보낼 관리자 이메일 (비워 두면 앱의 기록 탭에서 각자 입력) */
 const TEAM_CFG={codeHash:"757e770313e939245daf4bbbe66561f963b1a5550258253f5c474ca19199f199",adminEmail:"",adminLabel:"관리자"};
 
@@ -1241,9 +1242,9 @@ function vHist(){
   let h=(team.mode==="owner"?`<h2>팀 관리</h2><div class="card stack" id="teamCard">${teamAdminHtml()}</div>`:"")+(team.mode==="member"&&team.status==="approved"?`<div class="banner" style="border-style:solid">관리자 승인으로 사용 중입니다. 저장한 점검 기록은 관리자와 공유됩니다.</div>`:"")+`<h2>점검 기록</h2><div class="small muted">기록은 이 기기의 브라우저에 저장됩니다. 기기를 바꾸거나 브라우저 데이터를 지우기 전에 백업 파일을 받아 두세요.</div>
   <div class="row" style="margin-top:10px"><button class="primary" data-act="new">새 점검 시작</button><button data-act="backup">백업 파일 저장</button><button data-act="restore">백업·팀원 기록 불러오기</button></div>
   ${!framed?`<div class="card stack" style="margin-top:12px"><b>팀 설정 (이 기기)</b>
-    <div class="small muted">점검자: ${esc(teamLocal().name||"미설정")}. 팀원은 점검 후 리포트 화면의 "관리자에게 기록 보내기"로 기록 파일을 보내고, 관리자는 받은 파일을 위 "백업·팀원 기록 불러오기"로 엽니다.</div>
+    <div class="small muted">점검자: ${esc(teamLocal().name||"미설정")}${teamLocal().access?` (로그인: ${esc(teamLocal().access)})`:""}. 팀원은 점검 후 리포트 화면의 "관리자에게 기록 보내기"로 기록 파일을 보내고, 관리자는 받은 파일을 위 "백업·팀원 기록 불러오기"로 엽니다.</div>
     <label class="f">관리자 이메일<input id="admin_email" type="email" placeholder="기록을 받을 관리자 이메일" value="${esc(adminEmail())}"></label>
-    <div class="row"><button data-act="saveAdmin">저장</button>${TEAM_CFG.codeHash?`<button class="ghost" data-act="teamOut">이 기기에서 로그아웃</button>`:""}</div></div>`:""}
+    <div class="row"><button data-act="saveAdmin">저장</button>${teamLocal().access?`<a class="small" href="/cdn-cgi/access/logout" style="align-self:center">로그아웃</a>`:TEAM_CFG.codeHash?`<button class="ghost" data-act="teamOut">이 기기에서 로그아웃</button>`:""}</div></div>`:""}
   <div class="stack" style="margin-top:12px">`;
   if(!V.length)h+=`<div class="card muted">저장된 점검이 없습니다. 리포트 화면에서 <b>점검 기록 저장</b>을 누르면 여기에 쌓입니다.</div>`;
   V.slice().sort((a,b)=>(b.farm.date||"").localeCompare(a.farm.date||"")).forEach(v=>{
@@ -1457,12 +1458,13 @@ function helpManual(){
    <li>승인된 팀원이 "점검 기록 저장"을 누르면 기록이 관리자와 공유되고, 관리자는 팀 관리의 <b>점검 기록</b>에서 열어 볼 수 있습니다. 팀원끼리는 서로의 기록을 볼 수 없습니다.</li></ol>
   <p class="small muted">관리자가 팀원 기록을 열면 관리자 화면의 현재 점검 내용이 그 기록으로 바뀝니다. 작성 중인 점검은 먼저 저장하세요.</p>
   <h3>링크로 쓰는 단독 배포판 (Claude 계정 없이)</h3>
-  <ol><li>관리자가 알려준 주소를 휴대폰 브라우저로 열고, <b>팀 코드</b>와 <b>점검자 이름</b>을 넣습니다. 한 번 넣으면 그 기기에서는 다시 묻지 않습니다.</li>
+  <ol><li>관리자가 알려준 주소를 휴대폰 브라우저로 엽니다. Cloudflare 로그인 화면에서 <b>내 이메일</b>을 넣고, 메일로 온 <b>인증번호</b>를 입력합니다. 관리자가 허용한 이메일만 들어올 수 있습니다.</li>
+   <li>처음 한 번 <b>점검자 이름</b>을 넣습니다. 로그인은 관리자가 정한 기간 동안 유지됩니다.</li>
    <li>휴대폰 브라우저 메뉴의 <b>홈 화면에 추가</b>를 누르면 앱처럼 쓸 수 있고, 우사에서 인터넷이 끊겨도 열립니다.</li>
    <li>기록 탭의 <b>팀 설정</b>에 관리자 이메일을 넣어 둡니다.</li>
    <li>점검 후 리포트 화면의 <b>관리자에게 기록 보내기</b>로 기록 파일(.json)을 카톡이나 메일로 보냅니다.</li>
    <li>관리자는 받은 파일을 기록 탭의 <b>백업·팀원 기록 불러오기</b>로 엽니다. 기록 목록에 "OOO 제출"로 표시됩니다.</li></ol>
-  <p class="small muted">단독 배포판의 팀 코드는 간단한 잠금입니다. 주소와 코드가 함께 퍼지면 막을 수 없고, 팀원을 개별로 중지하는 기능도 없습니다. 팀원이 그만두면 팀 코드를 바꾸세요.</p>
+  <p class="small muted">팀원 추가와 중지는 관리자가 Cloudflare Zero Trust의 허용 이메일 목록에서 합니다. 목록에서 빼고 세션을 취소하면 바로 들어올 수 없습니다. 기록은 각자 기기에 저장되므로 관리자에게 기록 파일을 보내 주세요.</p>
   <h2 id="h-faq">7. 자주 묻는 질문</h2>
   <ul><li><b>화면이 하얗게 나와요</b>: 페이지를 새로고침하세요. 계속되면 다른 브라우저에서 열어 보세요.</li>
    <li><b>예시 데이터를 지우고 싶어요</b>: "새 점검 시작"을 누르면 빈 점검으로 시작합니다.</li>
@@ -1506,14 +1508,26 @@ function helpDoc(){
    db 규칙: 전체 쓰기는 소유자만 / requests/{self}: 각자 자기 요청만 작성, 소유자만 전체 열람 /
    members: 소유자만 승인·중지 / visits/{self}: 각자 자기 점검 기록 업로드, 소유자만 전체 열람 */
 const team={mode:"none",status:"loading",uid:null,db:null,user:null,requests:[],members:[],names:{},myReq:null,noteDraft:"",teamVisits:{},timer:null};
-const gateOn=()=>team.mode==="member"&&team.status!=="approved"||team.mode==="pending"||team.mode==="code";
+const gateOn=()=>team.mode==="member"&&team.status!=="approved"||team.mode==="pending"||team.mode==="code"||team.mode==="name";
 const KEY_TEAM="hl_team_v1";
 function teamLocal(){return store.get(KEY_TEAM,{})}
 async function sha256(t){try{const b=await crypto.subtle.digest("SHA-256",new TextEncoder().encode(t));return [...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,"0")).join("")}catch(e){return null}}
+/* Cloudflare Access 뒤에서 열리면 로그인한 이메일을 받아 팀 코드 없이 사용 */
+async function accessIdentity(){
+  if(!/^https?:$/.test(location.protocol))return null;
+  try{const ctl=new AbortController();const t=setTimeout(()=>ctl.abort(),4000);
+    const r=await fetch("/cdn-cgi/access/get-identity",{credentials:"include",signal:ctl.signal});clearTimeout(t);
+    if(!r.ok)return null;const j=await r.json();return j&&j.email?{email:String(j.email),name:String(j.name||"")}:null}catch(e){return null}
+}
 async function initTeam(){
   if(!framed||!(window.claude&&window.claude.use)){
-    team.mode="none";
-    if(TEAM_CFG.codeHash&&teamLocal().ok!==TEAM_CFG.codeHash){team.mode="code";render()}
+    const L=teamLocal();
+    if(L.access&&L.name){team.mode="none";accessIdentity().then(id=>{if(id&&id.email!==L.access){store.set(KEY_TEAM,{...teamLocal(),access:id.email,name:id.name||""});team.mode="name";render()}});return}
+    if(TEAM_CFG.codeHash&&L.ok===TEAM_CFG.codeHash){team.mode="none";return}
+    team.mode="pending";render();
+    const id=await accessIdentity();
+    if(id){store.set(KEY_TEAM,{...teamLocal(),access:id.email,name:teamLocal().name||id.name||""});team.mode=teamLocal().name?"none":"name";render();return}
+    team.mode=TEAM_CFG.codeHash?"code":"none";render();
     return}
   team.mode="pending"; render();
   team.timer=setTimeout(()=>{if(team.mode==="pending"){team.status="slow";render()}},10000);
@@ -1540,6 +1554,8 @@ const who=id=>team.names[id]||"이름 확인 불가";
 function gateHtml(){
   const st=team.status, r=team.myReq;
   const box=(title,body,extra="")=>`<div class="gate"><div class="gate-icon">${title[0]}</div><h2>${title}</h2><p>${body}</p>${extra}</div>`;
+  if(team.mode==="name")return box("점검자 이름을 입력하세요",`${esc(teamLocal().access||"")} 계정으로 로그인했습니다. 리포트와 기록에 쓸 이름을 넣어 주세요.`,
+    `<div class="card stack" style="text-align:left;max-width:420px;margin:0 auto"><label class="f">점검자 이름<input id="team_name" placeholder="예: 홍길동"></label><button class="primary" data-act="nameEnter">시작하기</button><div class="small muted" id="codeMsg"></div></div>`);
   if(team.mode==="code")return box("팀 코드를 입력하세요","관리자에게 받은 팀 코드와 점검자 이름을 넣으면 사용할 수 있습니다. 한 번 입력하면 이 기기에서는 다시 묻지 않습니다.",
     `<div class="card stack" style="text-align:left;max-width:420px;margin:0 auto"><label class="f">팀 코드<input id="team_code" type="password" autocomplete="off" placeholder="관리자에게 받은 코드"></label>
     <label class="f">점검자 이름<input id="team_name" placeholder="예: 홍길동" value="${esc(teamLocal().name||"")}"></label>
@@ -1643,6 +1659,8 @@ document.addEventListener("click",e=>{
   if(d.del){$("#hv_"+d.del).innerHTML=`<span class="confirm"><span class="small">삭제할까요?</span><button class="danger" data-delok="${d.del}">삭제</button><button data-act="cancelDel">취소</button></span>`;return}
   if(d.delok){store.set(KEY_VISITS,store.get(KEY_VISITS,[]).filter(x=>x.id!==d.delok));toast("삭제했습니다");return render()}
   const a=d.act;
+  if(a==="nameEnter"){const n=($("#team_name").value||"").trim();if(!n){$("#codeMsg").textContent="이름을 넣어 주세요";return}
+    store.set(KEY_TEAM,{...teamLocal(),name:n});team.mode="none";if(!S.farm.inspector||S.example){S.farm.inspector=n;save()}render();toast(`${n}님, 환영합니다`);return}
   if(a==="codeEnter"){(async()=>{const c=($("#team_code").value||"").trim(),n=($("#team_name").value||"").trim();
       if(!n){$("#codeMsg").textContent="점검자 이름을 넣어 주세요";return}
       const h=await sha256(c);if(h===null){$("#codeMsg").textContent="이 브라우저에서는 코드를 확인할 수 없습니다. https 주소로 열어 주세요";return}
