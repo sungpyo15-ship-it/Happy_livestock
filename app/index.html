@@ -191,7 +191,7 @@ details.why div{color:var(--ink);line-height:1.6;padding:2px 0 4px}
 <script>
 /* ============================================================
    점검 기준 설정
-   출처 표시: 표시 없음 = 퓨리나 CCCS·한우 점검표 교육자료(2025.04)
+   출처 표시: 표시 없음 = CCCS·한우 점검표 교육자료(2025.04)
              s:"문헌"  = 교재에 없어 국내 법규·일반 문헌으로 보완 (확인 권장)
    ============================================================ */
 const INF=1e9;
@@ -300,7 +300,7 @@ const CALF=[
 ];
 
 
-/* ---------- 낙농 1. CCCS 착유우 사육환경 지수카드 (퓨리나코리아, 215점) ----------
+/* ---------- 낙농 1. CCCS 착유우 사육환경 지수카드 (CCCS, 원본 215점) ----------
    rule: 측정값 → 점수 자동 계산(감점 규칙 그대로), 직접 점수 입력 시 우선 / na: 해당없음 허용 */
 const R=(id,q,max,hint,f,rule,more)=>Object.assign({id,q,max,hint,f,rule},more||{});
 const NA={na:true};
@@ -457,13 +457,13 @@ function std(m){const i=Math.round(m)-STD.m0;if(i<0||i>=STD.wt.length)return nul
   return {wt:STD.wt[i],adg:STD.adg[i],conc:STD.conc[i],rough:STD.rough[i],stage:st,rname:m<=14?"혼합건초":"볏짚",cost:Math.round(STD.conc[i]*PRICE[st]+STD.rough[i]*PRICE[m<=14?"혼합건초":"볏짚"])}}
 
 const MODS=[
- {id:"cccs",grp:"dairy",name:"CCCS",kind:"pts",secs:CCCS,grade:[85,70],title:"착유우 사육환경 지수카드 (CCCS)",gradeNote:"퓨리나코리아 Cow Care and Comfort Scorecard 기준 200점 만점입니다. 원본 215점에서 추가 시설 보너스(5점)와 휴식 공간·착유장과 중복되는 사조 구역 환기(10점)를 빼 200점으로 맞췄습니다. 해당없음 항목은 만점으로 처리합니다. 측정값을 넣으면 감점 규칙대로 자동 계산되고, 점수를 직접 넣으면 그 값이 우선합니다. 등급 기준은 원본에 없어 85% 우수, 70% 양호를 참고로 씁니다."},
+ {id:"cccs",grp:"dairy",name:"CCCS",kind:"pts",secs:CCCS,grade:[85,70],title:"착유우 사육환경 지수카드 (CCCS)",gradeNote:"Cow Care and Comfort Scorecard(CCCS) 기준 200점 만점입니다. 원본 215점에서 추가 시설 보너스(5점)와 휴식 공간·착유장과 중복되는 사조 구역 환기(10점)를 빼 200점으로 맞췄습니다. 해당없음 항목은 만점으로 처리합니다. 측정값을 넣으면 감점 규칙대로 자동 계산되고, 점수를 직접 넣으면 그 값이 우선합니다. 등급 기준은 원본에 없어 85% 우수, 70% 양호를 참고로 씁니다."},
  {id:"dfeed",grp:"dairy",name:"사양·환경",kind:"judge",secs:DFEED,title:"낙농 사양·환경 측정",gradeNote:""},
  {id:"ddiag",grp:"dairy",name:"문제진단",kind:"pts",secs:DDIAG,diag:true,grade:[85,70],title:"낙농 문제 진단",gradeNote:"파워북의 섭취량·연변·생산성 매뉴얼입니다. 점수 없이 '예'로 답한 항목이 리포트의 원인 후보가 됩니다."},
  {id:"hq",grp:"beef",name:"고급육 점검",kind:"pts",secs:HQ,grade:[80,70],title:"한우고급육 농장 점검표",gradeNote:"30개 항목 5점 척도, 150점 만점입니다. 원본 27개 항목(135점)에 교재 비육 우군별 점검표의 체모 상태·섭취 기록·개체 간 편차 3개를 더했습니다. 회색 숫자는 전라도 고급육 우수농장 9곳의 항목 평균입니다(원본 27개 항목 총점 평균 103점). 등급 기준은 원본에 없어 80% 우수, 70% 양호를 참고로 씁니다."},
  {id:"beef",grp:"beef",name:"우군별 상태",kind:"pts",secs:BEEF,grade:[83,67],title:"비육 우군별 상태 점검표",gradeNote:"CCCS 교재의 비육 우군별 상태 점검표입니다. 원본 120점 중 자료에서 확인된 항목으로 100점 만점을 맞췄습니다(기록 활용 10점 → 8점). 원본 기준 비율대로 83점 이상 우수, 67점 이상 양호입니다."},
  {id:"cow",grp:"cow",name:"번식우",kind:"pts",secs:COW,grade:[80,70],title:"한우 번식우 점검표",gradeNote:"교재 배점 100점 만점: 80점 이상 우수, 70점 이상 양호"},
- {id:"calf",grp:"calf",name:"한우송아지",kind:"pts",secs:CALF,grade:[80,70],title:"한우송아지 체크리스트",gradeNote:"퓨리나 한우송아지 체크리스트 200점 만점. 등급 기준은 원본에 없어 80% 우수, 70% 양호를 참고로 씁니다."}
+ {id:"calf",grp:"calf",name:"한우송아지",kind:"pts",secs:CALF,grade:[80,70],title:"한우송아지 체크리스트",gradeNote:"한우송아지 체크리스트 200점 만점. 등급 기준은 원본에 없어 80% 우수, 70% 양호를 참고로 씁니다."}
 ];
 const MOD=Object.fromEntries(MODS.map(m=>[m.id,m]));
 const GRP=[{id:"dairy",name:"낙농"},{id:"beef",name:"한우비육"},{id:"cow",name:"번식우"},{id:"calf",name:"한우송아지"}];
@@ -1383,7 +1383,7 @@ function helpManual(){
    <li><b>환경과 착유장</b>: 환기, 급수조, 바닥, 대기장, 착유 루틴을 봅니다.</li>
    <li><b>리포트</b>: 핵심 권고를 확인하고, 목표와 다음 방문 계획을 적은 뒤 농가 피드백과 평가자 소견을 다듬어 보냅니다.</li>
   </ol>
-  <p class="small muted">순서는 카길 Farm Walkthrough 교육자료를 따릅니다. 처음 방문하는 농장은 전체를 다 둘러보는 것이 좋습니다.</p>
+  <p class="small muted">순서는 Farm Walkthrough 교육자료를 따릅니다. 처음 방문하는 농장은 전체를 다 둘러보는 것이 좋습니다.</p>
   <h2 id="h-screens">3. 화면별 사용법</h2>
   <h3>농장</h3>
   <ul><li>점검 분야 버튼으로 이번 방문에서 볼 분야를 고릅니다. 고른 분야만 점검표·개체관찰·리포트에 나옵니다.</li>
