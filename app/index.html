@@ -746,7 +746,7 @@ function fbText(){S.fb=S.fb||{};return S.fb.edited&&S.fb.text!=null?S.fb.text:au
 function fbHtml(){
   S.fb=S.fb||{};
   return `<div class="small muted">${S.fb.edited?"직접 고친 내용입니다. 점검 결과가 바뀌어도 그대로 유지됩니다.":"점검 결과로 자동 작성했습니다. 고치면 고친 내용이 유지됩니다."}</div>
-    <label class="f">농가에 전할 피드백<textarea id="fb_text" data-fb="text" rows="14" style="min-height:280px">${esc(fbText())}</textarea></label>
+    <label class="f">농가에 전할 피드백<textarea id="fb_text" data-fb="text" rows="12" style="min-height:240px">${esc(fbText())}</textarea></label>
     <div class="row">${S.fb.edited?`<button data-act="fbReset">자동 내용으로 다시 쓰기</button>`:""}<button data-act="fbCopy">피드백 복사</button></div>
     <label class="f">평가자 소견<textarea id="fb_op" data-fb="opinion" rows="5" placeholder="평가자의 개인 의견, 현장에서 느낀 점, 제품·관리 제안 등을 적어 주세요">${esc(S.fb.opinion||"")}</textarea></label>`;
 }
@@ -962,34 +962,31 @@ function comfortHtml(cs){
    +`<div class="kv"><span>관찰 두수</span><span class="mono">${cs.total}두</span></div>`;
 }
 
+function entered(){return activeMods().filter(id=>modScore(id).done>0)}
 function vReport(){
-  const F=findings(), p1=F.filter(x=>x.p===1).length;
-  let h=`${exampleBanner()}<h2>점검 리포트</h2>
+  const F=findings(), p1=F.filter(x=>x.p===1).length, top=topRec(F), ids=entered();
+  let h=`${exampleBanner()}<h2>점검 결과</h2>
   <div class="small muted">${esc(S.farm.name||"목장명 미입력")} · ${esc(S.farm.date)}${S.farm.inspector?` · 점검자 ${esc(S.farm.inspector)}`:""}</div>
-  <div class="calc" style="margin-top:10px">${activeMods().map(id=>{const m=MOD[id],sc=modScore(id);return `<div class="stat"><div class="v">${sc.label}</div><div class="k">${m.name} · ${grade(sc.pct,m)}</div></div>`}).join("")}
-    <div class="stat"><div class="v" style="color:var(--bad)">${p1}</div><div class="k">우선 개선 항목</div></div></div>`;
-  const top=topRec(F);
-  h+=`<h2>핵심 권고 (3개 이내)</h2><div class="card stack"><div class="small muted">한 번에 3개 이하로 제안하고, 나머지는 다음 방문에 이어 갑니다 (Farm Analysis). 관리 75%, 배합비 25% 비중으로 보세요.</div>
-    ${top.length?top.map((x,i)=>`<div><b>${i+1}. ${esc(x.t)}</b><div class="small muted">${esc(x.m)} · ${esc(x.src)}</div><div class="small">→ ${esc(x.a)}</div></div>`).join(""):'<span class="muted">입력된 문제 항목이 없습니다.</span>'}
-    ${S.farm.goal||S.farm.concern?`<div class="small"><b>목장주 목표</b> ${esc(S.farm.goal)}<br><b>고민</b> ${esc(S.farm.concern)}</div>`:""}</div>`;
-  activeMods().forEach(id=>{const m=MOD[id]; if(m.diag)return;
-    h+=`<h2>${m.grp==="dairy"?"낙농 ":""}${m.name} 섹션별</h2><div class="card">${m.secs.filter(s=>!s.items.every(i=>i.obs)).map(sec=>{const s=m.kind==="judge"?dScore(sec):pScore(m,sec);
-      return `<div class="kv"><span><span class="mono muted">${sec.code}</span> ${sec.name}</span><span class="row">${m.kind==="pts"?`<span class="mono small">${s.done?s.got:"—"}/${s.full}</span>`:""}<span class="meter"><i style="width:${s.pct??0}%;background:${barCol(s.pct)}"></i></span><span class="pct">${s.pct??"—"}</span></span></div>`}).join("")}</div>`});
-  h+=`<h2>개선 우선순위</h2>
-  <div class="card">${F.length?F.map(x=>`<div class="finding p${x.p}"><span class="bar"></span><div style="min-width:0"><div class="small muted">${x.p===1?"우선":"개선"} · ${esc(x.m)} · ${esc(x.src)}</div><div class="t">${esc(x.t)}</div><div class="a">→ ${esc(x.a)}</div></div></div>`).join(""):'<span class="muted">입력된 문제 항목이 없습니다.</span>'}</div>
-  <h2>개체관찰 요약</h2>${sigTable()}
-  <h2>목표와 후속 조치</h2>
-  <div class="card stack">${[["short","단기 목표 (약 2개월)"],["long","장기 목표 (6개월~1년)"],["next","다음 방문 때 확인할 것"]].map(([k,l])=>`<label class="f">${l}<textarea id="op_report_${k}" data-op="report" data-ok="${k}">${esc((S.opinion.report||{})[k])}</textarea></label>`).join("")}</div>
+  <div class="calc" style="margin-top:10px">${ids.map(id=>{const m=MOD[id],sc=modScore(id);return `<div class="stat"><div class="v">${sc.label}</div><div class="k">${m.grp==="dairy"?"낙농 ":""}${m.name}${m.diag?"":` · ${grade(sc.pct,m)}`}</div></div>`}).join("")||'<div class="muted small">아직 입력된 점검이 없습니다.</div>'}</div>
+  <h2>핵심 권고</h2><div class="card stack">
+    ${top.length?top.map((x,i)=>`<div><b>${i+1}. ${esc(x.t)}</b><div class="small">→ ${esc(x.a.split(" (기준:")[0])}</div></div>`).join(""):'<span class="muted">입력된 문제 항목이 없습니다.</span>'}
+    ${F.length>top.length?`<div class="small muted">그 밖의 개선 항목 ${F.length-top.length}건 (우선 ${Math.max(0,p1-top.filter(x=>x.p===1).length)}건)은 아래 상세 분석에 있습니다.</div>`:""}</div>
+  <h2>목표와 다음 방문</h2>
+  <div class="card stack">${[["short","단기 목표 (약 2개월)"],["long","장기 목표 (6개월~1년)"],["next","다음 방문 때 확인할 것"]].map(([k,l])=>`<label class="f">${l}<textarea id="op_report_${k}" data-op="report" data-ok="${k}" rows="2" style="min-height:48px">${esc((S.opinion.report||{})[k])}</textarea></label>`).join("")}</div>
   <h2>농가 피드백</h2>
   <div class="card stack" id="fbCard">${fbHtml()}</div>
-  <h2>보고서 보내기</h2>
+  <h2>보내기</h2>
   <div class="card stack" id="sendCard">${sendHtml()}</div>
-  <h2>기록·내보내기</h2>
-  <div class="card stack">
-    <div class="row"><button class="primary" data-act="saveVisit">점검 기록 저장</button><button data-act="copyText">카톡용 요약 복사</button><button data-act="saveReport">보고서 파일 저장</button><button data-act="csv">CSV 저장</button></div>
-    <div class="small muted">보고서 파일(.html)은 휴대폰·PC 어디서나 열리고, 브라우저 인쇄로 PDF를 만들 수 있습니다. CSV는 엑셀에서 열립니다.</div>
-    <pre class="copy" id="sumText">${esc(summaryText())}</pre>
-  </div>`;
+  <div class="row" style="margin-top:10px"><button class="primary" data-act="saveVisit">점검 기록 저장</button><button data-act="copyText">카톡용 요약 복사</button><button data-act="saveReport">보고서 파일 저장</button></div>
+  <details class="card" style="margin-top:18px"><summary style="cursor:pointer;font-weight:600">상세 분석 (점검자용) · 개선 항목 ${F.length}건</summary>
+    ${ids.filter(id=>!MOD[id].diag).map(id=>{const m=MOD[id];return `<h3 style="margin-top:16px">${m.grp==="dairy"?"낙농 ":""}${m.name} 섹션별</h3><div>${m.secs.filter(s=>!s.items.every(i=>i.obs)).map(sec=>{const s2=m.kind==="judge"?dScore(sec):pScore(m,sec);
+      return `<div class="kv"><span><span class="mono muted">${sec.code}</span> ${sec.name}</span><span class="row">${m.kind==="pts"?`<span class="mono small">${s2.done?s2.got:"—"}/${s2.full}</span>`:""}<span class="meter"><i style="width:${s2.pct??0}%;background:${barCol(s2.pct)}"></i></span><span class="pct">${s2.pct??"—"}</span></span></div>`}).join("")}</div>`}).join("")}
+    <h3 style="margin-top:16px">개선 항목 전체</h3>
+    <div>${F.length?F.map(x=>`<div class="finding p${x.p}"><span class="bar"></span><div style="min-width:0"><div class="small muted">${x.p===1?"우선":"개선"} · ${esc(x.m)} · ${esc(x.src)}</div><div class="t">${esc(x.t)}</div><div class="a">→ ${esc(x.a)}</div></div></div>`).join(""):'<span class="muted">없음</span>'}</div>
+    <h3 style="margin-top:16px">개체관찰 요약</h3>${sigTable()}
+    <div class="row" style="margin-top:12px"><button data-act="saveReportFull">상세 보고서 파일 저장</button><button data-act="csv">CSV 저장</button></div>
+    <h3 style="margin-top:16px">카톡 요약 미리보기</h3><pre class="copy" id="sumText">${esc(summaryText())}</pre>
+  </details>`;
   return h;
 }
 function sigTable(){
@@ -1001,18 +998,11 @@ function sigTable(){
   return `<div class="card scroll"><table class="t"><thead><tr><th>우군</th><th>지표</th><th>두수</th><th>평균</th><th>문제 비율</th><th>판정</th></tr></thead><tbody>${rows.join("")}</tbody></table></div>`;
 }
 function summaryText(){
-  const F=findings(), t=thi(), h=herd(), f=S.farm;
+  const f=S.farm;
   let s=`[현장점검] ${f.name||""} ${f.date}\n`;
-  if(S.mods.includes("dairy")&&f.milking)s+=`착유 ${f.milking}두`+(h.perHead?` / 두당 ${h.perHead}L`:"")+(f.scc?` / 체세포 ${f.scc}만(${h.sccGrade})`:"")+"\n";
-  if(h.htotal)s+=`한우 ${h.htotal}두 (번식 ${f.hcow||0} · 육성 ${f.hgrow||0} · 비육 ${f.hfat||0} · 송아지 ${f.hcalf||0})\n`;
-  activeMods().forEach(id=>{const m=MOD[id],sc=modScore(id);s+=`${m.grp==="dairy"?"낙농 ":""}${m.name} ${sc.label}${m.diag||m.kind==="judge"?"":"점"}${m.diag?"":` (${grade(sc.pct,m)})`}\n`});
-  if(t!=null)s+=`THI ${t} (${thiLevel(t)[1]})\n`;
-
-  const top=topRec(F); s+=`\n${fbText()}`;
-  if(S.fb&&S.fb.opinion)s+=`\n\n■ 평가자 소견\n${S.fb.opinion}`;
-  const rest=F.filter(x=>!top.includes(x)), p1=rest.filter(x=>x.p===1), lim=(a)=>a.slice(0,10).map((x,i)=>`${i+1}. [${x.m}] ${x.t}`).join("\n")+(a.length>10?`\n외 ${a.length-10}건`:"");
-  if(p1.length) s+=`\n\n■ 그 밖의 우선 개선\n`+lim(p1);
-  const p2=rest.filter(x=>x.p===2); if(p2.length) s+=`\n\n■ 개선 권장\n`+lim(p2);
+  entered().filter(id=>!MOD[id].diag).forEach(id=>{const m=MOD[id],sc=modScore(id);s+=`· ${m.grp==="dairy"?"낙농 ":""}${m.name} ${sc.label}${m.diag||m.kind==="judge"?"":"점"}${m.diag?"":` (${grade(sc.pct,m)})`}\n`});
+  s+=`\n${fbText()}`;
+  if(S.fb&&S.fb.opinion)s+=`\n\n[평가자 소견]\n${S.fb.opinion}`;
   return s;
 }
 function csv(){
@@ -1078,7 +1068,7 @@ function getCap(n){if(!capCache[n])capCache[n]=(window.claude&&window.claude.use
 let mailCap=undefined; getCap("mcp").then(m=>{mailCap=m;if(tab==="report"&&$("#sendCard"))$("#sendCard").innerHTML=sendHtml()});
 let mail={confirm:false,busy:false,msg:"",msgCls:"",link:""};
 const MAILKEY="hl_mail_last_v1";
-function mailState(){S.mail=S.mail||{};const last=store.get(MAILKEY,{});return {to:S.mail.to??(S.farm.email||last.to||""),cc:S.mail.cc??(last.cc||""),subject:S.mail.subject??`[현장점검] ${S.farm.name||"목장"} ${S.farm.date}`,note:S.mail.note??"",sig:S.mail.sig??true,att:S.mail.att??true}}
+function mailState(){S.mail=S.mail||{};const last=store.get(MAILKEY,{});return {to:S.mail.to??(S.farm.email||last.to||""),cc:S.mail.cc??(last.cc||""),subject:S.mail.subject??`[현장점검] ${S.farm.name||"목장"} ${S.farm.date}`,note:S.mail.note??"",sig:S.mail.sig??true,att:S.mail.att??false,detail:S.mail.detail??false}}
 const emails=v=>String(v||"").split(/[,;\s]+/).map(x=>x.trim()).filter(Boolean);
 const validMail=x=>/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(x);
 function sendHtml(){
@@ -1087,11 +1077,11 @@ function sendHtml(){
   let h=`<div class="grid2">${ti("to","받는 사람","목장주·동료 이메일 (여러 명은 쉼표)","email")}${ti("cc","참조","선택","email")}</div>
     ${ti("subject","제목","")}
     <label class="f">인사말·추가 메모<textarea id="mail_note" data-mail="note" placeholder="예: 오늘 점검 결과입니다. 다음 방문 때 핵심 권고 3가지를 함께 확인하겠습니다.">${esc(m.note)}</textarea></label>
-    <div class="row small"><label class="switch"><input type="checkbox" id="mail_att" data-mailc="att" ${m.att?"checked":""}> 보고서 파일·CSV 첨부</label><label class="switch"><input type="checkbox" id="mail_sig" data-mailc="sig" ${m.sig?"checked":""}> Gmail 서명 넣기</label></div>`;
+    <div class="row small"><label class="switch"><input type="checkbox" id="mail_detail" data-mailc="detail" ${m.detail?"checked":""}> 본문에 상세 분석 포함</label><label class="switch"><input type="checkbox" id="mail_att" data-mailc="att" ${m.att?"checked":""}> 상세 보고서 파일·CSV 첨부</label><label class="switch"><input type="checkbox" id="mail_sig" data-mailc="sig" ${m.sig?"checked":""}> Gmail 서명 넣기</label></div>`;
   if(gm){
     if(mail.confirm){h+=`<div class="banner" style="border-style:solid"><span><b>${esc(emails(m.to).join(", "))}</b>에게 지금 보냅니다.</span><div class="row"><button class="primary" data-act="mailSendOk" ${mail.busy?"disabled":""}>${mail.busy?"보내는 중…":"보내기"}</button><button data-act="mailCancel">취소</button></div></div>`}
     else h+=`<div class="row"><button class="primary" data-act="mailSend" ${mail.busy?"disabled":""}>Gmail로 보내기</button><button data-act="mailDraft" ${mail.busy?"disabled":""}>Gmail 초안 만들기</button></div>
-      <div class="small muted">내 Gmail 계정에서 보냅니다. 처음 한 번은 Gmail 연결 허용을 묻습니다. 초안으로 만들면 Gmail에서 확인 후 직접 보낼 수 있습니다.</div>`;
+      <div class="small muted">기본은 점수·피드백·소견만 담은 짧은 메일입니다. 내 Gmail 계정에서 보내며, 처음 한 번 연결 허용을 묻습니다.</div>`;
   } else if(framed){
     h+=`<div class="small muted">${mailCap===undefined?"Gmail 연결을 확인하는 중입니다…":"이 화면에서는 Gmail 연결을 쓸 수 없습니다. claude.ai에서 Gmail 커넥터를 연결하면 여기서 바로 보낼 수 있습니다. 지금은 아래 카톡용 요약 복사나 보고서 파일 저장을 이용하세요."}</div>`;
   }
@@ -1111,9 +1101,9 @@ async function gmail(kind){
   if(kind==="send"&&!mail.confirm){mail.confirm=true;setMailMsg("","");return}
   const mc=await getCap("mcp"); if(!mc){setMailMsg("Gmail 연결을 쓸 수 없습니다","bad");return}
   mail.busy=true;setMailMsg("","");
-  const input={to,subject:m.subject||`[현장점검] ${S.farm.name||"목장"}`,body:(m.note?m.note+"\n\n":"")+summaryText(),htmlBody:reportHtml(m.note,false),includeSignature:!!m.sig};
+  const input={to,subject:m.subject||`[현장점검] ${S.farm.name||"목장"}`,body:(m.note?m.note+"\n\n":"")+summaryText(),htmlBody:reportHtml(m.note,!!m.detail),includeSignature:!!m.sig};
   if(cc.length)input.cc=cc;
-  if(m.att)input.attachments=[{filename:fname("html"),mimeType:"text/html",content:b64(reportDoc())},{filename:fname("csv"),mimeType:"text/csv",content:b64(csv())}];
+  if(m.att)input.attachments=[{filename:fname("html"),mimeType:"text/html",content:b64(reportDoc(true))},{filename:fname("csv"),mimeType:"text/csv",content:b64(csv())}];
   try{
     const r=await mc.callTool("Gmail",kind==="send"?"send_message":"create_draft",input,{cache:false});
     const pl=r&&r.payload||{}; store.set(MAILKEY,{to:m.to,cc:m.cc});
@@ -1129,38 +1119,37 @@ async function gmail(kind){
   }
 }
 function reportHtml(note,full){
-  const F=findings(), top=topRec(F), rest=F.filter(x=>!top.includes(x)), f=S.farm, h=herd(), t=thi();
+  const F=findings(), top=topRec(F), rest=F.filter(x=>!top.includes(x)), f=S.farm, h=herd(), t=thi(), r=S.opinion.report||{};
   const P='style="margin:0 0 8px"', H3='style="font-size:15px;margin:18px 0 6px;color:#16324a"', TD='style="border-bottom:1px solid #d9e0e3;padding:5px 8px;text-align:left"';
-  const lim=full?999:12, li=a=>a.slice(0,lim).map(x=>`<li style="margin-bottom:4px"><b>${esc(x.t)}</b><br><span style="color:#5d6b75">${esc(x.m)} · ${esc(x.a.split(" (기준:")[0])}</span></li>`).join("")+(a.length>lim?`<li style="color:#5d6b75">외 ${a.length-lim}건 (첨부 보고서 참고)</li>`:"");
-  const r=S.opinion.report||{};
-  let o=`<div style="font-family:'Apple SD Gothic Neo','Malgun Gothic',sans-serif;max-width:680px;color:#16232e;font-size:14px;line-height:1.55">
+  const li=a=>a.map(x=>`<li style="margin-bottom:4px"><b>${esc(x.t)}</b><br><span style="color:#5d6b75">${esc(x.m)} · ${esc(x.a.split(" (기준:")[0])}</span></li>`).join("");
+  let o=`<div style="font-family:'Apple SD Gothic Neo','Malgun Gothic',sans-serif;max-width:640px;color:#16232e;font-size:14px;line-height:1.6">
   <h2 style="font-size:19px;margin:0 0 4px;color:#16324a">현장점검 결과 · ${esc(f.name||"목장")}</h2>
   <p style="margin:0 0 12px;color:#5d6b75">${esc(f.date)}${f.inspector?` · 점검자 ${esc(f.inspector)}`:""}</p>
   ${note?`<p ${P}>${esc(note).replace(/\n/g,"<br>")}</p>`:""}
-  <table style="border-collapse:collapse;width:100%;margin:8px 0"><tr><th ${TD}>분야</th><th ${TD}>점수</th><th ${TD}>평가</th></tr>
-  ${activeMods().map(id=>{const m=MOD[id],sc=modScore(id);return `<tr><td ${TD}>${m.grp==="dairy"?"낙농 ":""}${esc(m.name)}</td><td ${TD}>${esc(sc.label)}</td><td ${TD}>${m.diag?"":esc(grade(sc.pct,m))}</td></tr>`}).join("")}</table>`;
-  const info=[];
-  if(S.mods.includes("dairy")&&f.milking)info.push(`착유 ${esc(f.milking)}두`+(h.perHead?` · 두당 ${h.perHead} L`:"")+(f.scc?` · 체세포 ${esc(f.scc)}만(${h.sccGrade})`:""));
-  if(h.htotal)info.push(`한우 ${h.htotal}두`);
-  if(t!=null)info.push(`THI ${t} (${thiLevel(t)[1]})`);
-  if(info.length)o+=`<p ${P}>${info.join(" · ")}</p>`;
-  o+=`<h3 ${H3}>농가 피드백</h3><div style="background:#f3f5f4;border-radius:8px;padding:12px 14px;white-space:normal">${esc(fbText()).replace(/\n/g,"<br>")}</div>`;
+  <table style="border-collapse:collapse;width:100%;margin:8px 0">${entered().filter(id=>!MOD[id].diag).map(id=>{const m=MOD[id],sc=modScore(id);return `<tr><td ${TD}>${m.grp==="dairy"?"낙농 ":""}${esc(m.name)}</td><td ${TD}><b>${esc(sc.label)}</b>${m.diag?"":` · ${esc(grade(sc.pct,m))}`}</td></tr>`}).join("")}</table>
+  <div style="background:#f3f5f4;border-radius:8px;padding:12px 14px;margin-top:12px">${esc(fbText()).replace(/\n/g,"<br>")}</div>`;
   if(S.fb&&S.fb.opinion)o+=`<h3 ${H3}>평가자 소견</h3><div style="border-left:3px solid #2f6f8f;padding:4px 12px">${esc(S.fb.opinion).replace(/\n/g,"<br>")}</div>`;
-  if(f.goal||f.concern)o+=`<p style="margin:12px 0 8px"><b>목장 목표</b> ${esc(f.goal)}<br><b>고민</b> ${esc(f.concern)}</p>`;
-  o+=`<h3 ${H3}>핵심 권고 (상세)</h3><ol style="padding-left:20px;margin:0">${top.map(x=>`<li style="margin-bottom:6px"><b>${esc(x.t)}</b><br>→ ${esc(x.a.split(" (기준:")[0])}</li>`).join("")||"<li>문제 항목 없음</li>"}</ol>`;
-  const p1=rest.filter(x=>x.p===1),p2=rest.filter(x=>x.p===2);
-  if(p1.length)o+=`<h3 ${H3}>그 밖의 우선 개선</h3><ul style="padding-left:20px;margin:0">${li(p1)}</ul>`;
-  if(p2.length)o+=`<h3 ${H3}>개선 권장</h3><ul style="padding-left:20px;margin:0">${li(p2)}</ul>`;
-  const rows=[]; visGroups().forEach(g=>indFor(g.id).forEach(ind=>{const st=sigStat(g.id,ind);if(st)rows.push(`<tr><td ${TD}>${esc(g.name)}</td><td ${TD}>${esc(ind.name)}</td><td ${TD}>${st.n}</td><td ${TD}>${st.pct==null?`평균 ${st.mean.toFixed(2)} (목표 ${st.tgt})`:st.pct+"%"}</td><td ${TD}>${st.status==="good"?"양호":st.status==="warn"?"주의":"불량"}</td></tr>`)}));
-  if(rows.length)o+=`<h3 ${H3}>개체관찰 요약</h3><table style="border-collapse:collapse;width:100%"><tr><th ${TD}>우군</th><th ${TD}>지표</th><th ${TD}>두수</th><th ${TD}>문제 비율</th><th ${TD}>판정</th></tr>${rows.join("")}</table>`;
-  if(r.short||r.long||r.next)o+=`<h3 ${H3}>목표와 후속 조치</h3>${r.short?`<p ${P}><b>단기 (약 2개월)</b> ${esc(r.short)}</p>`:""}${r.long?`<p ${P}><b>장기 (6개월~1년)</b> ${esc(r.long)}</p>`:""}${r.next?`<p ${P}><b>다음 방문 확인</b> ${esc(r.next)}</p>`:""}`;
-  o+=`<p style="margin-top:18px;color:#8a959c;font-size:12px">현장점검 앱으로 작성한 보고서입니다.${full?"":" 전체 항목은 첨부 파일을 확인하세요."}</p></div>`;
+  if(r.long)o+=`<p style="margin:12px 0 8px"><b>장기 목표</b> ${esc(r.long)}</p>`;
+  if(full){
+    const info=[];
+    if(S.mods.includes("dairy")&&f.milking)info.push(`착유 ${esc(f.milking)}두`+(h.perHead?` · 두당 ${h.perHead} L`:"")+(f.scc?` · 체세포 ${esc(f.scc)}만(${h.sccGrade})`:""));
+    if(h.htotal)info.push(`한우 ${h.htotal}두`);
+    if(t!=null)info.push(`THI ${t} (${thiLevel(t)[1]})`);
+    o+=`<hr style="border:0;border-top:1px solid #d9e0e3;margin:22px 0 4px"><h3 ${H3}>상세 분석</h3>`;
+    if(info.length)o+=`<p ${P}>${info.join(" · ")}</p>`;
+    const p1=rest.filter(x=>x.p===1),p2=rest.filter(x=>x.p===2);
+    if(p1.length)o+=`<h3 ${H3}>그 밖의 우선 개선</h3><ul style="padding-left:20px;margin:0">${li(p1)}</ul>`;
+    if(p2.length)o+=`<h3 ${H3}>개선 권장</h3><ul style="padding-left:20px;margin:0">${li(p2)}</ul>`;
+    const rows=[]; visGroups().forEach(g=>indFor(g.id).forEach(ind=>{const st=sigStat(g.id,ind);if(st)rows.push(`<tr><td ${TD}>${esc(g.name)}</td><td ${TD}>${esc(ind.name)}</td><td ${TD}>${st.n}</td><td ${TD}>${st.pct==null?`평균 ${st.mean.toFixed(2)} (목표 ${st.tgt})`:st.pct+"%"}</td><td ${TD}>${st.status==="good"?"양호":st.status==="warn"?"주의":"불량"}</td></tr>`)}));
+    if(rows.length)o+=`<h3 ${H3}>개체관찰 요약</h3><table style="border-collapse:collapse;width:100%"><tr><th ${TD}>우군</th><th ${TD}>지표</th><th ${TD}>두수</th><th ${TD}>문제 비율</th><th ${TD}>판정</th></tr>${rows.join("")}</table>`;
+  }
+  o+=`<p style="margin-top:18px;color:#8a959c;font-size:12px">현장점검 앱으로 작성한 보고서입니다.</p></div>`;
   return o;
 }
-function reportDoc(){return `<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>현장점검 ${esc(S.farm.name||"")} ${esc(S.farm.date)}</title>
-<style>body{margin:0;padding:24px 16px;background:#fff}@media print{body{padding:0}}</style><\/head><body>${reportHtml(mailState().note,true)}<\/body><\/html>`}
+function reportDoc(full){return `<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>현장점검 ${esc(S.farm.name||"")} ${esc(S.farm.date)}</title>
+<style>body{margin:0;padding:24px 16px;background:#fff}@media print{body{padding:0}}</style><\/head><body>${reportHtml(mailState().note,!!full)}<\/body><\/html>`}
 async function shareReport(){
-  const text=summaryText(), file=new File([reportDoc()],fname("html"),{type:"text/html"});
+  const text=summaryText(), file=new File([reportDoc(false)],fname("html"),{type:"text/html"});
   try{
     if(navigator.canShare&&navigator.canShare({files:[file]}))await navigator.share({title:`현장점검 ${S.farm.name||""}`,text,files:[file]});
     else await navigator.share({title:`현장점검 ${S.farm.name||""}`,text});
@@ -1210,7 +1199,8 @@ document.addEventListener("click",e=>{
   }
   if(a==="saveVisit"){const V=store.get(KEY_VISITS,[]);const i=V.findIndex(x=>x.id===S.id);const c=JSON.parse(JSON.stringify(S));if(i>=0)V[i]=c;else V.push(c);toast(store.set(KEY_VISITS,V)?"점검 기록을 저장했습니다":"이 브라우저에서는 저장할 수 없습니다. 백업 파일을 사용하세요");return}
   if(a==="copyText")return copy(summaryText());
-  if(a==="saveReport")return download(fname("html"),reportDoc(),"text/html;charset=utf-8");
+  if(a==="saveReport")return download(fname("html"),reportDoc(false),"text/html;charset=utf-8");
+  if(a==="saveReportFull")return download(fname("html").replace(".html","_상세.html"),reportDoc(true),"text/html;charset=utf-8");
   if(a==="mailSend")return gmail("send");
   if(a==="mailSendOk")return gmail("send");
   if(a==="mailDraft")return gmail("draft");
