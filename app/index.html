@@ -202,6 +202,10 @@ nav.tabs button{position:relative}
              s:"문헌"  = 교재에 없어 국내 법규·일반 문헌으로 보완 (확인 권장)
    ============================================================ */
 const INF=1e9;
+/* ---------- 단독 배포판 설정 (Claude 없이 링크로 쓰는 버전) ----------
+   codeHash: 팀 코드의 SHA-256 값 (빈 문자열이면 잠금 없음). 기본 팀 코드: HAPPY2026
+   adminEmail: 팀원이 기록을 보낼 관리자 이메일 (비워 두면 앱의 기록 탭에서 각자 입력) */
+const TEAM_CFG={codeHash:"757e770313e939245daf4bbbe66561f963b1a5550258253f5c474ca19199f199",adminEmail:"",adminLabel:"관리자"};
 
 /* ---------- 2~4. 한우 (배점형) ----------
    opts: [[라벨,점수]...] / scale: 0~max 점수 버튼 / base+ded: 감점식 / obs: 점수 없는 관찰(첫 보기만 정상)
@@ -1235,12 +1239,16 @@ function csv(){
 function vHist(){
   const V=store.get(KEY_VISITS,[]);
   let h=(team.mode==="owner"?`<h2>팀 관리</h2><div class="card stack" id="teamCard">${teamAdminHtml()}</div>`:"")+(team.mode==="member"&&team.status==="approved"?`<div class="banner" style="border-style:solid">관리자 승인으로 사용 중입니다. 저장한 점검 기록은 관리자와 공유됩니다.</div>`:"")+`<h2>점검 기록</h2><div class="small muted">기록은 이 기기의 브라우저에 저장됩니다. 기기를 바꾸거나 브라우저 데이터를 지우기 전에 백업 파일을 받아 두세요.</div>
-  <div class="row" style="margin-top:10px"><button class="primary" data-act="new">새 점검 시작</button><button data-act="backup">백업 파일 저장</button><button data-act="restore">백업 불러오기</button></div>
+  <div class="row" style="margin-top:10px"><button class="primary" data-act="new">새 점검 시작</button><button data-act="backup">백업 파일 저장</button><button data-act="restore">백업·팀원 기록 불러오기</button></div>
+  ${!framed?`<div class="card stack" style="margin-top:12px"><b>팀 설정 (이 기기)</b>
+    <div class="small muted">점검자: ${esc(teamLocal().name||"미설정")}. 팀원은 점검 후 리포트 화면의 "관리자에게 기록 보내기"로 기록 파일을 보내고, 관리자는 받은 파일을 위 "백업·팀원 기록 불러오기"로 엽니다.</div>
+    <label class="f">관리자 이메일<input id="admin_email" type="email" placeholder="기록을 받을 관리자 이메일" value="${esc(adminEmail())}"></label>
+    <div class="row"><button data-act="saveAdmin">저장</button>${TEAM_CFG.codeHash?`<button class="ghost" data-act="teamOut">이 기기에서 로그아웃</button>`:""}</div></div>`:""}
   <div class="stack" style="margin-top:12px">`;
   if(!V.length)h+=`<div class="card muted">저장된 점검이 없습니다. 리포트 화면에서 <b>점검 기록 저장</b>을 누르면 여기에 쌓입니다.</div>`;
   V.slice().sort((a,b)=>(b.farm.date||"").localeCompare(a.farm.date||"")).forEach(v=>{
     const keep=S; S=migrate(v); const sum=activeMods().filter(id=>!MOD[id].diag).map(id=>`${MOD[id].name} ${modScore(id).label}`).join(" · "), F=findings(); S=keep;
-    h+=`<div class="card"><div class="row" style="justify-content:space-between"><div style="min-width:0"><h3>${esc(v.farm.name||"목장명 없음")}</h3><div class="small muted">${esc(v.farm.date)} · ${sum} · 우선개선 ${F.filter(x=>x.p===1).length}건</div></div>
+    h+=`<div class="card"><div class="row" style="justify-content:space-between"><div style="min-width:0"><h3>${esc(v.farm.name||"목장명 없음")}${v._from?` <span class="pill na">${esc(v._from)} 제출</span>`:""}</h3><div class="small muted">${esc(v.farm.date)}${v.farm.inspector?` · ${esc(v.farm.inspector)}`:""} · ${sum} · 우선개선 ${F.filter(x=>x.p===1).length}건</div></div>
       <div class="row" id="hv_${v.id}"><button data-load="${v.id}">열기</button><button class="ghost danger" data-del="${v.id}">삭제</button></div></div></div>`;
   });
   return h+`</div>`;
@@ -1267,6 +1275,7 @@ async function download(name,text,type){
     catch(e){const c=e&&e.code; if(c==="declined")return; if(c==="host_unavailable"){toast("이 앱에서는 파일을 저장할 수 없습니다. 브라우저에서 열어 주세요");return} copy(text)}
     return;
   }
+  if(/[^\x00-\x7F]/.test(name)){const ext=(name.match(/\.[a-z]+$/i)||[".txt"])[0],kind=/^점검기록/.test(name)?"record":/설명서/.test(name)?"manual":/백업/.test(name)?"backup":ext===".csv"?"data":"report";name=`farmcheck_${kind}_${(S.farm.date||today())}_${Date.now().toString(36).slice(-4)}${ext}`}
   try{const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([text],{type}));a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},500);toast("파일을 저장했습니다");}
   catch(e){copy(text)}
 }
@@ -1290,7 +1299,7 @@ function sendHtml(){
   let h=`<div class="grid2">${ti("to","받는 사람","목장주·동료 이메일 (여러 명은 쉼표)","email")}${ti("cc","참조","선택","email")}</div>
     ${ti("subject","제목","")}
     <label class="f">인사말·추가 메모<textarea id="mail_note" data-mail="note" placeholder="예: 오늘 점검 결과입니다. 다음 방문 때 핵심 권고 3가지를 함께 확인하겠습니다.">${esc(m.note)}</textarea></label>
-    <div class="row small"><label class="switch"><input type="checkbox" id="mail_detail" data-mailc="detail" ${m.detail?"checked":""}> 본문에 상세 분석 포함</label><label class="switch"><input type="checkbox" id="mail_att" data-mailc="att" ${m.att?"checked":""}> 상세 보고서 파일·CSV 첨부</label><label class="switch"><input type="checkbox" id="mail_sig" data-mailc="sig" ${m.sig?"checked":""}> Gmail 서명 넣기</label></div>`;
+    ${gm?`<div class="row small"><label class="switch"><input type="checkbox" id="mail_detail" data-mailc="detail" ${m.detail?"checked":""}> 본문에 상세 분석 포함</label><label class="switch"><input type="checkbox" id="mail_att" data-mailc="att" ${m.att?"checked":""}> 상세 보고서 파일·CSV 첨부</label><label class="switch"><input type="checkbox" id="mail_sig" data-mailc="sig" ${m.sig?"checked":""}> Gmail 서명 넣기</label></div>`:""}`;
   if(gm){
     if(mail.confirm){h+=`<div class="banner" style="border-style:solid"><span><b>${esc(emails(m.to).join(", "))}</b>에게 지금 보냅니다.</span><div class="row"><button class="primary" data-act="mailSendOk" ${mail.busy?"disabled":""}>${mail.busy?"보내는 중…":"보내기"}</button><button data-act="mailCancel">취소</button></div></div>`}
     else h+=`<div class="row"><button class="primary" data-act="mailSend" ${mail.busy?"disabled":""}>Gmail로 보내기</button><button data-act="mailDraft" ${mail.busy?"disabled":""}>Gmail 초안 만들기</button></div>
@@ -1299,6 +1308,11 @@ function sendHtml(){
     h+=`<div class="small muted">${mailCap===undefined?"Gmail 연결을 확인하는 중입니다…":"이 화면에서는 Gmail 연결을 쓸 수 없습니다. claude.ai에서 Gmail 커넥터를 연결하면 여기서 바로 보낼 수 있습니다. 지금은 아래 카톡용 요약 복사나 보고서 파일 저장을 이용하세요."}</div>`;
   }
   if(!framed){
+    const adm=adminEmail();
+    h+=`<div class="card stack" style="background:var(--bg)"><b>관리자에게 기록 보내기</b>
+      <div class="small muted">점검 기록 파일(.json)을 관리자에게 보내면, 관리자는 기록 탭의 "팀원 기록 불러오기"로 열어 봅니다.${adm?` 관리자: ${esc(adm)}`:" 관리자 이메일은 기록 탭에서 설정하세요."}</div>
+      <div class="row">${canShare?`<button class="primary" data-act="shareAdmin">관리자에게 공유 (카톡·메일)</button>`:""}<button data-act="saveRecord">기록 파일 저장</button>${adm?`<button data-act="mailAdmin">관리자에게 메일</button>`:""}</div></div>
+      <b>농가에 보내기</b>`;
     h+=`<div class="row">${canShare?`<button class="primary" data-act="share">공유하기 (카톡·메일·문자)</button>`:""}<button data-act="mailto">메일 앱으로 보내기</button></div>
       <div class="small muted">${canShare?"공유하기는 휴대폰의 공유 창을 열어 카카오톡, 메일, 문자 등으로 보고서 파일과 요약을 보냅니다. ":""}메일 앱으로 보내기는 요약만 본문에 넣습니다 (파일 첨부는 보고서 파일 저장 후 직접).</div>`;
   }
@@ -1442,6 +1456,13 @@ function helpManual(){
    <li>관리자는 언제든 팀원을 <b>중지</b>, <b>다시 허용</b>, <b>삭제</b>할 수 있습니다. 중지하면 팀원 화면이 즉시 잠깁니다.</li>
    <li>승인된 팀원이 "점검 기록 저장"을 누르면 기록이 관리자와 공유되고, 관리자는 팀 관리의 <b>점검 기록</b>에서 열어 볼 수 있습니다. 팀원끼리는 서로의 기록을 볼 수 없습니다.</li></ol>
   <p class="small muted">관리자가 팀원 기록을 열면 관리자 화면의 현재 점검 내용이 그 기록으로 바뀝니다. 작성 중인 점검은 먼저 저장하세요.</p>
+  <h3>링크로 쓰는 단독 배포판 (Claude 계정 없이)</h3>
+  <ol><li>관리자가 알려준 주소를 휴대폰 브라우저로 열고, <b>팀 코드</b>와 <b>점검자 이름</b>을 넣습니다. 한 번 넣으면 그 기기에서는 다시 묻지 않습니다.</li>
+   <li>휴대폰 브라우저 메뉴의 <b>홈 화면에 추가</b>를 누르면 앱처럼 쓸 수 있고, 우사에서 인터넷이 끊겨도 열립니다.</li>
+   <li>기록 탭의 <b>팀 설정</b>에 관리자 이메일을 넣어 둡니다.</li>
+   <li>점검 후 리포트 화면의 <b>관리자에게 기록 보내기</b>로 기록 파일(.json)을 카톡이나 메일로 보냅니다.</li>
+   <li>관리자는 받은 파일을 기록 탭의 <b>백업·팀원 기록 불러오기</b>로 엽니다. 기록 목록에 "OOO 제출"로 표시됩니다.</li></ol>
+  <p class="small muted">단독 배포판의 팀 코드는 간단한 잠금입니다. 주소와 코드가 함께 퍼지면 막을 수 없고, 팀원을 개별로 중지하는 기능도 없습니다. 팀원이 그만두면 팀 코드를 바꾸세요.</p>
   <h2 id="h-faq">7. 자주 묻는 질문</h2>
   <ul><li><b>화면이 하얗게 나와요</b>: 페이지를 새로고침하세요. 계속되면 다른 브라우저에서 열어 보세요.</li>
    <li><b>예시 데이터를 지우고 싶어요</b>: "새 점검 시작"을 누르면 빈 점검으로 시작합니다.</li>
@@ -1485,9 +1506,15 @@ function helpDoc(){
    db 규칙: 전체 쓰기는 소유자만 / requests/{self}: 각자 자기 요청만 작성, 소유자만 전체 열람 /
    members: 소유자만 승인·중지 / visits/{self}: 각자 자기 점검 기록 업로드, 소유자만 전체 열람 */
 const team={mode:"none",status:"loading",uid:null,db:null,user:null,requests:[],members:[],names:{},myReq:null,noteDraft:"",teamVisits:{},timer:null};
-const gateOn=()=>team.mode==="member"&&team.status!=="approved"||team.mode==="pending";
+const gateOn=()=>team.mode==="member"&&team.status!=="approved"||team.mode==="pending"||team.mode==="code";
+const KEY_TEAM="hl_team_v1";
+function teamLocal(){return store.get(KEY_TEAM,{})}
+async function sha256(t){try{const b=await crypto.subtle.digest("SHA-256",new TextEncoder().encode(t));return [...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,"0")).join("")}catch(e){return null}}
 async function initTeam(){
-  if(!framed||!(window.claude&&window.claude.use)){team.mode="none";return}
+  if(!framed||!(window.claude&&window.claude.use)){
+    team.mode="none";
+    if(TEAM_CFG.codeHash&&teamLocal().ok!==TEAM_CFG.codeHash){team.mode="code";render()}
+    return}
   team.mode="pending"; render();
   team.timer=setTimeout(()=>{if(team.mode==="pending"){team.status="slow";render()}},10000);
   const [user,db]=await Promise.all([getCap("user"),getCap("db")]);
@@ -1513,6 +1540,10 @@ const who=id=>team.names[id]||"이름 확인 불가";
 function gateHtml(){
   const st=team.status, r=team.myReq;
   const box=(title,body,extra="")=>`<div class="gate"><div class="gate-icon">${title[0]}</div><h2>${title}</h2><p>${body}</p>${extra}</div>`;
+  if(team.mode==="code")return box("팀 코드를 입력하세요","관리자에게 받은 팀 코드와 점검자 이름을 넣으면 사용할 수 있습니다. 한 번 입력하면 이 기기에서는 다시 묻지 않습니다.",
+    `<div class="card stack" style="text-align:left;max-width:420px;margin:0 auto"><label class="f">팀 코드<input id="team_code" type="password" autocomplete="off" placeholder="관리자에게 받은 코드"></label>
+    <label class="f">점검자 이름<input id="team_name" placeholder="예: 홍길동" value="${esc(teamLocal().name||"")}"></label>
+    <button class="primary" data-act="codeEnter">시작하기</button><div class="small muted" id="codeMsg"></div></div>`);
   if(team.mode==="pending"||st==="loading"||st==="checking")return box(st==="slow"?"연결이 늦습니다":"권한 확인 중",st==="slow"?"사용 권한을 확인하지 못했습니다. 페이지를 새로고침해 주세요.":"잠시만 기다려 주세요.");
   if(st==="slow")return box("연결이 늦습니다","사용 권한을 확인하지 못했습니다. 페이지를 새로고침해 주세요.");
   if(st==="signin")return box("로그인이 필요합니다","claude.ai에 로그인한 뒤 다시 열어 주세요.");
@@ -1558,6 +1589,24 @@ async function shareVisit(){
     await db.doc(`visits/${team.uid}/list/${S.id}`).set({farm:S.farm.name||"",date:S.farm.date||"",savedAt:Date.now(),visit:body});return true}catch(e){return false}
 }
 
+
+/* ---------- 단독 배포판: 관리자에게 기록 보내기 ---------- */
+function adminEmail(){return (store.get(KEY_TEAM,{}).admin||TEAM_CFG.adminEmail||"").trim()}
+function recordName(){const n=teamLocal().name||S.farm.inspector||"점검자";return `점검기록_${(S.farm.name||"목장").replace(/[\\/:*?"<>|\s]+/g,"_")}_${S.farm.date}_${n.replace(/[\\/:*?"<>|\s]+/g,"_")}.json`}
+function recordData(){const c=JSON.parse(JSON.stringify(S));c._from=teamLocal().name||S.farm.inspector||"";c._sentAt=new Date().toISOString();return JSON.stringify({type:"hl-visit",visits:[c]})}
+async function shareAdmin(){
+  const file=new File([recordData()],recordName(),{type:"application/json"}), rep=new File([reportDoc(true)],fname("html"),{type:"text/html"});
+  const text=`[점검 기록] ${S.farm.name||""} ${S.farm.date} · ${teamLocal().name||S.farm.inspector||""}\n첨부한 기록 파일(.json)을 앱 기록 탭의 "팀원 기록 불러오기"로 여세요.`;
+  try{ if(navigator.canShare&&navigator.canShare({files:[file,rep]}))await navigator.share({title:"점검 기록",text,files:[file,rep]});
+       else if(navigator.canShare&&navigator.canShare({files:[file]}))await navigator.share({title:"점검 기록",text,files:[file]});
+       else {toast("이 기기는 파일 공유를 지원하지 않습니다. 기록 파일 저장 후 직접 보내 주세요");return}
+       S.mail=S.mail||{};S.mail.sentAdmin=new Date().toISOString();save();
+  }catch(e){if(e&&e.name!=="AbortError")toast("공유하지 못했습니다. 기록 파일 저장 후 직접 보내 주세요")}
+}
+function mailAdmin(){const adm=adminEmail();if(!adm)return;
+  const body=`${S.farm.name||""} ${S.farm.date} 점검 기록입니다.\n\n${summaryText()}\n\n※ 기록 파일(.json)은 "기록 파일 저장"으로 받은 뒤 이 메일에 첨부해 주세요.`.slice(0,1800);
+  location.href=`mailto:${encodeURIComponent(adm)}?subject=${encodeURIComponent(`[점검 기록] ${S.farm.name||""} ${S.farm.date} · ${teamLocal().name||""}`)}&body=${encodeURIComponent(body)}`}
+
 /* ---------- 이벤트 ---------- */
 document.addEventListener("click",e=>{
   const jl=e.target.closest("[data-jump]"); if(jl){e.preventDefault();const el=document.getElementById(jl.dataset.jump);if(el)window.scrollTo({top:el.getBoundingClientRect().top+window.scrollY-60,behavior:"smooth"});return}
@@ -1594,6 +1643,11 @@ document.addEventListener("click",e=>{
   if(d.del){$("#hv_"+d.del).innerHTML=`<span class="confirm"><span class="small">삭제할까요?</span><button class="danger" data-delok="${d.del}">삭제</button><button data-act="cancelDel">취소</button></span>`;return}
   if(d.delok){store.set(KEY_VISITS,store.get(KEY_VISITS,[]).filter(x=>x.id!==d.delok));toast("삭제했습니다");return render()}
   const a=d.act;
+  if(a==="codeEnter"){(async()=>{const c=($("#team_code").value||"").trim(),n=($("#team_name").value||"").trim();
+      if(!n){$("#codeMsg").textContent="점검자 이름을 넣어 주세요";return}
+      const h=await sha256(c);if(h===null){$("#codeMsg").textContent="이 브라우저에서는 코드를 확인할 수 없습니다. https 주소로 열어 주세요";return}
+      if(h!==TEAM_CFG.codeHash){$("#codeMsg").textContent="팀 코드가 맞지 않습니다";return}
+      store.set(KEY_TEAM,{...teamLocal(),ok:h,name:n});team.mode="none";if(!S.farm.inspector||S.example){S.farm.inspector=n;save()}render();toast(`${n}님, 환영합니다`)})();return}
   if(a==="reqSend"){const note=(team.noteDraft||"").trim();if(!note){toast("이름과 소속을 적어 주세요");return}
     if(team.db&&team.uid)team.db.doc("requests/"+team.uid).set({note:note.slice(0,200),at:Date.now()}).then(()=>{team.status="requested";render();toast("사용 요청을 보냈습니다")}).catch(()=>toast("요청을 보내지 못했습니다. 공유 권한을 확인해 주세요"));return}
   if(a==="reqCancel"){if(team.db&&team.uid)team.db.doc("requests/"+team.uid).delete().then(()=>{team.myReq=null;team.status="none";render()}).catch(()=>{});return}
@@ -1603,13 +1657,13 @@ document.addEventListener("click",e=>{
   if(a==="new"){
     const dirty=!S.example&&(Object.keys(S.chk).length||Object.keys(S.val).length||Object.keys(S.pts).length||Object.keys(S.signals).length);
     if(dirty&&!d.sure){d.sure="1";b.textContent="현재 내용 지우고 시작";toast("저장하지 않은 내용은 사라집니다. 한 번 더 누르세요");return}
-    const mods=S.example?["dairy"]:S.mods.slice(); S=blank(); S.mods=mods; mod=activeMods()[0]; openSec={}; save(); toast("새 점검을 시작합니다. 점검 분야를 고르세요"); return go("farm");
+    const mods=S.example?["dairy"]:S.mods.slice(); S=blank(); S.mods=mods; mod=activeMods()[0]; if(teamLocal().name)S.farm.inspector=teamLocal().name; openSec={}; save(); toast("새 점검을 시작합니다. 점검 분야를 고르세요"); return go("farm");
   }
   if(a==="saveVisit"){shareVisit().then(ok=>{if(ok)toast(team.mode==="owner"?"점검 기록을 저장했습니다":"점검 기록을 저장하고 관리자와 공유했습니다")});const V=store.get(KEY_VISITS,[]);const i=V.findIndex(x=>x.id===S.id);const c=JSON.parse(JSON.stringify(S));if(i>=0)V[i]=c;else V.push(c);toast(store.set(KEY_VISITS,V)?"점검 기록을 저장했습니다":"이 브라우저에서는 저장할 수 없습니다. 백업 파일을 사용하세요");return}
   if(a==="copyText")return copy(summaryText());
   if(a==="saveHelpPdf"){(async()=>{try{const r=await fetch("manual.pdf");if(!r.ok)throw 0;const blob=await r.blob();
       if(framed){const dl=await getCap("downloads");if(!dl){toast("이 화면에서는 저장할 수 없습니다");return}try{await dl.save({filename:"현장점검_사용설명서.pdf",data:blob});toast("PDF를 저장했습니다")}catch(e){if(e&&e.code!=="declined")toast("저장하지 못했습니다")}}
-      else{const u=URL.createObjectURL(blob),l=document.createElement("a");l.href=u;l.download="현장점검_사용설명서.pdf";document.body.appendChild(l);l.click();setTimeout(()=>{URL.revokeObjectURL(u);l.remove()},500)}
+      else{const u=URL.createObjectURL(blob),l=document.createElement("a");l.href=u;l.download="farmcheck_manual.pdf";document.body.appendChild(l);l.click();setTimeout(()=>{URL.revokeObjectURL(u);l.remove()},500)}
     }catch(e){toast("PDF 파일을 불러오지 못했습니다. HTML 저장을 이용하세요")}})();return}
   if(a==="saveHelp")return download("현장점검_사용설명서.html",helpDoc(),"text/html;charset=utf-8");
   if(a==="saveReport")return download(fname("html"),reportDoc(false),"text/html;charset=utf-8");
@@ -1621,6 +1675,11 @@ document.addEventListener("click",e=>{
   if(a==="fbCopy")return copy(fbText()+(S.fb&&S.fb.opinion?`\n\n■ 평가자 소견\n${S.fb.opinion}`:""));
   if(a==="mailCancel"){mail.confirm=false;setMailMsg("","");return}
   if(a==="share")return shareReport();
+  if(a==="shareAdmin")return shareAdmin();
+  if(a==="saveRecord")return download(recordName(),recordData(),"application/json");
+  if(a==="mailAdmin")return mailAdmin();
+  if(a==="saveAdmin"){const v=($("#admin_email").value||"").trim();if(v&&!validMail(v)){toast("이메일 형식을 확인해 주세요");return}store.set(KEY_TEAM,{...teamLocal(),admin:v});toast(v?"관리자 이메일을 저장했습니다":"관리자 이메일을 지웠습니다");return render()}
+  if(a==="teamOut"){if(b.dataset.sure!=="1"){b.dataset.sure="1";b.textContent="정말 로그아웃";return}const t=teamLocal();delete t.ok;store.set(KEY_TEAM,t);if(TEAM_CFG.codeHash)team.mode="code";return render()}
   if(a==="mailto")return mailtoReport();
   if(a==="csv")return download(fname("csv"),csv(),"text/csv;charset=utf-8");
   if(a==="backup")return download(`점검기록_백업_${today()}.json`,JSON.stringify({visits:store.get(KEY_VISITS,[]),draft:S},null,1),"application/json");
@@ -1651,7 +1710,7 @@ document.addEventListener("input",e=>{
 document.addEventListener("change",e=>{
   if(e.target.id==="minus"){minus=e.target.checked;render()}
   if(e.target.dataset.mailc){S.mail=S.mail||{};S.mail[e.target.dataset.mailc]=e.target.checked;save()}
-  if(e.target.id==="fileIn"){const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{try{const dd=JSON.parse(r.result);const V=store.get(KEY_VISITS,[]);(dd.visits||[]).forEach(v=>{if(!V.some(x=>x.id===v.id))V.push(v)});store.set(KEY_VISITS,V);toast(`${(dd.visits||[]).length}건을 불러왔습니다`);render()}catch(err){toast("백업 파일 형식이 아닙니다")}};r.readAsText(f);e.target.value=""}
+  if(e.target.id==="fileIn"){const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{try{const dd=JSON.parse(r.result);const V=store.get(KEY_VISITS,[]);let n=0;(dd.visits||[]).forEach(v=>{if(!v||!v.farm)return;const i=V.findIndex(x=>x.id===v.id);if(i>=0)V[i]=v;else V.push(v);n++});if(!n)throw 0;store.set(KEY_VISITS,V);const who=[...new Set((dd.visits||[]).map(v=>v._from).filter(Boolean))];toast(`${who.length?who.join(", ")+"님의 ":""}점검 ${n}건을 불러왔습니다`);tab="hist";render()}catch(err){toast("점검 기록 파일 형식이 아닙니다")}};r.readAsText(f);e.target.value=""}
 });
 window.addEventListener("hashchange",()=>{const t=location.hash.slice(1);if(t&&t!==tab){tab=t;render()}});
 

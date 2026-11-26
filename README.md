@@ -19,5 +19,12 @@
 
 점검 항목과 기준은 `app/index.html` 상단 설정(`CCCS`, `DFEED`, `DDIAG`, `HQ`, `BEEF`, `COW`, `CALF`, `STD`, `SIGNALS`, `SIGNS`), 항목 해설은 `WHY`, `SIGWHY`)에서 바꿉니다.
 
-### 배포
-GitHub Pages(Settings → Pages → 브랜치 선택)로 올리면 `https://<계정>.github.io/Happy_livestock/app/` 에서 열리고, 휴대폰에서 "홈 화면에 추가"하면 오프라인에서도 동작합니다.
+### 배포 (Claude 계정 없이 링크로 쓰는 단독 배포판)
+1. 이 브랜치를 `main`에 합칩니다.
+2. GitHub 저장소 **Settings → Pages → Build and deployment → Source**를 **GitHub Actions**로 바꿉니다.
+3. `main`에 반영되면 `.github/workflows/pages.yml`이 `app/` 폴더를 자동 배포합니다. 주소: `https://sungpyo15-ship-it.github.io/Happy_livestock/`
+4. 팀원은 주소를 열어 **팀 코드**(기본값 `HAPPY2026`)와 이름을 넣고, 휴대폰에서 "홈 화면에 추가"하면 앱처럼(오프라인 포함) 씁니다.
+
+- 팀 코드 변경: `app/index.html`의 `TEAM_CFG.codeHash`를 새 코드의 SHA-256 값으로 바꿉니다 (`echo -n 새코드 | sha256sum`).
+- 관리자 이메일 고정: `TEAM_CFG.adminEmail`에 넣거나, 각 기기 기록 탭의 팀 설정에서 입력합니다.
+- 주의: GitHub Pages 주소는 누구나 열 수 있고, 팀 코드는 간단한 잠금입니다. 공개 저장소이면 코드와 내용도 공개됩니다.
