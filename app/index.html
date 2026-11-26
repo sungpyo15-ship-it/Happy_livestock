@@ -1158,7 +1158,7 @@ function reportHtml(note,full){
   return o;
 }
 function reportDoc(){return `<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>현장점검 ${esc(S.farm.name||"")} ${esc(S.farm.date)}</title>
-<style>body{margin:0;padding:24px 16px;background:#fff}@media print{body{padding:0}}</style></head><body>${reportHtml(mailState().note,true)}</body></html>`}
+<style>body{margin:0;padding:24px 16px;background:#fff}@media print{body{padding:0}}</style><\/head><body>${reportHtml(mailState().note,true)}<\/body><\/html>`}
 async function shareReport(){
   const text=summaryText(), file=new File([reportDoc()],fname("html"),{type:"text/html"});
   try{
