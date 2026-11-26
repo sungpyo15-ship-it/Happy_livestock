@@ -64,10 +64,11 @@ main.addEventListener("click",async e=>{const b=e.target.closest("[data-s]");if(
     b.disabled=true;creating=true;
     try{const c=await auth.createUserWithEmailAndPassword(em(id),pw); if(id!==ADMIN_ID)await db.doc("users/"+c.user.uid).set({id,name:name.slice(0,40),note:note.slice(0,120),status:"pending",createdAt:Date.now()}); creating=false; route(c.user)}
     catch(err){creating=false;setMsg(ERR[err.code]||"가입하지 못했습니다 ("+(err.code||"오류")+")");b.disabled=false}return}
-  if(a==="key"){const k=($("#s_key").value||"").trim();b.disabled=true;const code=await decrypt(k).catch(()=>null);if(!code){setMsg("키가 맞지 않습니다");b.disabled=false;return}
+  if(a==="key"){const k=cleanKey($("#s_key").value);if(k.length!==44){setMsg("키는 44자입니다. 지금 "+k.length+"자가 들어왔습니다. 파일 안의 한 줄을 끝의 = 까지 빠짐없이 복사해 주세요");return}b.disabled=true;const code=await decrypt(k).catch(()=>null);if(!code){setMsg("키가 맞지 않습니다");b.disabled=false;return}
     try{await db.doc("secrets/content").set({k,at:Date.now()})}catch(err){setMsg("키를 저장하지 못했습니다. 보안 규칙을 확인해 주세요 ("+(err.code||"")+")");b.disabled=false;return}
     run(code,pendingInfo)}
 });
+main.addEventListener("input",e=>{if(e.target.id==="s_key"){const k=$("#klen");if(k)k.textContent=cleanKey(e.target.value).length+"자 / 44자"}});
 main.addEventListener("keydown",e=>{if(e.key==="Enter"&&e.target.tagName==="INPUT"){const b=main.querySelector(".primary[data-s]");if(b)b.click()}});
 let pendingInfo=null;
 function route(u){
@@ -86,13 +87,14 @@ function route(u){
   },err=>box("권한을 확인하지 못했습니다","잠시 후 새로고침해 주세요. ("+esc(err.code||"")+")",logoutBtn));
 }
 auth.onAuthStateChanged(u=>{if(creating)return;route(u)});
+const cleanKey=v=>String(v||"").replace(/[\\s"'\\x60“”‘’]/g,"").replace(/-/g,"+").replace(/_/g,"/");
 const b64=s=>Uint8Array.from(atob(s),c=>c.charCodeAt(0));
 async function decrypt(k){const key=await crypto.subtle.importKey("raw",b64(k),"AES-GCM",false,["decrypt"]);const pt=await crypto.subtle.decrypt({name:"AES-GCM",iv:b64(IV)},key,b64(ENC));return new TextDecoder().decode(pt)}
 async function loadKey(info){
   box("앱을 여는 중","잠시만 기다려 주세요.");pendingInfo=info;
   let k=null;try{const d=await db.doc("secrets/content").get();if(d.exists)k=d.data().k}catch(e){}
   if(k){const code=await decrypt(k).catch(()=>null);if(code)return run(code,info)}
-  if(info.isAdmin)return box("앱 키 등록","처음 한 번만 관리자가 앱 키를 등록합니다. 받은 앱 키를 붙여넣으세요.",card(field("s_key","앱 키","password")+'<button class="primary" data-s="key">등록하고 시작</button>'+msgEl)+logoutBtn);
+  if(info.isAdmin)return box("앱 키 등록","처음 한 번만 관리자가 앱 키를 등록합니다. 받은 앱 키 파일(farmcheck_app_key.txt) 안의 한 줄(44자)을 붙여넣으세요.",card('<label class="f">앱 키<textarea id="s_key" rows="2" autocomplete="off" autocapitalize="off" spellcheck="false" style="font-family:var(--mono);min-height:60px" placeholder="예: Ab3+xY...="></textarea></label><div class="small muted" id="klen">0자 / 44자</div>'+'<button class="primary" data-s="key">등록하고 시작</button>'+msgEl)+logoutBtn);
   box("앱 준비 중","관리자가 아직 앱 설정을 마치지 않았습니다. 잠시 후 다시 열어 주세요.",logoutBtn);
 }
 function run(code,info){
