@@ -167,6 +167,13 @@ details.why div{color:var(--ink);line-height:1.6;padding:2px 0 4px}
 .why-item .q{font-weight:600}
 .why-item .std{font-size:12.5px;color:var(--muted)}
 .why-item .w{font-size:13.5px;line-height:1.65;margin-top:4px}
+body.gated nav.tabs, body.gated .hbtn{display:none}
+.gate{text-align:center;padding:48px 8px 24px;max-width:520px;margin:0 auto}
+.gate p{color:var(--muted);line-height:1.7}
+.gate-icon{width:56px;height:56px;border-radius:99px;margin:0 auto 8px;background:var(--accent);color:var(--accent-ink);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:20px}
+header.top .score:empty{display:none}
+.badge{position:absolute;top:2px;right:calc(50% - 22px);background:var(--bad);color:#fff;border-radius:99px;font-size:10px;min-width:16px;height:16px;line-height:16px;padding:0 4px;font-weight:700}
+nav.tabs button{position:relative}
 </style>
 </head>
 <body>
@@ -1227,7 +1234,7 @@ function csv(){
 
 function vHist(){
   const V=store.get(KEY_VISITS,[]);
-  let h=`<h2>점검 기록</h2><div class="small muted">기록은 이 기기의 브라우저에 저장됩니다. 기기를 바꾸거나 브라우저 데이터를 지우기 전에 백업 파일을 받아 두세요.</div>
+  let h=(team.mode==="owner"?`<h2>팀 관리</h2><div class="card stack" id="teamCard">${teamAdminHtml()}</div>`:"")+(team.mode==="member"&&team.status==="approved"?`<div class="banner" style="border-style:solid">관리자 승인으로 사용 중입니다. 저장한 점검 기록은 관리자와 공유됩니다.</div>`:"")+`<h2>점검 기록</h2><div class="small muted">기록은 이 기기의 브라우저에 저장됩니다. 기기를 바꾸거나 브라우저 데이터를 지우기 전에 백업 파일을 받아 두세요.</div>
   <div class="row" style="margin-top:10px"><button class="primary" data-act="new">새 점검 시작</button><button data-act="backup">백업 파일 저장</button><button data-act="restore">백업 불러오기</button></div>
   <div class="stack" style="margin-top:12px">`;
   if(!V.length)h+=`<div class="card muted">저장된 점검이 없습니다. 리포트 화면에서 <b>점검 기록 저장</b>을 누르면 여기에 쌓입니다.</div>`;
@@ -1240,11 +1247,13 @@ function vHist(){
 }
 
 function render(){
+  const g=typeof gateOn==="function"&&gateOn(); document.body.classList.toggle("gated",!!g);
+  if(g){$("#main").innerHTML=gateHtml();$("#hdrTitle").textContent="축우 현장점검";$("#hdrScore").textContent="";return}
   document.querySelectorAll("nav.tabs button").forEach(b=>b.setAttribute("aria-selected",b.dataset.tab===tab));
   const views={farm:vFarm,chk:vChk,sig:vSig,report:vReport,hist:vHist,help:vHelp};
   $("#main").innerHTML=(views[tab]||vFarm)();
   if(tab==="farm"&&$("#herdOut"))$("#herdOut").innerHTML=herdHtml();
-  updateHeader();
+  updateHeader(); if(typeof updateBadge==="function")updateBadge();
 }
 function rerenderKeep(sel){const el=document.querySelector(sel);const y=el?el.getBoundingClientRect().top:0;render();const n=document.querySelector(sel);if(n&&el)window.scrollBy(0,n.getBoundingClientRect().top-y);return n}
 function go(t){tab=t;try{history.replaceState(null,"","#"+t)}catch(e){}render();window.scrollTo(0,0)}
@@ -1426,10 +1435,17 @@ function helpManual(){
    <li>배합비는 한 번에 10% 이내로 바꿉니다.</li>
    <li>목장주의 말과 목표를 권고에 연결하면 실천률이 높아집니다(Presentation).</li>
    <li>방역: 깨끗한 장화와 소독제를 챙기고, 어린 소에서 큰 소 순서로 이동합니다.</li></ul>
+  <h3>팀으로 사용하기</h3>
+  <ol><li><b>관리자(앱 소유자)</b>가 claude.ai 화면의 공유 메뉴에서 팀원을 <b>참여자(Contributor)</b> 권한으로 초대합니다. 편집자 권한은 앱 자체를 고칠 수 있으니 주지 않습니다.</li>
+   <li>팀원이 링크를 열면 "관리자 승인이 필요합니다" 화면이 나옵니다. 이름·소속·연락처를 적어 <b>사용 요청</b>을 보냅니다.</li>
+   <li>관리자의 <b>기록</b> 탭에 빨간 숫자와 함께 요청이 뜹니다. <b>팀 관리</b>에서 승인 또는 거절합니다. 승인하면 팀원 화면이 바로 열립니다.</li>
+   <li>관리자는 언제든 팀원을 <b>중지</b>, <b>다시 허용</b>, <b>삭제</b>할 수 있습니다. 중지하면 팀원 화면이 즉시 잠깁니다.</li>
+   <li>승인된 팀원이 "점검 기록 저장"을 누르면 기록이 관리자와 공유되고, 관리자는 팀 관리의 <b>점검 기록</b>에서 열어 볼 수 있습니다. 팀원끼리는 서로의 기록을 볼 수 없습니다.</li></ol>
+  <p class="small muted">관리자가 팀원 기록을 열면 관리자 화면의 현재 점검 내용이 그 기록으로 바뀝니다. 작성 중인 점검은 먼저 저장하세요.</p>
   <h2 id="h-faq">7. 자주 묻는 질문</h2>
   <ul><li><b>화면이 하얗게 나와요</b>: 페이지를 새로고침하세요. 계속되면 다른 브라우저에서 열어 보세요.</li>
    <li><b>예시 데이터를 지우고 싶어요</b>: "새 점검 시작"을 누르면 빈 점검으로 시작합니다.</li>
-   <li><b>다른 사람도 쓸 수 있나요</b>: 링크를 공유하면 쓸 수 있지만, 기록은 각자 기기에 따로 저장되고 메일은 각자의 Gmail로 나갑니다.</li>
+   <li><b>다른 사람도 쓸 수 있나요</b>: 아래 "팀으로 사용하기"를 보세요. 메일은 각자의 Gmail로 나갑니다.</li>
    <li><b>자료 보안</b>: 점검표 배점과 기준에는 회사 교육자료(대외비 포함)가 들어 있으니 외부 공유에 주의하세요.</li></ul>`;
 }
 function helpItems(){
@@ -1464,12 +1480,95 @@ function helpDoc(){
 <style>body{font-family:'Apple SD Gothic Neo','Malgun Gothic',sans-serif;max-width:760px;margin:0 auto;padding:24px 16px;color:#16232e;line-height:1.7}h2{color:#16324a;margin-top:28px}table{border-collapse:collapse;width:100%}td,th{border-bottom:1px solid #d9e0e3;padding:6px;text-align:left}.small{font-size:13px}.muted{color:#5d6b75}.why-item{padding:8px 0;border-top:1px solid #eee}.q{font-weight:600}.std{font-size:13px;color:#5d6b75}.toc,.chips,button{display:none}.src{font-size:11px;background:#eef3f6;border-radius:4px;padding:1px 5px}</style><\/head><body><h1>현장점검 앱 사용 설명서</h1>${helpManual()}<h2>8. 기준 해설</h2>${list}<\/body><\/html>`;
 }
 
+
+/* ---------- 팀 사용 승인 (관리자 = 이 앱의 소유자) ----------
+   db 규칙: 전체 쓰기는 소유자만 / requests/{self}: 각자 자기 요청만 작성, 소유자만 전체 열람 /
+   members: 소유자만 승인·중지 / visits/{self}: 각자 자기 점검 기록 업로드, 소유자만 전체 열람 */
+const team={mode:"none",status:"loading",uid:null,db:null,user:null,requests:[],members:[],names:{},myReq:null,noteDraft:"",teamVisits:{},timer:null};
+const gateOn=()=>team.mode==="member"&&team.status!=="approved"||team.mode==="pending";
+async function initTeam(){
+  if(!framed||!(window.claude&&window.claude.use)){team.mode="none";return}
+  team.mode="pending"; render();
+  team.timer=setTimeout(()=>{if(team.mode==="pending"){team.status="slow";render()}},10000);
+  const [user,db]=await Promise.all([getCap("user"),getCap("db")]);
+  team.user=user; team.db=db;
+  let owner=false; try{owner=user?!!(await user.isOwner()):false}catch(_){}
+  if(owner){team.mode="owner";clearTimeout(team.timer);
+    if(db){try{team.uid=await user.id()}catch(_){}
+      db.collection("requests").onSnapshot(q=>{team.requests=q.docs.map(d=>({id:d.id,...d.data()}));loadNames(team.requests.map(r=>r.id));teamRefresh()},()=>{});
+      db.collection("members").onSnapshot(q=>{team.members=q.docs.map(d=>({id:d.id,...d.data()}));loadNames(team.members.map(r=>r.id));teamRefresh()},()=>{});}
+    render();return}
+  if(!user||!db){team.mode="member";team.status="nodb";clearTimeout(team.timer);render();return}
+  let uid=null; try{uid=await user.id()}catch(_){}
+  team.mode="member"; team.uid=uid; clearTimeout(team.timer);
+  if(!uid){team.status="signin";render();return}
+  team.status="checking"; render();
+  db.doc("members/"+uid).onSnapshot(d=>{const st=d.exists?d.data().status:null;team.status=st==="approved"?"approved":st==="blocked"?"blocked":(team.myReq?"requested":"none");render()},()=>{team.status="nodb";render()});
+  db.doc("requests/"+uid).onSnapshot(d=>{team.myReq=d.exists?d.data():null;if(team.status==="none"||team.status==="requested"||team.status==="checking")team.status=team.myReq?"requested":(team.status==="checking"?"checking":"none");render()},()=>{});
+}
+async function loadNames(ids){const u=team.user;if(!u||!u.profiles)return;const need=ids.filter(i=>!(i in team.names));if(!need.length)return;try{const ps=await u.profiles(need);need.forEach(i=>team.names[i]=(ps&&ps[i]&&ps[i].name)||"");teamRefresh()}catch(_){}}
+function teamRefresh(){updateBadge();const c=$("#teamCard");if(c)c.innerHTML=teamAdminHtml()}
+function updateBadge(){const b=document.querySelector('nav [data-tab="hist"]');if(!b)return;const n=team.mode==="owner"?team.requests.length:0;let s=b.querySelector(".badge");if(n){if(!s){s=document.createElement("span");s.className="badge";b.appendChild(s)}s.textContent=n}else if(s)s.remove()}
+const who=id=>team.names[id]||"이름 확인 불가";
+function gateHtml(){
+  const st=team.status, r=team.myReq;
+  const box=(title,body,extra="")=>`<div class="gate"><div class="gate-icon">${title[0]}</div><h2>${title}</h2><p>${body}</p>${extra}</div>`;
+  if(team.mode==="pending"||st==="loading"||st==="checking")return box(st==="slow"?"연결이 늦습니다":"권한 확인 중",st==="slow"?"사용 권한을 확인하지 못했습니다. 페이지를 새로고침해 주세요.":"잠시만 기다려 주세요.");
+  if(st==="slow")return box("연결이 늦습니다","사용 권한을 확인하지 못했습니다. 페이지를 새로고침해 주세요.");
+  if(st==="signin")return box("로그인이 필요합니다","claude.ai에 로그인한 뒤 다시 열어 주세요.");
+  if(st==="nodb")return box("권한을 확인할 수 없습니다","이 화면에서는 팀 승인 정보를 불러오지 못했습니다. 관리자에게 공유 권한(참여자)을 확인해 달라고 요청하세요.");
+  if(st==="blocked")return box("사용이 중지되었습니다","관리자가 이 계정의 사용을 중지했습니다. 다시 사용하려면 관리자에게 문의하세요.");
+  if(st==="requested")return box("승인 대기 중",`사용 요청을 보냈습니다${r&&r.at?` (${esc(new Date(r.at).toLocaleString("ko-KR"))})`:""}. 관리자가 승인하면 이 화면이 자동으로 열립니다.`,`<div class="row" style="justify-content:center"><button data-act="reqCancel">요청 취소</button></div>`);
+  return box("관리자 승인이 필요합니다","이 앱은 관리자가 승인한 팀원만 사용할 수 있습니다. 이름과 소속을 적어 사용을 요청하세요.",
+    `<div class="card stack" style="text-align:left;max-width:420px;margin:0 auto"><label class="f">이름 · 소속 · 연락처<input id="req_note" data-reqnote="1" placeholder="예: 홍길동 / 전북 지역 / 010-0000-0000" value="${esc(team.noteDraft)}"></label>
+    <button class="primary" data-act="reqSend">사용 요청 보내기</button><div class="small muted">승인되면 저장한 점검 기록이 관리자와 공유됩니다.</div></div>`);
+}
+function teamAdminHtml(){
+  if(team.mode!=="owner")return "";
+  if(!team.db)return '<div class="small muted">팀 승인 기능을 쓸 수 없는 화면입니다.</div>';
+  const R=team.requests.slice().sort((a,b)=>(a.at||0)-(b.at||0)), M=team.members.slice().sort((a,b)=>(b.at||0)-(a.at||0));
+  const d=t=>t?new Date(t).toLocaleDateString("ko-KR"):"";
+  let h=`<h3>승인 요청 ${R.length?`<span class="pill warn">${R.length}</span>`:""}</h3>`;
+  h+=R.length?R.map(r=>`<div class="kv"><span style="min-width:0"><b>${esc(who(r.id))}</b><br><span class="small muted">${esc(r.note||"메모 없음")} · ${d(r.at)}</span></span><span class="row"><button class="primary" data-approve="${esc(r.id)}">승인</button><button data-reject="${esc(r.id)}">거절</button></span></div>`).join(""):'<div class="small muted">대기 중인 요청이 없습니다.</div>';
+  h+=`<h3 style="margin-top:16px">팀원 ${M.length}명</h3>`;
+  h+=M.length?M.map(m=>{const tv=team.teamVisits[m.id];return `<div class="kv" style="flex-wrap:wrap"><span style="min-width:0"><b>${esc(who(m.id))}</b> <span class="pill ${m.status==="approved"?"good":"bad"}">${m.status==="approved"?"사용 중":"중지"}</span><br><span class="small muted">${esc(m.note||"")} · 승인 ${d(m.at)}</span></span>
+    <span class="row">${m.status==="approved"?`<button data-block="${esc(m.id)}">중지</button>`:`<button data-unblock="${esc(m.id)}">다시 허용</button>`}<button data-tvisits="${esc(m.id)}">점검 기록</button><button class="ghost danger" data-mremove="${esc(m.id)}">삭제</button></span>
+    ${tv?`<div style="width:100%">${tv==="loading"?'<span class="small muted">불러오는 중…</span>':tv.length?tv.map(v=>`<div class="kv"><span class="small">${esc(v.farm||"목장명 없음")} · ${esc(v.date||"")}</span><button data-topen="${esc(m.id)}|${esc(v.id)}">열기</button></div>`).join(""):'<span class="small muted">공유된 점검 기록이 없습니다.</span>'}</div>`:""}</div>`}).join(""):'<div class="small muted">아직 승인한 팀원이 없습니다.</div>';
+  h+=`<div class="small muted" style="margin-top:10px">팀원은 claude.ai 공유 메뉴에서 <b>참여자(Contributor)</b> 권한으로 초대하세요. 편집자 권한을 주면 앱을 수정할 수 있으니 주의하세요.</div>`;
+  return h;
+}
+async function teamAct(kind,id){
+  const db=team.db; if(!db)return;
+  try{
+    if(kind==="approve"){const r=team.requests.find(x=>x.id===id)||{};await db.doc("members/"+id).set({status:"approved",at:Date.now(),note:r.note||""});await db.doc("requests/"+id).delete();toast("승인했습니다")}
+    if(kind==="reject"){await db.doc("requests/"+id).delete();toast("요청을 거절했습니다")}
+    if(kind==="block"){const m=team.members.find(x=>x.id===id)||{};await db.doc("members/"+id).set({status:"blocked",at:m.at||Date.now(),note:m.note||"",blockedAt:Date.now()});toast("사용을 중지했습니다")}
+    if(kind==="unblock"){const m=team.members.find(x=>x.id===id)||{};await db.doc("members/"+id).set({status:"approved",at:m.at||Date.now(),note:m.note||""});toast("다시 허용했습니다")}
+    if(kind==="remove"){await db.doc("members/"+id).delete();toast("팀원에서 삭제했습니다")}
+  }catch(e){toast("처리하지 못했습니다. 다시 시도해 주세요")}
+}
+async function loadTeamVisits(id){const db=team.db;if(!db)return;team.teamVisits[id]="loading";teamRefresh();
+  try{const q=await db.collection(`visits/${id}/list`).orderBy("savedAt","desc").limit(30).get();team.teamVisits[id]=q.docs.map(d=>({id:d.id,...d.data()}))}catch(e){team.teamVisits[id]=[]}teamRefresh()}
+async function openTeamVisit(key){const [uid,vid]=key.split("|");const db=team.db;try{const d=await db.doc(`visits/${uid}/list/${vid}`).get();if(!d.exists)return toast("기록을 찾을 수 없습니다");
+  const v=migrate(JSON.parse(d.data().visit));S=v;S.example=false;mod=activeMods()[0];save();toast(`${who(uid)}님의 점검 기록을 열었습니다`);go("report")}catch(e){toast("기록을 열지 못했습니다")}}
+async function shareVisit(){
+  const db=team.db; if(!db||!team.uid)return false;
+  if(team.mode==="member"&&team.status!=="approved")return false;
+  try{const body=JSON.stringify(S); if(body.length>240000)return false;
+    await db.doc(`visits/${team.uid}/list/${S.id}`).set({farm:S.farm.name||"",date:S.farm.date||"",savedAt:Date.now(),visit:body});return true}catch(e){return false}
+}
+
 /* ---------- 이벤트 ---------- */
 document.addEventListener("click",e=>{
   const jl=e.target.closest("[data-jump]"); if(jl){e.preventDefault();const el=document.getElementById(jl.dataset.jump);if(el)window.scrollTo({top:el.getBoundingClientRect().top+window.scrollY-60,behavior:"smooth"});return}
   const b=e.target.closest("button"); if(!b)return;
   const d=b.dataset;
   if(d.tab)return go(d.tab);
+  if(d.approve)return teamAct("approve",d.approve); if(d.reject)return teamAct("reject",d.reject);
+  if(d.block)return teamAct("block",d.block); if(d.unblock)return teamAct("unblock",d.unblock);
+  if(d.mremove){if(b.dataset.sure!=="1"){b.dataset.sure="1";b.textContent="정말 삭제";return}return teamAct("remove",d.mremove)}
+  if(d.tvisits){if(team.teamVisits[d.tvisits]&&team.teamVisits[d.tvisits]!=="loading"){delete team.teamVisits[d.tvisits];return teamRefresh()}return loadTeamVisits(d.tvisits)}
+  if(d.topen)return openTeamVisit(d.topen);
   if(d.helpmod){helpMod=d.helpmod;document.querySelectorAll("[data-helpmod]").forEach(x=>x.setAttribute("aria-pressed",x.dataset.helpmod===helpMod));$("#helpList").innerHTML=helpListHtml();return}
   if(d.go)return go(d.go);
   if(d.mod){const i=S.mods.indexOf(d.mod); if(i>=0){if(S.mods.length===1){toast("한 분야 이상 골라야 합니다");return}S.mods.splice(i,1)}else S.mods.push(d.mod); S.mods.sort((a,c)=>GRP.findIndex(m=>m.id===a)-GRP.findIndex(m=>m.id===c)); save(); return rerenderKeep(`[data-mod="${d.mod}"]`)}
@@ -1495,6 +1594,9 @@ document.addEventListener("click",e=>{
   if(d.del){$("#hv_"+d.del).innerHTML=`<span class="confirm"><span class="small">삭제할까요?</span><button class="danger" data-delok="${d.del}">삭제</button><button data-act="cancelDel">취소</button></span>`;return}
   if(d.delok){store.set(KEY_VISITS,store.get(KEY_VISITS,[]).filter(x=>x.id!==d.delok));toast("삭제했습니다");return render()}
   const a=d.act;
+  if(a==="reqSend"){const note=(team.noteDraft||"").trim();if(!note){toast("이름과 소속을 적어 주세요");return}
+    if(team.db&&team.uid)team.db.doc("requests/"+team.uid).set({note:note.slice(0,200),at:Date.now()}).then(()=>{team.status="requested";render();toast("사용 요청을 보냈습니다")}).catch(()=>toast("요청을 보내지 못했습니다. 공유 권한을 확인해 주세요"));return}
+  if(a==="reqCancel"){if(team.db&&team.uid)team.db.doc("requests/"+team.uid).delete().then(()=>{team.myReq=null;team.status="none";render()}).catch(()=>{});return}
   if(a==="cancelDel")return render();
   if(a==="addRoom"){S.rooms.push({name:"",m:"",n:"",wt:"",conc:"",rough:""});save();return render()}
   if(a==="expandAll"){const m=curMod();const any=m.secs.some(s=>openSec[m.id+s.code]);m.secs.forEach(s=>openSec[m.id+s.code]=!any);return render()}
@@ -1503,7 +1605,7 @@ document.addEventListener("click",e=>{
     if(dirty&&!d.sure){d.sure="1";b.textContent="현재 내용 지우고 시작";toast("저장하지 않은 내용은 사라집니다. 한 번 더 누르세요");return}
     const mods=S.example?["dairy"]:S.mods.slice(); S=blank(); S.mods=mods; mod=activeMods()[0]; openSec={}; save(); toast("새 점검을 시작합니다. 점검 분야를 고르세요"); return go("farm");
   }
-  if(a==="saveVisit"){const V=store.get(KEY_VISITS,[]);const i=V.findIndex(x=>x.id===S.id);const c=JSON.parse(JSON.stringify(S));if(i>=0)V[i]=c;else V.push(c);toast(store.set(KEY_VISITS,V)?"점검 기록을 저장했습니다":"이 브라우저에서는 저장할 수 없습니다. 백업 파일을 사용하세요");return}
+  if(a==="saveVisit"){shareVisit().then(ok=>{if(ok)toast(team.mode==="owner"?"점검 기록을 저장했습니다":"점검 기록을 저장하고 관리자와 공유했습니다")});const V=store.get(KEY_VISITS,[]);const i=V.findIndex(x=>x.id===S.id);const c=JSON.parse(JSON.stringify(S));if(i>=0)V[i]=c;else V.push(c);toast(store.set(KEY_VISITS,V)?"점검 기록을 저장했습니다":"이 브라우저에서는 저장할 수 없습니다. 백업 파일을 사용하세요");return}
   if(a==="copyText")return copy(summaryText());
   if(a==="saveHelpPdf"){(async()=>{try{const r=await fetch("manual.pdf");if(!r.ok)throw 0;const blob=await r.blob();
       if(framed){const dl=await getCap("downloads");if(!dl){toast("이 화면에서는 저장할 수 없습니다");return}try{await dl.save({filename:"현장점검_사용설명서.pdf",data:blob});toast("PDF를 저장했습니다")}catch(e){if(e&&e.code!=="declined")toast("저장하지 못했습니다")}}
@@ -1532,6 +1634,7 @@ document.addEventListener("input",e=>{
   if(d.val){S.val[d.val]=t.value;save();const it=DITEM[d.val];const a=$("#a_"+d.val);if(a)a.innerHTML=autoHtml(it);
     if(S.chk[d.val]==null){const av=autoStatus(it);t.closest(".item").querySelectorAll(".seg button").forEach(x=>x.setAttribute("aria-pressed",+x.dataset.v===av))}}
   if(d.memo){S.memo[d.memo]=t.value;save()}
+  if(d.reqnote){team.noteDraft=t.value}
   if(d.helpq){helpQ=t.value;$("#helpList").innerHTML=helpListHtml()}
   if(d.fb){S.fb=S.fb||{};if(d.fb==="text"){S.fb.text=t.value;if(!S.fb.edited){S.fb.edited=true;const n=t.parentElement.parentElement.querySelector(".small.muted");if(n)n.textContent="직접 고친 내용입니다. 점검 결과가 바뀌어도 그대로 유지됩니다."}}else S.fb.opinion=t.value;save();const st=$("#sumText");if(st)st.textContent=summaryText()}
   if(d.mail){S.mail=S.mail||{};S.mail[d.mail]=t.value;save();if(mail.confirm&&d.mail==="to"){mail.confirm=false;const c=$("#sendCard");if(c){const pos=t.selectionStart;c.innerHTML=sendHtml();const n=$("#mail_to");n.focus();try{n.setSelectionRange(pos,pos)}catch(_){}}}}
@@ -1554,6 +1657,7 @@ window.addEventListener("hashchange",()=>{const t=location.hash.slice(1);if(t&&t
 
 if(S.example){openSec={cccsA:true,dfeedE:true,ddiagA:true,hqA:true,beefA:true,cowA:true,calfA:true}}
 render();
+initTeam();
 
 try{ if("serviceWorker" in navigator && location.protocol==="https:" && !/claude(usercontent)?\.(ai|com)$/.test(location.hostname)) navigator.serviceWorker.register("sw.js").catch(()=>{}) }catch(e){}
 </script>
