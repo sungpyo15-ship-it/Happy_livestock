@@ -440,13 +440,13 @@ function std(m){const i=Math.round(m)-STD.m0;if(i<0||i>=STD.wt.length)return nul
   return {wt:STD.wt[i],adg:STD.adg[i],conc:STD.conc[i],rough:STD.rough[i],stage:st,rname:m<=14?"혼합건초":"볏짚",cost:Math.round(STD.conc[i]*PRICE[st]+STD.rough[i]*PRICE[m<=14?"혼합건초":"볏짚"])}}
 
 const MODS=[
- {id:"cccs",grp:"dairy",name:"CCCS",kind:"pts",secs:CCCS,grade:[85,70],title:"착유우 사육환경 지수카드 (CCCS)",gradeNote:"퓨리나코리아 Cow Care and Comfort Scorecard 215점 배점입니다. 측정값을 넣으면 감점 규칙대로 자동 계산되고, 점수를 직접 넣으면 그 값이 우선합니다. 등급 기준은 원본에 없어 85% 우수, 70% 양호를 참고로 씁니다."},
+ {id:"cccs",grp:"dairy",name:"CCCS",kind:"pts",secs:CCCS,grade:[85,70],title:"착유우 사육환경 지수카드 (CCCS)",gradeNote:"퓨리나코리아 Cow Care and Comfort Scorecard 원 배점 215점을 200점 만점으로 환산해 보여줍니다. 측정값을 넣으면 감점 규칙대로 자동 계산되고, 점수를 직접 넣으면 그 값이 우선합니다. 등급 기준은 원본에 없어 85% 우수, 70% 양호를 참고로 씁니다."},
  {id:"dfeed",grp:"dairy",name:"사양·환경",kind:"judge",secs:DFEED,title:"낙농 사양·환경 측정",gradeNote:""},
  {id:"ddiag",grp:"dairy",name:"문제진단",kind:"pts",secs:DDIAG,diag:true,grade:[85,70],title:"낙농 문제 진단",gradeNote:"파워북의 섭취량·연변·생산성 매뉴얼입니다. 점수 없이 '예'로 답한 항목이 리포트의 원인 후보가 됩니다."},
- {id:"hq",grp:"beef",name:"고급육 점검",kind:"pts",secs:HQ,grade:[80,70],title:"한우고급육 농장 점검표",gradeNote:"27개 항목 5점 척도(135점)입니다. 회색 숫자는 전라도 고급육 우수농장 9곳의 항목 평균(총점 평균 103점)입니다. 등급 기준은 원본에 없어 80% 우수, 70% 양호를 참고로 씁니다."},
- {id:"beef",grp:"beef",name:"우군별 상태",kind:"pts",secs:BEEF,grade:[83,67],title:"비육 우군별 상태 점검표",gradeNote:"CCCS 교재의 비육 우군별 상태 점검표입니다. 원본 120점(100점 이상 우수, 80점 이상 양호) 중 자료에서 확인된 항목만 넣어 같은 비율로 환산합니다."},
- {id:"cow",grp:"cow",name:"번식우",kind:"pts",secs:COW,grade:[80,70],title:"한우 번식우 점검표",gradeNote:"교재: 100점 중 80점 이상 우수, 70점 이상 양호"},
- {id:"calf",grp:"calf",name:"한우송아지",kind:"pts",secs:CALF,grade:[80,70],title:"한우송아지 체크리스트",gradeNote:"퓨리나 한우송아지 체크리스트 200점. 등급 기준은 원본에 없어 80% 우수, 70% 양호를 참고로 씁니다."}
+ {id:"hq",grp:"beef",name:"고급육 점검",kind:"pts",secs:HQ,grade:[80,70],title:"한우고급육 농장 점검표",gradeNote:"27개 항목 5점 척도(원 배점 135점)를 200점 만점으로 환산합니다. 회색 숫자는 전라도 고급육 우수농장 9곳의 항목 평균이며, 총점 평균은 103점(200점 환산 153점)입니다. 등급 기준은 원본에 없어 80% 우수, 70% 양호를 참고로 씁니다."},
+ {id:"beef",grp:"beef",name:"우군별 상태",kind:"pts",secs:BEEF,grade:[83,67],title:"비육 우군별 상태 점검표",gradeNote:"CCCS 교재의 비육 우군별 상태 점검표입니다. 원본 120점(100점 이상 우수, 80점 이상 양호) 중 자료에서 확인된 항목만 넣어 200점 만점으로 환산합니다 (우수 167점, 양호 133점 이상)."},
+ {id:"cow",grp:"cow",name:"번식우",kind:"pts",secs:COW,grade:[80,70],title:"한우 번식우 점검표",gradeNote:"교재 원 배점 100점을 200점 만점으로 환산합니다 (교재 기준 80점 이상 우수 = 160점, 70점 이상 양호 = 140점)."},
+ {id:"calf",grp:"calf",name:"한우송아지",kind:"pts",secs:CALF,grade:[80,70],title:"한우송아지 체크리스트",gradeNote:"퓨리나 한우송아지 체크리스트 200점 (원 배점 그대로). 등급 기준은 원본에 없어 80% 우수, 70% 양호를 참고로 씁니다."}
 ];
 const MOD=Object.fromEntries(MODS.map(m=>[m.id,m]));
 const GRP=[{id:"dairy",name:"낙농"},{id:"beef",name:"한우비육"},{id:"cow",name:"번식우"},{id:"calf",name:"한우송아지"}];
@@ -617,7 +617,13 @@ function pScore(m,sec){
 function lameAuto(){let b=0,n=0;DG.forEach(g=>{const st=sigStat(g,SIGNALS.find(x=>x.id==="loco"));if(st){b+=st.bad;n+=st.n}});return n?Math.round(b/n*100):null}
 function lieAuto(){let l=0,r=0;DG.forEach(g=>{const c=S.comfort[g];if(c){l+=+c.lying||0;r+=(+c.lying||0)+(+c.stand||0)}});return r?Math.round(l/r*100):null}
 function dmi(){const f=S.farm,y=num(f.yield)??herd().perHead,bw=num(f.bw),env=num(f.env)||0,g=num(f.dmi);if(y==null||bw==null)return null;const need=Math.round((y/3+bw*0.02+env)*10)/10;return {y,need,given:g,gap:g!=null?Math.round((g-need)*10)/10:null}}
-function modScore(id){const m=MOD[id]; if(m.kind==="judge"){const s=dScore();return {...s,label:s.pct==null?"—":`${s.pct}%`}} const s=pScore(m); if(m.diag)return {...s,pct:null,label:s.done?`원인 ${s.flag}건`:"—"}; return {...s,label:s.done?`${s.got}/${s.full}`:"—"}}
+/* 모든 점검표 점수는 200점 만점으로 환산해 보여줌 (항목별 원 배점은 그대로, 입력한 항목 만점 기준 비례 환산) */
+const TOTAL=200;
+const to200=(got,max)=>max?Math.round(got/max*TOTAL):null;
+function modScore(id){const m=MOD[id];
+  if(m.kind==="judge"){const s=dScore();const v=s.pct==null?null:Math.round(s.pct*TOTAL/100);return {...s,s200:v,label:v==null?"—":`${v}/${TOTAL}`}}
+  const s=pScore(m); if(m.diag)return {...s,pct:null,label:s.done?`원인 ${s.flag}건`:"—"};
+  const v=to200(s.got,s.max); return {...s,s200:v,label:v==null?"—":`${v}/${TOTAL}`}}
 function grade(p,m){ if(p==null)return "—"; if(!m||m.kind==="judge")return p>=85?"양호":p>=70?"보통":"미흡"; return p>=m.grade[0]?"우수":p>=m.grade[1]?"양호":"미흡"}
 function indFor(g){return SIGNALS.filter(x=>x.groups.includes(g))}
 function sigStat(g,ind){
@@ -891,23 +897,23 @@ function vChk(){
   const m=curMod();
   let h=`${exampleBanner()}<div class="toolbar">${modChips()}</div>`;
   if(m.kind==="judge"){
-    const sc=dScore();
+    const sc=modScore(m.id);
     h+=`<h2>${m.title}</h2>
-    <div class="small muted">CCCS 교재 목장점검 리포트와 파워북·Walkthrough·CowSignals 워크숍 자료의 측정 항목입니다. 측정값을 넣으면 자동 판정되고, 판정 버튼을 누르면 수동 판정이 우선합니다. 점수는 CCCS 215점과 별개입니다. <span class="src k">교재</span> 표시 외에는 출처를 따로 적었습니다.</div>
+    <div class="small muted">CCCS 교재 목장점검 리포트와 파워북·Walkthrough·CowSignals 워크숍 자료의 측정 항목입니다. 측정값을 넣으면 자동 판정되고, 판정 버튼을 누르면 수동 판정이 우선합니다. 양호 2·주의 1·불량 0으로 계산해 200점 만점으로 환산합니다. <span class="src k">교재</span> 표시 외에는 출처를 따로 적었습니다.</div>
     <div class="card" style="margin-top:10px"><div class="row" style="justify-content:space-between">
-      <div><div class="mono" style="font-size:26px;font-weight:600">${sc.pct??"—"}<span style="font-size:15px"> %</span> <span class="pill ${sc.pct==null?"na":sc.pct>=85?"good":sc.pct>=70?"warn":"bad"}">${grade(sc.pct)}</span></div>
+      <div><div class="mono" style="font-size:26px;font-weight:600">${sc.s200??"—"}<span style="font-size:15px"> / ${TOTAL}점</span> <span class="pill ${sc.pct==null?"na":sc.pct>=85?"good":sc.pct>=70?"warn":"bad"}">${grade(sc.pct)}</span></div>
       <div class="small muted">판정 ${sc.done}/${sc.n} · 불량 ${sc.bad} · 주의 ${sc.warn}</div></div>
       <button class="ghost" data-act="expandAll">${m.secs.some(s=>openSec[m.id+s.code])?"모두 접기":"모두 펼치기"}</button></div></div>`;
     m.secs.forEach(sec=>{const s=dScore(sec), open=openSec[m.id+sec.code];
       h+=`<div class="card sec"><button class="sec-head" data-sec="${m.id+sec.code}" aria-expanded="${!!open}"><span class="code">${sec.code}</span><h3>${sec.name}</h3><span class="small muted mono">${s.done}/${s.n}</span>
         <span class="meter"><i style="width:${s.pct??0}%;background:${barCol(s.pct)}"></i></span><span class="pct">${s.pct??"—"}</span></button>${open?`<div>${sec.items.map(dItemHtml).join("")}</div>`:""}</div>`});
   } else {
-    const sc=pScore(m);
+    const sc=modScore(m.id);
     h+=`<h2>${m.title}</h2><div class="small muted">${m.gradeNote}</div>
     <div class="card" style="margin-top:10px"><div class="row" style="justify-content:space-between"><div>
       ${m.diag?`<div class="mono" style="font-size:26px;font-weight:600">${sc.flag}<span style="font-size:15px"> 건 원인 후보</span></div><div class="small muted">답한 항목 ${sc.done}/${sc.n}</div></div>`:
-      `<div class="mono" style="font-size:26px;font-weight:600">${sc.got}<span style="font-size:15px"> / ${sc.full}점</span> <span class="pill ${sc.pct==null?"na":sc.pct>=m.grade[0]?"good":sc.pct>=m.grade[1]?"warn":"bad"}">${grade(sc.pct,m)}</span></div>
-      <div class="small muted">입력 ${sc.done}/${sc.n} · 입력한 항목 만점 대비 ${sc.pct??"—"}%</div></div>`}
+      `<div class="mono" style="font-size:26px;font-weight:600">${sc.s200??"—"}<span style="font-size:15px"> / ${TOTAL}점</span> <span class="pill ${sc.pct==null?"na":sc.pct>=m.grade[0]?"good":sc.pct>=m.grade[1]?"warn":"bad"}">${grade(sc.pct,m)}</span></div>
+      <div class="small muted">원점수 ${sc.got}/${sc.max}${sc.max!==sc.full?` (전체 ${sc.full}점 중 입력분)`:""} · 입력 ${sc.done}/${sc.n}</div></div>`}
       <button class="ghost" data-act="expandAll">${m.secs.some(s=>openSec[m.id+s.code])?"모두 접기":"모두 펼치기"}</button></div></div>`;
     m.secs.forEach(sec=>{const s=pScore(m,sec), open=openSec[m.id+sec.code], obs=sec.items.every(i=>i.obs);
       h+=`<div class="card sec"><button class="sec-head" data-sec="${m.id+sec.code}" aria-expanded="${!!open}"><span class="code">${sec.code}</span><h3>${sec.name}</h3>
@@ -1000,7 +1006,7 @@ function sigTable(){
 function summaryText(){
   const f=S.farm;
   let s=`[현장점검] ${f.name||""} ${f.date}\n`;
-  entered().filter(id=>!MOD[id].diag).forEach(id=>{const m=MOD[id],sc=modScore(id);s+=`· ${m.grp==="dairy"?"낙농 ":""}${m.name} ${sc.label}${m.diag||m.kind==="judge"?"":"점"}${m.diag?"":` (${grade(sc.pct,m)})`}\n`});
+  entered().filter(id=>!MOD[id].diag).forEach(id=>{const m=MOD[id],sc=modScore(id);s+=`· ${m.grp==="dairy"?"낙농 ":""}${m.name} ${sc.label}${m.diag?"":"점"}${m.diag?"":` (${grade(sc.pct,m)})`}\n`});
   s+=`\n${fbText()}`;
   if(S.fb&&S.fb.opinion)s+=`\n\n[평가자 소견]\n${S.fb.opinion}`;
   return s;
