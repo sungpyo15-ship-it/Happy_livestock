@@ -19,9 +19,9 @@
 
 점검 항목과 기준은 `app/index.html` 상단 설정(`CCCS`, `DFEED`, `DDIAG`, `HQ`, `BEEF`, `COW`, `CALF`, `STD`, `SIGNALS`, `SIGNS`), 항목 해설은 `WHY`, `SIGWHY`)에서 바꿉니다.
 
-### 배포 (Claude 계정 없이 링크로 쓰는 단독 배포판)
-Cloudflare Pages + Cloudflare Access(50명까지 무료)로 배포해, 관리자가 허용한 이메일만 로그인(이메일 인증번호)해서 쓰게 합니다.
-설정 순서는 [`docs/cloudflare_setup.md`](docs/cloudflare_setup.md)를 보세요. 빌드 출력 폴더는 `app`, 빌드 명령은 없습니다.
-
-- Access 뒤에서 열리면 앱이 로그인 이메일을 읽어 팀 코드를 묻지 않습니다. Access 없이 배포된 경우에만 팀 코드(`TEAM_CFG.codeHash`, 기본 `HAPPY2026`)를 묻습니다.
-- 저장소는 비공개로 두세요. 회사 교육자료 기반 기준이 들어 있습니다.
+### 배포 (Claude 계정 없이: 아이디 가입 + 관리자 승인, Firebase)
+- `deploy/firebase.config.json`: Firebase 웹 설정(공개값)과 관리자 아이디
+- `deploy/firestore.rules`: Firestore 보안 규칙 (콘솔 → Firestore → 규칙에 붙여넣기)
+- `node deploy/build_fb.mjs` → `dist/`: 로그인 화면 + 암호화된 앱. 이 폴더만 공개 저장소(GitHub Pages)에 올립니다.
+- 앱 키(`deploy/.content_key`, git 제외)는 관리자가 처음 로그인할 때 한 번 등록합니다. 키를 새로 만들면 다시 등록해야 합니다.
+- 이 원본 저장소는 비공개로 유지하세요 (점검 기준이 평문으로 들어 있음).

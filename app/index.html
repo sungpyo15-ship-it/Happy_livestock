@@ -1239,9 +1239,9 @@ function csv(){
 
 function vHist(){
   const V=store.get(KEY_VISITS,[]);
-  let h=(team.mode==="owner"?`<h2>팀 관리</h2><div class="card stack" id="teamCard">${teamAdminHtml()}</div>`:"")+(team.mode==="member"&&team.status==="approved"?`<div class="banner" style="border-style:solid">관리자 승인으로 사용 중입니다. 저장한 점검 기록은 관리자와 공유됩니다.</div>`:"")+`<h2>점검 기록</h2><div class="small muted">기록은 이 기기의 브라우저에 저장됩니다. 기기를 바꾸거나 브라우저 데이터를 지우기 전에 백업 파일을 받아 두세요.</div>
+  let h=(team.mode==="owner"?`<h2>팀 관리</h2><div class="card stack" id="teamCard">${teamAdminHtml()}</div>`:"")+(team.mode==="fbadmin"?`<h2>팀 관리</h2><div class="card stack" id="teamCard">${fbAdminHtml()}</div>`:"")+(FBM()?`<div class="card stack" style="margin-top:12px"><div class="row" style="justify-content:space-between"><span><b>${esc(FBM().name||"")}</b> <span class="mono small">${esc(FBM().id)}</span>${FBM().isAdmin?' <span class="pill good">관리자</span>':""}<br><span class="small muted">${FBM().isAdmin?"저장한 점검 기록은 팀 기록에 함께 보관됩니다.":"저장한 점검 기록은 관리자와 자동으로 공유됩니다."}</span></span><button data-act="fbLogout">로그아웃</button></div></div>`:"")+(team.mode==="member"&&team.status==="approved"?`<div class="banner" style="border-style:solid">관리자 승인으로 사용 중입니다. 저장한 점검 기록은 관리자와 공유됩니다.</div>`:"")+`<h2>점검 기록</h2><div class="small muted">기록은 이 기기의 브라우저에 저장됩니다. 기기를 바꾸거나 브라우저 데이터를 지우기 전에 백업 파일을 받아 두세요.</div>
   <div class="row" style="margin-top:10px"><button class="primary" data-act="new">새 점검 시작</button><button data-act="backup">백업 파일 저장</button><button data-act="restore">백업·팀원 기록 불러오기</button></div>
-  ${!framed?`<div class="card stack" style="margin-top:12px"><b>팀 설정 (이 기기)</b>
+  ${!framed&&!FBM()?`<div class="card stack" style="margin-top:12px"><b>팀 설정 (이 기기)</b>
     <div class="small muted">점검자: ${esc(teamLocal().name||"미설정")}${teamLocal().access?` (로그인: ${esc(teamLocal().access)})`:""}. 팀원은 점검 후 리포트 화면의 "관리자에게 기록 보내기"로 기록 파일을 보내고, 관리자는 받은 파일을 위 "백업·팀원 기록 불러오기"로 엽니다.</div>
     <label class="f">관리자 이메일<input id="admin_email" type="email" placeholder="기록을 받을 관리자 이메일" value="${esc(adminEmail())}"></label>
     <div class="row"><button data-act="saveAdmin">저장</button>${teamLocal().access?`<a class="small" href="/cdn-cgi/access/logout" style="align-self:center">로그아웃</a>`:TEAM_CFG.codeHash?`<button class="ghost" data-act="teamOut">이 기기에서 로그아웃</button>`:""}</div></div>`:""}
@@ -1310,7 +1310,8 @@ function sendHtml(){
   }
   if(!framed){
     const adm=adminEmail();
-    h+=`<div class="card stack" style="background:var(--bg)"><b>관리자에게 기록 보내기</b>
+    if(FBM())h+=`<div class="banner" style="border-style:solid">리포트 아래 "점검 기록 저장"을 누르면 ${FBM().isAdmin?"팀 기록에 보관됩니다":"관리자에게 자동으로 공유됩니다"}.</div><b>농가에 보내기</b>`;
+    else h+=`<div class="card stack" style="background:var(--bg)"><b>관리자에게 기록 보내기</b>
       <div class="small muted">점검 기록 파일(.json)을 관리자에게 보내면, 관리자는 기록 탭의 "팀원 기록 불러오기"로 열어 봅니다.${adm?` 관리자: ${esc(adm)}`:" 관리자 이메일은 기록 탭에서 설정하세요."}</div>
       <div class="row">${canShare?`<button class="primary" data-act="shareAdmin">관리자에게 공유 (카톡·메일)</button>`:""}<button data-act="saveRecord">기록 파일 저장</button>${adm?`<button data-act="mailAdmin">관리자에게 메일</button>`:""}</div></div>
       <b>농가에 보내기</b>`;
@@ -1457,14 +1458,13 @@ function helpManual(){
    <li>관리자는 언제든 팀원을 <b>중지</b>, <b>다시 허용</b>, <b>삭제</b>할 수 있습니다. 중지하면 팀원 화면이 즉시 잠깁니다.</li>
    <li>승인된 팀원이 "점검 기록 저장"을 누르면 기록이 관리자와 공유되고, 관리자는 팀 관리의 <b>점검 기록</b>에서 열어 볼 수 있습니다. 팀원끼리는 서로의 기록을 볼 수 없습니다.</li></ol>
   <p class="small muted">관리자가 팀원 기록을 열면 관리자 화면의 현재 점검 내용이 그 기록으로 바뀝니다. 작성 중인 점검은 먼저 저장하세요.</p>
-  <h3>링크로 쓰는 단독 배포판 (Claude 계정 없이)</h3>
-  <ol><li>관리자가 알려준 주소를 휴대폰 브라우저로 엽니다. Cloudflare 로그인 화면에서 <b>내 이메일</b>을 넣고, 메일로 온 <b>인증번호</b>를 입력합니다. 관리자가 허용한 이메일만 들어올 수 있습니다.</li>
-   <li>처음 한 번 <b>점검자 이름</b>을 넣습니다. 로그인은 관리자가 정한 기간 동안 유지됩니다.</li>
-   <li>휴대폰 브라우저 메뉴의 <b>홈 화면에 추가</b>를 누르면 앱처럼 쓸 수 있고, 우사에서 인터넷이 끊겨도 열립니다.</li>
-   <li>기록 탭의 <b>팀 설정</b>에 관리자 이메일을 넣어 둡니다.</li>
-   <li>점검 후 리포트 화면의 <b>관리자에게 기록 보내기</b>로 기록 파일(.json)을 카톡이나 메일로 보냅니다.</li>
-   <li>관리자는 받은 파일을 기록 탭의 <b>백업·팀원 기록 불러오기</b>로 엽니다. 기록 목록에 "OOO 제출"로 표시됩니다.</li></ol>
-  <p class="small muted">팀원 추가와 중지는 관리자가 Cloudflare Zero Trust의 허용 이메일 목록에서 합니다. 목록에서 빼고 세션을 취소하면 바로 들어올 수 없습니다. 기록은 각자 기기에 저장되므로 관리자에게 기록 파일을 보내 주세요.</p>
+  <h3>아이디로 쓰는 배포판 (Claude 계정 없이)</h3>
+  <ol><li>관리자가 알려준 앱 주소를 휴대폰 브라우저로 열고 <b>가입 신청</b>을 누릅니다. 아이디(영문 소문자·숫자), 비밀번호(6자 이상), 이름, 소속·연락처를 넣습니다.</li>
+   <li>"승인 대기 중" 화면이 나옵니다. 관리자가 승인하면 그 화면이 자동으로 열립니다.</li>
+   <li>관리자는 <b>기록 탭 → 팀 관리</b>에서 가입 신청을 <b>승인·거절</b>하고, 팀원을 <b>중지·다시 허용</b>합니다. 중지하면 그 팀원은 바로 쓸 수 없습니다.</li>
+   <li>팀원이 리포트에서 <b>점검 기록 저장</b>을 누르면 관리자에게 자동 공유됩니다. 관리자는 팀원별 <b>점검 기록</b>에서 열어 봅니다.</li>
+   <li>휴대폰 브라우저 메뉴의 <b>홈 화면에 추가</b>를 누르면 앱처럼 쓸 수 있습니다.</li></ol>
+  <p class="small muted">비밀번호를 잊은 팀원은 관리자가 Firebase 콘솔의 Authentication에서 그 계정을 삭제한 뒤 다시 가입하게 합니다. 점검 기준과 해설은 암호화되어 있어 승인된 사람만 볼 수 있습니다.</p>
   <h2 id="h-faq">7. 자주 묻는 질문</h2>
   <ul><li><b>화면이 하얗게 나와요</b>: 페이지를 새로고침하세요. 계속되면 다른 브라우저에서 열어 보세요.</li>
    <li><b>예시 데이터를 지우고 싶어요</b>: "새 점검 시작"을 누르면 빈 점검으로 시작합니다.</li>
@@ -1495,7 +1495,7 @@ function vHelp(){
   <div class="card stack"><label class="f">항목 검색<input id="help_q" data-helpq="1" placeholder="예: 급수, 분변, 초유, 환기" value="${esc(helpQ)}"></label>
    <div class="chips">${mods.map(([id,n])=>`<button data-helpmod="${id}" aria-pressed="${helpMod===id}">${esc(n)}</button>`).join("")}</div></div>
   <div class="card" id="helpList" style="margin-top:10px">${helpListHtml()}</div>
-  <div class="row" style="margin-top:12px"><button class="primary" data-act="saveHelpPdf">설명서 PDF 저장</button><button data-act="saveHelp">설명서 HTML 저장</button><button data-go="farm">점검으로 돌아가기</button></div></div>`;
+  <div class="row" style="margin-top:12px">${FBM()?"":`<button class="primary" data-act="saveHelpPdf">설명서 PDF 저장</button>`}<button data-act="saveHelp">설명서 HTML 저장</button><button data-go="farm">점검으로 돌아가기</button></div></div>`;
 }
 function helpDoc(){
   const keep=[helpQ,helpMod]; helpQ="";helpMod="all"; const list=helpListHtml(); [helpQ,helpMod]=keep;
@@ -1520,6 +1520,7 @@ async function accessIdentity(){
     if(!r.ok)return null;const j=await r.json();return j&&j.email?{email:String(j.email),name:String(j.name||"")}:null}catch(e){return null}
 }
 async function initTeam(){
+  if(FBM()){fbInit();render();return}
   if(!framed||!(window.claude&&window.claude.use)){
     const L=teamLocal();
     if(L.access&&L.name){team.mode="none";accessIdentity().then(id=>{if(id&&id.email!==L.access){store.set(KEY_TEAM,{...teamLocal(),access:id.email,name:id.name||""});team.mode="name";render()}});return}
@@ -1548,8 +1549,8 @@ async function initTeam(){
   db.doc("requests/"+uid).onSnapshot(d=>{team.myReq=d.exists?d.data():null;if(team.status==="none"||team.status==="requested"||team.status==="checking")team.status=team.myReq?"requested":(team.status==="checking"?"checking":"none");render()},()=>{});
 }
 async function loadNames(ids){const u=team.user;if(!u||!u.profiles)return;const need=ids.filter(i=>!(i in team.names));if(!need.length)return;try{const ps=await u.profiles(need);need.forEach(i=>team.names[i]=(ps&&ps[i]&&ps[i].name)||"");teamRefresh()}catch(_){}}
-function teamRefresh(){updateBadge();const c=$("#teamCard");if(c)c.innerHTML=teamAdminHtml()}
-function updateBadge(){const b=document.querySelector('nav [data-tab="hist"]');if(!b)return;const n=team.mode==="owner"?team.requests.length:0;let s=b.querySelector(".badge");if(n){if(!s){s=document.createElement("span");s.className="badge";b.appendChild(s)}s.textContent=n}else if(s)s.remove()}
+function teamRefresh(){updateBadge();const c=$("#teamCard");if(c)c.innerHTML=team.mode==="fbadmin"?fbAdminHtml():teamAdminHtml()}
+function updateBadge(){const b=document.querySelector('nav [data-tab="hist"]');if(!b)return;const n=team.mode==="owner"?team.requests.length:team.mode==="fbadmin"?fbx.users.filter(u=>u.status==="pending").length:0;let s=b.querySelector(".badge");if(n){if(!s){s=document.createElement("span");s.className="badge";b.appendChild(s)}s.textContent=n}else if(s)s.remove()}
 const who=id=>team.names[id]||"이름 확인 불가";
 function gateHtml(){
   const st=team.status, r=team.myReq;
@@ -1599,6 +1600,7 @@ async function loadTeamVisits(id){const db=team.db;if(!db)return;team.teamVisits
 async function openTeamVisit(key){const [uid,vid]=key.split("|");const db=team.db;try{const d=await db.doc(`visits/${uid}/list/${vid}`).get();if(!d.exists)return toast("기록을 찾을 수 없습니다");
   const v=migrate(JSON.parse(d.data().visit));S=v;S.example=false;mod=activeMods()[0];save();toast(`${who(uid)}님의 점검 기록을 열었습니다`);go("report")}catch(e){toast("기록을 열지 못했습니다")}}
 async function shareVisit(){
+  if(FBM())return fbShare();
   const db=team.db; if(!db||!team.uid)return false;
   if(team.mode==="member"&&team.status!=="approved")return false;
   try{const body=JSON.stringify(S); if(body.length>240000)return false;
@@ -1623,12 +1625,48 @@ function mailAdmin(){const adm=adminEmail();if(!adm)return;
   const body=`${S.farm.name||""} ${S.farm.date} 점검 기록입니다.\n\n${summaryText()}\n\n※ 기록 파일(.json)은 "기록 파일 저장"으로 받은 뒤 이 메일에 첨부해 주세요.`.slice(0,1800);
   location.href=`mailto:${encodeURIComponent(adm)}?subject=${encodeURIComponent(`[점검 기록] ${S.farm.name||""} ${S.farm.date} · ${teamLocal().name||""}`)}&body=${encodeURIComponent(body)}`}
 
+
+/* ---------- Firebase 배포판 (아이디·비밀번호 로그인 + 관리자 승인) ----------
+   로그인과 승인 확인은 껍데기(shell) 페이지가 하고, 승인된 사람에게만 이 앱 코드가 복호화되어 실행됨.
+   window.FB = {uid,id,name,isAdmin,db(Firestore),logout} */
+const FBM=()=>window.FB||null;
+const fbx={users:[],visits:{},unsub:null};
+function fbInit(){
+  const F=FBM(); team.mode=F.isAdmin?"fbadmin":"fbmember"; team.uid=F.uid;
+  store.set(KEY_TEAM,{...teamLocal(),name:F.name||F.id});
+  if(S.example||!S.farm.inspector){S.farm.inspector=F.name||F.id}
+  if(F.isAdmin)fbx.unsub=F.db.collection("users").onSnapshot(q=>{fbx.users=q.docs.map(d=>({uid:d.id,...d.data()}));teamRefresh()},()=>{});
+}
+function fbAdminHtml(){
+  const F=FBM(); if(!F||!F.isAdmin)return "";
+  const d=t=>t?new Date(t).toLocaleDateString("ko-KR"):"";
+  const P=fbx.users.filter(u=>u.status==="pending").sort((a,b)=>(a.createdAt||0)-(b.createdAt||0));
+  const M=fbx.users.filter(u=>u.status!=="pending").sort((a,b)=>(a.id||"").localeCompare(b.id||""));
+  const lab={approved:["good","사용 중"],blocked:["bad","중지"],rejected:["na","거절"]};
+  let h=`<h3>가입 신청 ${P.length?`<span class="pill warn">${P.length}</span>`:""}</h3>`;
+  h+=P.length?P.map(u=>`<div class="kv"><span style="min-width:0"><b>${esc(u.name||"")}</b> <span class="mono small">${esc(u.id||"")}</span><br><span class="small muted">${esc(u.note||"")} · ${d(u.createdAt)}</span></span><span class="row"><button class="primary" data-fbset="${esc(u.uid)}|approved">승인</button><button data-fbset="${esc(u.uid)}|rejected">거절</button></span></div>`).join(""):'<div class="small muted">대기 중인 신청이 없습니다.</div>';
+  h+=`<h3 style="margin-top:16px">팀원 ${M.length}명</h3>`;
+  h+=M.length?M.map(u=>{const v=fbx.visits[u.uid],L=lab[u.status]||["na",u.status];return `<div class="kv" style="flex-wrap:wrap"><span style="min-width:0"><b>${esc(u.name||"")}</b> <span class="mono small">${esc(u.id||"")}</span> <span class="pill ${L[0]}">${L[1]}</span><br><span class="small muted">${esc(u.note||"")}</span></span>
+    <span class="row">${u.status==="approved"?`<button data-fbset="${esc(u.uid)}|blocked">중지</button>`:`<button data-fbset="${esc(u.uid)}|approved">${u.status==="rejected"?"승인":"다시 허용"}</button>`}${u.status==="approved"?`<button data-fbvisits="${esc(u.uid)}">점검 기록</button>`:""}</span>
+    ${v?`<div style="width:100%">${v==="loading"?'<span class="small muted">불러오는 중…</span>':v.length?v.map(x=>`<div class="kv"><span class="small">${esc(x.farm||"목장명 없음")} · ${esc(x.date||"")}</span><button data-fbopen="${esc(u.uid)}|${esc(x.id)}">열기</button></div>`).join(""):'<span class="small muted">공유된 점검 기록이 없습니다.</span>'}</div>`:""}</div>`}).join(""):'<div class="small muted">아직 승인한 팀원이 없습니다.</div>';
+  h+=`<div class="small muted" style="margin-top:10px">팀원은 앱 주소에서 아이디·비밀번호로 가입 신청을 하고, 여기서 승인하면 바로 사용할 수 있습니다. 중지하면 즉시 잠깁니다. 비밀번호를 잊은 팀원은 Firebase 콘솔(Authentication)에서 계정을 삭제한 뒤 다시 가입하게 하세요.</div>`;
+  return h;
+}
+async function fbSet(key){const [uid,st]=key.split("|");const F=FBM();try{await F.db.doc("users/"+uid).update({status:st,updatedAt:Date.now()});toast({approved:"승인했습니다",blocked:"사용을 중지했습니다",rejected:"거절했습니다"}[st]||"변경했습니다")}catch(e){toast("처리하지 못했습니다")}}
+async function fbVisits(uid){const F=FBM();if(fbx.visits[uid]&&fbx.visits[uid]!=="loading"){delete fbx.visits[uid];return teamRefresh()}fbx.visits[uid]="loading";teamRefresh();
+  try{const q=await F.db.collection(`visits/${uid}/list`).orderBy("savedAt","desc").limit(30).get();fbx.visits[uid]=q.docs.map(d=>({id:d.id,...d.data()}))}catch(e){fbx.visits[uid]=[]}teamRefresh()}
+async function fbOpen(key){const [uid,vid]=key.split("|");const F=FBM();try{const d=await F.db.doc(`visits/${uid}/list/${vid}`).get();if(!d.exists)return toast("기록을 찾을 수 없습니다");
+  const x=d.data();S=migrate(JSON.parse(x.visit));S.example=false;mod=activeMods()[0];save();toast(`${x.name||x.by||"팀원"}님의 점검 기록을 열었습니다`);go("report")}catch(e){toast("기록을 열지 못했습니다")}}
+async function fbShare(){const F=FBM();if(!F)return false;try{const body=JSON.stringify(S);if(body.length>900000)return false;
+  await F.db.doc(`visits/${F.uid}/list/${S.id}`).set({farm:S.farm.name||"",date:S.farm.date||"",savedAt:Date.now(),by:F.id,name:F.name||"",visit:body});return true}catch(e){return false}}
+
 /* ---------- 이벤트 ---------- */
 document.addEventListener("click",e=>{
   const jl=e.target.closest("[data-jump]"); if(jl){e.preventDefault();const el=document.getElementById(jl.dataset.jump);if(el)window.scrollTo({top:el.getBoundingClientRect().top+window.scrollY-60,behavior:"smooth"});return}
   const b=e.target.closest("button"); if(!b)return;
   const d=b.dataset;
   if(d.tab)return go(d.tab);
+  if(d.fbset)return fbSet(d.fbset); if(d.fbvisits)return fbVisits(d.fbvisits); if(d.fbopen)return fbOpen(d.fbopen);
   if(d.approve)return teamAct("approve",d.approve); if(d.reject)return teamAct("reject",d.reject);
   if(d.block)return teamAct("block",d.block); if(d.unblock)return teamAct("unblock",d.unblock);
   if(d.mremove){if(b.dataset.sure!=="1"){b.dataset.sure="1";b.textContent="정말 삭제";return}return teamAct("remove",d.mremove)}
@@ -1677,7 +1715,7 @@ document.addEventListener("click",e=>{
     if(dirty&&!d.sure){d.sure="1";b.textContent="현재 내용 지우고 시작";toast("저장하지 않은 내용은 사라집니다. 한 번 더 누르세요");return}
     const mods=S.example?["dairy"]:S.mods.slice(); S=blank(); S.mods=mods; mod=activeMods()[0]; if(teamLocal().name)S.farm.inspector=teamLocal().name; openSec={}; save(); toast("새 점검을 시작합니다. 점검 분야를 고르세요"); return go("farm");
   }
-  if(a==="saveVisit"){shareVisit().then(ok=>{if(ok)toast(team.mode==="owner"?"점검 기록을 저장했습니다":"점검 기록을 저장하고 관리자와 공유했습니다")});const V=store.get(KEY_VISITS,[]);const i=V.findIndex(x=>x.id===S.id);const c=JSON.parse(JSON.stringify(S));if(i>=0)V[i]=c;else V.push(c);toast(store.set(KEY_VISITS,V)?"점검 기록을 저장했습니다":"이 브라우저에서는 저장할 수 없습니다. 백업 파일을 사용하세요");return}
+  if(a==="saveVisit"){shareVisit().then(ok=>{if(ok)toast(team.mode==="owner"||team.mode==="fbadmin"?"점검 기록을 저장했습니다":"점검 기록을 저장하고 관리자와 공유했습니다");else if(FBM())toast("관리자 공유에 실패했습니다. 인터넷 연결 후 다시 저장해 주세요")});const V=store.get(KEY_VISITS,[]);const i=V.findIndex(x=>x.id===S.id);const c=JSON.parse(JSON.stringify(S));if(i>=0)V[i]=c;else V.push(c);toast(store.set(KEY_VISITS,V)?"점검 기록을 저장했습니다":"이 브라우저에서는 저장할 수 없습니다. 백업 파일을 사용하세요");return}
   if(a==="copyText")return copy(summaryText());
   if(a==="saveHelpPdf"){(async()=>{try{const r=await fetch("manual.pdf");if(!r.ok)throw 0;const blob=await r.blob();
       if(framed){const dl=await getCap("downloads");if(!dl){toast("이 화면에서는 저장할 수 없습니다");return}try{await dl.save({filename:"현장점검_사용설명서.pdf",data:blob});toast("PDF를 저장했습니다")}catch(e){if(e&&e.code!=="declined")toast("저장하지 못했습니다")}}
@@ -1692,6 +1730,7 @@ document.addEventListener("click",e=>{
   if(a==="fbReset"){S.fb=S.fb||{};S.fb.edited=false;S.fb.text=null;save();$("#fbCard").innerHTML=fbHtml();$("#sumText").textContent=summaryText();toast("자동 내용으로 다시 썼습니다");return}
   if(a==="fbCopy")return copy(fbText()+(S.fb&&S.fb.opinion?`\n\n■ 평가자 소견\n${S.fb.opinion}`:""));
   if(a==="mailCancel"){mail.confirm=false;setMailMsg("","");return}
+  if(a==="fbLogout"){if(b.dataset.sure!=="1"){b.dataset.sure="1";b.textContent="정말 로그아웃";return}return FBM()&&FBM().logout()}
   if(a==="share")return shareReport();
   if(a==="shareAdmin")return shareAdmin();
   if(a==="saveRecord")return download(recordName(),recordData(),"application/json");
