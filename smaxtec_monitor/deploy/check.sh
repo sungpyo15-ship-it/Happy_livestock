@@ -88,6 +88,10 @@ if last:
     print(f"  마지막 실행: {last.get('at')} {'08시' if last.get('slot') == 'am' else '14시'} · {'시험' if last.get('test') else '실제'}"
           f"{' · 꺼짐' if last.get('note') == '꺼짐' else ''} · 판정 {last.get('as_of') or '없음'} · 긴급·우선 {last.get('targets', '?')}곳"
           f" · 보낸 담당자 {last.get('contacts', 0)}명/목장 {last.get('farms', 0)}건 · 전달 {last.get('delivered', 0)}명")
+    if "cc" in last:
+        print(f"    관리자 사본 전달: {last['cc']}건")
+    for e in (last.get("push_errors") or [])[:6]:
+        print(f"    ⚠ 알림 실패: {e['owner']} {e['host']} 코드 {e['code']} {e['msg']}")
     for k, lbl in (("no_contact", "담당자 미등록"), ("no_device", "알림 미설정 담당자"), ("stale", "판정 오래됨(팀원)"), ("no_state", "판정 자료 없음(팀원)")):
         if last.get(k):
             print(f"    {lbl}: {', '.join(map(str, last[k][:10]))}{' …' if len(last[k]) > 10 else ''}")

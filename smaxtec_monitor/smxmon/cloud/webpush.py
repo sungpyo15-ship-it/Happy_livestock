@@ -103,7 +103,10 @@ def send(vapid: Vapid, sub: dict[str, Any], data: dict[str, Any], *, contact: st
     endpoint = sub["endpoint"]
     if not endpoint.startswith("https://"):
         return 0, "잘못된 주소"
-    body = encrypt(json.dumps(data, ensure_ascii=False).encode(), sub["p256dh"], sub["auth"])
+    try:
+        body = encrypt(json.dumps(data, ensure_ascii=False).encode(), sub["p256dh"], sub["auth"])
+    except (ValueError, KeyError, TypeError) as e:     # 깨진 등록 정보 → 이 기기만 건너뜀(전체 발송은 계속)
+        return 410, f"등록 정보 오류: {e}"
     req = urllib.request.Request(endpoint, data=body, method="POST", headers={
         "Authorization": vapid.header(endpoint, contact), "Content-Encoding": "aes128gcm",
         "Content-Type": "application/octet-stream", "TTL": str(ttl), "Urgency": "high"})

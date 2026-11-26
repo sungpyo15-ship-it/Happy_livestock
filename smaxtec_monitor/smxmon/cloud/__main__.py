@@ -6,6 +6,7 @@
   allow 아이디 [메모]  팀원 허용 (관리자 화면에서도 가능)
   users             사용자·상태 목록
   dispatch --slot am|pm   자동 업무지시 알림 (서버 타이머가 08:00·14:00 실행)
+  push-test         등록된 모든 알림 기기에 점검 알림을 보내고 기기별 결과 표시
   validate [--days N] [--anon]  판정 기준 검증(모든 사용자 DB, 목장 중복 제외) → 관리자 '파일 받기'에 판정검증 엑셀
 
 환경변수 (/etc/smxmon/env)
@@ -53,6 +54,7 @@ def main(argv=None) -> int:
     a.add_argument("username")
     a.add_argument("note", nargs="?", default="")
     sub.add_parser("users")
+    sub.add_parser("push-test")
     dp = sub.add_parser("dispatch")
     dp.add_argument("--slot", choices=["am", "pm"], required=True)
     v = sub.add_parser("validate")
@@ -79,6 +81,33 @@ def main(argv=None) -> int:
     elif args.cmd == "allow":
         store.allow(args.username, args.note)
         print("허용:", args.username.lower())
+    elif args.cmd == "push-test":
+        import sqlite3
+        from urllib.parse import urlparse
+        from .webpush import Vapid, send
+        c = sqlite3.connect(store.path)
+        c.row_factory = sqlite3.Row
+        rows = [dict(r) for r in c.execute("SELECT * FROM push_subs ORDER BY owner, created")]
+        users = {"u:" + u.uid: u.username for u in store.users()}
+        rcv = {"r:" + r["id"]: f"담당자 {r['name']}" for r in c.execute("SELECT id, name FROM receivers WHERE revoked=0")}
+        c.close()
+        if not rows:
+            print("등록된 알림 기기가 없습니다. 앱 → 계정 → '이 기기에서 알림 받기'")
+            return 0
+        v, claim = Vapid(store.root / "vapid.pem"), store.kv_get("site_url") or "mailto:admin@example.com"
+        print(f"알림 기기 {len(rows)}대 (보낸 쪽 주소 {claim})")
+        for r in rows:
+            who = users.get(r["owner"]) or rcv.get(r["owner"]) or f"(끊긴 링크 {r['owner']})"
+            ua = r.get("ua") or ""
+            dev = "아이폰" if "iPhone" in ua else "아이패드" if "iPad" in ua else "안드로이드" if "Android" in ua else "PC/기타"
+            code, msg = send(v, r, {"title": "[점검] 목장모니터 알림", "body": f"{who} · 이 알림이 보이면 정상입니다", "url": "/",
+                                    "tag": "pushtest"}, contact=claim)
+            store.sub_result(r["endpoint"], 200 <= code < 300, gone=code in (404, 410))
+            res = ("보냄(정상)" if 200 <= code < 300 else "등록 사라짐 → 앱에서 알림 다시 켜기(이 기기 기록 삭제함)" if code in (404, 410)
+                   else f"실패 {code} {msg[:60]}")
+            print(f"  - {who:<28} {dev:<6} 등록 {str(r.get('created') or '')[:16]} · 마지막 성공 {str(r.get('last_ok') or '-')[:16]}"
+                  f" · {urlparse(r['endpoint']).netloc} → {res}")
+        print("휴대폰에 '[점검] 목장모니터 알림'이 왔는지 확인하세요. '보냄(정상)'인데 안 오면 휴대폰 알림 설정·집중 모드 확인.")
     elif args.cmd == "dispatch":
         from ..dispatch import run as run_dispatch
         print(run_dispatch(store, args.slot))

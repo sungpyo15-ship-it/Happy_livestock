@@ -16,6 +16,15 @@ set -a; . /etc/smxmon/env; set +a
 exec nice -n 10 runuser -u smxmon -- /opt/smxmon/venv/bin/python -m smxmon.cloud validate "$@"
 SH
 chmod 755 /usr/local/bin/smxmon-validate
+cat > /usr/local/bin/smxmon-push-test <<'SH'
+#!/usr/bin/env bash
+# 알림 점검 — 등록된 모든 기기에 점검 알림을 보내고 기기별 결과 표시. 사용법: sudo smxmon-push-test
+[ "$(id -u)" = 0 ] || { echo "sudo smxmon-push-test 로 실행하세요"; exit 1; }
+cd /opt/smxmon/app/smaxtec_monitor
+set -a; . /etc/smxmon/env; set +a
+exec runuser -u smxmon -- /opt/smxmon/venv/bin/python -m smxmon.cloud push-test
+SH
+chmod 755 /usr/local/bin/smxmon-push-test
 # 자동 업무지시 알림 08:00(am) · 14:00(pm) — 켜고 끄기는 관리자 화면에서
 for slot in am pm; do
   t=$([ $slot = am ] && echo "08:00:00" || echo "14:00:00")

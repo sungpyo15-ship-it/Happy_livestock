@@ -188,12 +188,19 @@ def run(store, slot: str, now: datetime | None = None, sender=None, vapid=None, 
     adm = store.get_by_username(store.admin) if store.admin else None
     admin_subs = store.subs("u:" + adm.uid) if adm else []
 
+    from urllib.parse import urlparse
+
     def push(subs: list[dict], data: dict) -> int:
         ok = 0
         for s in subs:
-            code, _ = sender(vapid, s, data, contact=claim)
-            store.sub_result(s["endpoint"], 200 <= code < 300, gone=code in (404, 410))
-            ok += 200 <= code < 300
+            code, msg = sender(vapid, s, data, contact=claim)
+            good = 200 <= code < 300
+            store.sub_result(s["endpoint"], good, gone=code in (404, 410))
+            ok += good
+            if not good:   # 실패는 기록(점검 화면·로그) — 404/410 = 그 기기 알림 등록이 사라짐(앱 삭제·알림 끔)
+                e = {"owner": s.get("owner", ""), "host": urlparse(s["endpoint"]).netloc, "code": code, "msg": (msg or "")[:80]}
+                summary.setdefault("push_errors", []).append(e)
+                log.warning("알림 실패 %s %s %s %s", e["owner"], e["host"], code, e["msg"])
         return ok
 
     for p in plans:
@@ -211,7 +218,8 @@ def run(store, slot: str, now: datetime | None = None, sender=None, vapid=None, 
         subs = admin_subs if test else (store.subs("r:" + rcv["id"]) if rcv else [])
         got = push(subs, data) if subs else 0
         if not test and cc and admin_subs:      # 관리자 사본
-            push(admin_subs, {**data, "title": f"[사본] {p['name']} 님께 보냄 · " + data["title"], "tag": f"cc-{did}"})
+            summary["cc"] = summary.get("cc", 0) + push(admin_subs, {**data, "title": f"[사본] {p['name']} 님께 보냄 · " + data["title"],
+                                                                      "tag": f"cc-{did}"})
         store.dispatch_delivered(did, len(subs), got)
         summary["contacts"] += 1
         summary["farms"] += len(p["farms"])
