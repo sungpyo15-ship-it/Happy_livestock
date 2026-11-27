@@ -340,7 +340,7 @@ const NA={na:true};
 const ceil=x=>Math.ceil(x-1e-9);
 const CCCS=[
  {code:"A",name:"착유우 상태",items:[
-  R("s1","찰과상·종창·코 분비물",10,"증상을 보이는 개체 비율 10%마다 2점 감점. 비워 두면 개체관찰 체크포인트(목·어깨 혹, 앞·뒷무릎 부종, 옆구리 상처, 콧물)의 착유·건유 우군 합계 비율을 씁니다(한 소에 여러 증상이 있으면 겹쳐 셀 수 있음)",[["s1p","증상 개체","%"]],v=>{let p=num(v.s1p);if(p==null)p=signPct(DG,["neck","shoulder","carpal","hock","flank","nose"]);return p==null?null:10-2*Math.floor(p/10)}),
+  R("s1","찰과상·종창·코 분비물",10,"증상을 보이는 개체 비율 10%마다 2점 감점. 비워 두면 개체관찰 체크포인트(목·어깨 혹, 앞·뒷무릎 상처와 부종, 옆구리 상처, 콧물)의 착유·건유 우군 합계 비율을 씁니다(한 소에 여러 증상이 있으면 겹쳐 셀 수 있음)",[["s1p","증상 개체","%"]],v=>{let p=num(v.s1p);if(p==null)p=signPct(DG,["neck","shoulder","carpalw","carpal","hockw","hock","flank","nose"]);return p==null?null:10-2*Math.floor(p/10)}),
   R("s2","청결도",5,"0 매우 더러움 ~ 5 매우 깨끗함. 비워 두면 개체관찰 청결지수 3점 이상 비율로 자동 채점: 10% 이하 5점, 10%p마다 1점 감점",[["s2p","청결지수 3점 이상","%"]],v=>{const p=num(v.s2p);if(p!=null)return p<=10?5:Math.max(0,5-Math.ceil((p-10)/10));return clean5(DG)}),
   R("s3","보행장애 (걷기 불편한 개체)",25,"보행장애 개체 1%마다 1점 감점. 비워 두면 개체관찰의 보행지수 3 이상 비율을 씁니다",[["s3p","보행장애 개체","%"]],v=>{let p=num(v.s3p);if(p==null)p=lameAuto();return p==null?null:25-Math.round(p)})]},
  {code:"B",name:"휴식 공간",items:[
@@ -542,8 +542,10 @@ function headN(g){return GN[g]?num(S.farm[GN[g]]):null}
 const SIGNS = [
  ["neck","목 위 혹·굳은살","스탄천·사료조 펜스가 너무 낮음"],
  ["shoulder","어깨 혹","사료조 펜스 설계 불량, 사료가 너무 멂"],
- ["carpal","앞무릎 부종·탈모","바닥이 딱딱하거나 깔짚 부족"],
- ["hock","뒷무릎 부종·탈모","바닥이 딱딱하거나 거침"],
+ ["carpalw","앞무릎 상처·탈모","바닥이 거칠거나 깔짚 부족 (마찰)"],
+ ["carpal","앞무릎 부종","바닥이 딱딱함 (눕고 일어날 때 충격)"],
+ ["hockw","뒷무릎 상처·탈모","바닥이 거칠거나 깔짚 부족 (마찰)"],
+ ["hock","뒷무릎 부종","바닥이 딱딱함 (눕고 일어날 때 충격)"],
  ["flank","옆구리 상처","젖은 바닥"],
  ["hooflong","발굽 길고 말림","삭제 지연·미실시"],
  ["coronary","제관 부종·딱지, 다리 들기","발굽 질환"],
