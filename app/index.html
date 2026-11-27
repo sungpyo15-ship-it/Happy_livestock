@@ -541,13 +541,13 @@ const BEEFG=[
    P("bw8","사료를 고르게 펴 주는가",YN(1),"",{act:"사료를 길게 펴서 급여"}),
    P("bw9","육성기 조사료",10,"티모시 이상·알티블루급 양질 조사료를 프로그램 정량 급여하면 10점",{f:[["bw9t","종류",""],["bw9k","두당 급여량","kg/일"]],act:"티모시·알티블루급 양질 조사료 프로그램 정량"}),
    P("bw10","미네랄 블록",YN(2),"",{act:"미네랄 블록 설치"}),
-   P("bw11","체형점수 (BCS)",[["적당",2],["마름·살찜",0]],"",{act:"체형 적정 유지, 편차 큰 소 분리"})]},
+   P("bw11","체형점수 (BCS)",[["적당",2],["마름·살찜",0]],"",{act:"체형 적정 유지, 편차 큰 소 분리",link:()=>{const p=badPct(["hfat1"],"hbcs");return p==null?null:p<=15?0:1},linkMsg:"개체관찰 비육 육성·큰소 체형점수(마름·살찜 15% 이하면 적당)로 자동 선택됨"})]},
  {code:"C",name:"큰소비육 (15)",items:[P("bw12","배합사료 정량 급여",5,"정량 급여를 철저히 하면 5점",{act:"프로그램 정량 급여"}),
    P("bw13","사료를 고르게 펴 주는가",YN(1),"",{act:"사료를 길게 펴서 급여"}),
    P("bw14","볏짚 섭취량",[["프로그램 정량",2],["부족",0]],"양질의 볏짚 권장 섭취량 적용 2점",{f:[["bw14k","두당","kg/일"]],act:"상태 양호한 볏짚 프로그램 정량"}),
    P("bw15","미네랄 블록",YN(1),"",{act:"미네랄 블록 설치 (비타민A 없는 제품)"}),
    P("bw16","미네랄 블록 비타민A 함유",[["미함유",2],["함유",0]],"큰소 시기에는 비타민A가 없어야 2점",{act:"비타민A 없는 블록으로 교체"}),
-   P("bw17","체형점수 (BCS)",[["적정",2],["마름·살찜",0]],"",{act:"체형 적정 유지"}),
+   P("bw17","체형점수 (BCS)",[["적정",2],["마름·살찜",0]],"",{act:"체형 적정 유지",link:()=>{const p=badPct(["hfat1"],"hbcs");return p==null?null:p<=15?0:1},linkMsg:"개체관찰 비육 육성·큰소 체형점수로 자동 선택됨"}),
    P("bw18","2차 구충",YN(2),"",{act:"큰소 시기 2차 구충"})]},
  {code:"D",name:"마무리 (15)",items:[P("bw19","배합사료 섭취량",[["7~10 kg",5],["7 kg 미만",2],["10 kg 초과",0]],"섭취량이 과도하지 않게 권장 섭취량 적용 (10 kg 이상 과도한 급여 금지)",{f:[["bw19k","두당","kg/일"]],act:"7~10 kg 섭취 유도, 10 kg 이상 과급여 금지",link:()=>{const k=num(S.pv.bw19k);return k==null?null:k<7?1:k<=10?0:2},linkMsg:"섭취량으로 자동 선택됨"}),
    P("bw20","섭취 기복",[["기복 없음",3],["기복 있음",0]],"",{act:"섭취량 매일 기록, 기복 원인 제거"}),
@@ -610,30 +610,30 @@ const SIGNALS = [
   bad:(v,g)=>g==="dry"?(v<3||v>=4):(g==="late"||g==="mid")?(v<2.75||v>=4):(v<2.5||v>=3.75),limit:20,
   targetBy:{heifer:"2.5~3.25 (비유초기 2.75~3.25, 피크기 2.0~3.0)",early:"2.5~3.25 (비유초기 2.75~3.25, 피크기 2.0~3.0)",late:"3.0~3.5 (건유 2달 전 3.5 목표)",dry:"3.0~3.75 (분만 전 3.0~4.0)"},
   act:"평균 높음: 비유후기·건유기 과비 방지 / 낮음: 건물섭취량·에너지 밀도 상향 / 분포 넓음: 우군 분리"},
- {id:"hbcs",name:"체형점수",groups:["hcow","hgrow"],how:"교재 점검표의 마름 ~ 살찜 5단계",
+ {id:"hbcs",name:"체형점수 (BCS)",groups:["hcow","hgrow","hfat1","hfat2"],how:"회사 번식우·비육우군 점검표의 체형점수. 마름 ~ 살찜 5단계로 소마다 판단",
   opts:o([[1,"마름"],[2,"약간 마름"],[3,"적정"],[4,"약간 살찜"],[5,"살찜"]]),
-  bad:v=>v===1||v===5,limit:15,limitRef:true,target:"적정 (분만 전 과비·이유 후 여윔 주의)",
+  bad:v=>v===1||v===5,limit:15,limitRef:true,target:"적정 (분만 전 과비·이유 후 여윔 주의)",targetBy:{hcow:"적정 (분만 전 과비·이유 후 여윔 주의)",hgrow:"적정 (초종부 전 과비·여윔 주의)",hfat1:"적당 (육성·큰소 체형 균일)",hfat2:"적당 (마무리 과비·편차 주의)"},
   act:"마름: 임신말기·포유기 에너지 증량 / 살찜: 임신 중기 급여량 조절 (난산·번식장애 예방)"},
- {id:"loco",name:"보행지수",groups:[...DG,"hcow","hgrow"],how:"평지 보행. 1 정상 / 2 걸을 때 등 굽음 / 3 서도 등 굽고 보폭 짧음 / 4 체중 못 실음 / 5 일어나기 힘듦 (한우 번식우는 같은 5단계 보행 점수를 준용)",
+ {id:"loco",name:"보행지수",groups:DG,how:"평지 보행. 1 정상 / 2 걸을 때 등 굽음 / 3 서도 등 굽고 보폭 짧음 / 4 체중 못 실음 / 5 일어나기 힘듦",
   opts:o([1,2,3,4,5]),bad:v=>v>=3,limit:20,target:"1~2 · 분포 1:50% 2:30% 3:15% 4:4% 5:1% 이하",
   act:"3은 당일, 4는 즉시, 5는 전문 치료. 2 이상이 늘면 공태기간 16배·수정횟수 9배·도태율 8배 증가(미국 자료)"},
- {id:"fmob",name:"이동성 점수 (비육우)",groups:["hfat1","hfat2"],how:"우방 밖으로 걷게 하며 관찰. 1 정상 / 2 약간 뻣뻣하거나 보폭이 짧지만 무리를 따라감 / 3 뚜렷하게 절고 무리에서 뒤처짐 / 4 재촉해도 움직이려 하지 않음",
+ {id:"fmob",name:"이동성 점수 (비육우)",groups:[],how:"우방 밖으로 걷게 하며 관찰. 1 정상 / 2 약간 뻣뻣하거나 보폭이 짧지만 무리를 따라감 / 3 뚜렷하게 절고 무리에서 뒤처짐 / 4 재촉해도 움직이려 하지 않음",
   opts:o([1,2,3,4]),bad:v=>v>=3,limit:2,limitRef:true,target:"1 · 3~4점은 2% 이하 (비육우 4단계 이동성 점수 체계, 목표는 앱 설정)",
   act:"3~4점 소 즉시 격리·치료 · 우방 바닥 미끄럼·요철 점검 · 발굽 과장 소 삭제"},
  {id:"leg",name:"발목지수",groups:DG,how:"뒤에서 본 뒷발 방향. 1 정상(±17°) / 2 발굽피부염 의심 / 3 바깥으로 틀어짐·부종",
   opts:o([1,2,3]),bad:v=>v>=2,limit:10,limitRef:true,target:"1 (±17° 이내)",act:"포르말린 발굽소독조, 조농비 균형, 발굽 손질"},
- {id:"rumen",name:"반추위 충만도",groups:[...DG,...HG],how:"왼쪽 옆구리. 1 깊게 패인 직사각형 / 2 삼각형 / 3 피부가 수직으로 내려옴 / 4 볼록 / 5 요추가 안 보임",
+ {id:"rumen",name:"반추위 충만도",groups:DG,how:"왼쪽 옆구리. 1 깊게 패인 직사각형 / 2 삼각형 / 3 피부가 수직으로 내려옴 / 4 볼록 / 5 요추가 안 보임",
   opts:o([1,2,3,4,5]),bad:(v,g)=>g==="dry"?v<4:v<3,limit:15,limitRef:true,
   targetBy:{heifer:"3",early:"3 (분만 첫 주는 2가 흔함)",late:"3",dry:"4~5",hcow:"3 이상",hgrow:"3 이상",hfat1:"3 이상",hfat2:"3 이상"},
   act:"섭취량 부족 신호: 사료 접근·기호성·음수 점검"},
- {id:"clean",name:"청결지수",groups:[...DG,...HG],how:"유방·뒷다리(무릎~발굽), 한우는 체모 오염도. 1 목표 / 2 허용 / 3 위험 / 4 심각 / 5 불허",
+ {id:"clean",name:"청결지수",groups:[...DG,...HG],how:"젖소는 유방·뒷다리(무릎~발굽), 한우는 체모 상태(오염도). 1 깨끗 / 2 허용 / 3 더러움 / 4 심각 / 5 매우 심각 · 한우는 체모가 더러우면 바닥재 교체(회사 점검표)",
   opts:o([1,2,3,4,5]),bad:v=>v>=3,limit:10,target:"1~2 · 3 이상 10% 이하",
   act:"바닥 깔짚 교체·환기·분뇨 제거. 젖소는 청결지수 1단계 악화 시 체세포 약 5만 증가(미네소타대)"},
- {id:"manure",name:"분변지수",groups:[...DG,...HG],how:"1 물총 설사 / 2 묽어 멀리 튐 / 3 2~3 cm, 발자국 안 남음(이상적) / 4 손가락 높이 이상 / 5 말똥처럼 단단",
+ {id:"manure",name:"분변지수",groups:DG,how:"1 물총 설사 / 2 묽어 멀리 튐 / 3 2~3 cm, 발자국 안 남음(이상적) / 4 손가락 높이 이상 / 5 말똥처럼 단단",
   opts:o([1,2,3,4,5]),mode:"mean",tgtBy:{heifer:2.75,early:2.5,late:3.0,dry:3.25,hcow:3.0,hgrow:3.0,hfat1:3.0,hfat2:3.0},
   targetBy:{heifer:"평균 2.75",early:"평균 2.5",late:"평균 2.75~3.25",dry:"평균 3.25 (전기 3.5, 분만 2~3주 전 3.0)",hcow:"평균 3.0 (한우는 젖소 기준 준용)",hgrow:"평균 3.0 (젖소 기준 준용)",hfat1:"평균 3.0 (젖소 기준 준용)",hfat2:"평균 3.0 (젖소 기준 준용, 묽으면 산독증 의심)"},
   act:"묽음: 단백질·전분 과다, 산독증 점검 / 단단함: 섬유 과다·음수 부족 점검"},
- {id:"dung",name:"미소화분변지수",groups:[...DG,"hfat1","hfat2"],how:"분변 체로 씻은 뒤. 1 크림처럼 균질 / 3 섬유가 손가락에 묻음 / 5 큰 사료 덩어리",
+ {id:"dung",name:"미소화분변지수",groups:DG,how:"분변 체로 씻은 뒤. 1 크림처럼 균질 / 3 섬유가 손가락에 묻음 / 5 큰 사료 덩어리",
   opts:o([1,2,3,4,5]),bad:v=>v>=4,limit:20,limitRef:true,target:"1~2 (착유우는 3까지) · 씻은 뒤 절반 이하만 남아야 함",
   act:"통과속도 과다: 물리적 섬유·곡류 가공도·입자도 점검"},
  {id:"teat",name:"유두지수",groups:["heifer","early","mid","late"],how:"1 굳은 곳 없음 / 2 부드러운 링 / 3 거친 링 / 4 매우 거칠고 닳음",
@@ -908,7 +908,7 @@ function sample(){
   const s=blank(); s.example=true; s.mods=["dairy","beef","cow"];
   Object.assign(s.farm,{name:"예시 목장",owner:"홍길동",mE:"20",mM:"17",mL:"31",milking:"68",sick:"2",dry:"10",heifer:"35",parity:"2.3",ci:"440",afc:"26",ship:"2150",scc:"24",bac:"2.5",fat:"3.82",prot:"3.21",mun:"15.8",
     hcow:"42",hgrow:"8",hfatA:"60",hfatB:"35",hcalf:"30",temp:"27",rh:"70",notes:"예시 데이터입니다."});
-  Object.assign(s.farm,{y305:"9200",dim:"195",open:"172",preg:"30",first:"28",eyield:"33",latep:"45",snf:"8.35",efat:"3.3",eprot:"2.95",lprot:"3.45",bw:"650",env:"0",asfed:"42.2",dmp:"50",goal:"평균 유량 33 kg, 체세포 1등급 유지",concern:"여름철 유량·유지방 하락, 비유초기 연변"});
+  Object.assign(s.farm,{y305:"9200",dim:"195",open:"172",preg:"30",first:"20",fE:"0",fM:"13",fL:"7",eyield:"33",latep:"45",snf:"8.35",efat:"3.3",eprot:"2.95",lprot:"3.45",bw:"650",env:"0",asfed:"42.2",dmp:"50",goal:"평균 유량 33 kg, 체세포 1등급 유지",concern:"여름철 유량·유지방 하락, 비유초기 연변"});
   s.val={fl1:"3.2",fl9:"120",fl2:"85",fl3:"9",e2:"1.8",e3:"28",e5:"5",e6:"120",w2:"22",w3:"75",w4:"25",w5:"8",w9:"34",w10:"14",f4:"1.5",t1:"18",t2:"34",t3:"48",t5:"52",d1:"9",m8:"시간당 32두, 착유자 2명",t7:"두당 원물 33.4 kg / 건물 21.1 kg"};
   s.chk={fl4:1,fl10:1,fl6:2,fl7:1,fl8:0,e7:0,w7:0,f5:1,t4:1,t8:2,t9:1,d2:1,d3:0,d4:1,d5:0,m6:1,m7:2,h1:2,h2:1,h3:2,h4:1,h5:2,q1:1,q2:0,q3:2,q4:1,q5:1};
   s.memo={f5:"오후 3~6시 사조가 비어 있음"};
@@ -937,7 +937,7 @@ function sample(){
     early:{bcs:[3,4,6,4,2,1,0,0],loco:[9,5,3,2,1],leg:[14,4,2],rumen:[0,4,8,7,1],clean:[4,9,5,2,0],manure:[1,7,8,3,1],dung:[2,6,7,4,1],teat:[8,7,4,1]},
     late:{bcs:[0,2,6,8,5,2,1,0],loco:[12,6,3,1,0],rumen:[0,1,6,11,4],clean:[6,10,4,2,0],manure:[0,3,11,7,1]},
     hcow:{hbcs:[3,8,18,9,4],loco:[30,8,3,1,0],rumen:[1,5,22,12,2],manure:[0,4,24,12,2],clean:[12,20,8,2,0]},
-    hfat2:{fmob:[16,3,1,1],rumen:[0,2,10,8,1],manure:[1,7,9,4,0],dung:[2,6,8,4,1],clean:[5,10,5,1,0]}
+    hfat1:{hbcs:[1,3,14,3,1],clean:[6,9,4,1,0]},hfat2:{hbcs:[0,2,12,6,1],clean:[5,10,5,1,0]}
   };
   s.sx={early:{resp:"42",urin:"6",chew:"52",ids:"312 (외음부 분비물), 287 (앞무릎 부종)"}};
   s.signs={early:{carpal:3,hock:5,udder:4,arched:3,pus:1},hfat2:{hooflong:4,coat:3}};
@@ -999,7 +999,7 @@ function modScore(id){const m=MOD[id];
   const s=pScore(m); if(m.diag)return {...s,pct:null,label:s.done?`원인 ${s.flag}건`:"—"};
   return {...s,label:s.done?`${s.got}/${s.full}`:"—"}}
 function grade(p,m){ if(p==null)return "—"; if(!m||m.kind==="judge")return p>=85?"양호":p>=70?"보통":"미흡"; return p>=m.grade[0]?"우수":p>=m.grade[1]?"양호":"미흡"}
-function indFor(g){return SIGNALS.filter(x=>x.groups.includes(g))}
+function indFor(g){return SIGNALS.filter(x=>x.groups.includes(g)).map(x=>x.id==="clean"&&!DG.includes(g)?{...x,name:"체모 상태 (청결)"}:x)}
 /* 지수별 평균 목표 범위 [하한, 상한] · tol: 범위 밖 이만큼까지 주의, 더 벗어나면 불량
    BCS: 파워북 목표(비유초기 2.75~3.25, 피크기 2.0~3.0, 비유후기 3.0~3.5, 분만 전 3.0~4.0)를 우군에 맞춰 적용, 비유중기는 앱 설정
    보행: CowSignals 목표 분포(1:50% 2:30% 3:15% 4:4% 5:1%)의 평균 1.76 → 1.8 이하 / 그 밖의 '이하' 기준은 목표 점수(1~2 등)에서 앱이 정한 값 */
@@ -1483,7 +1483,8 @@ function vSig(){
   });
   const x=S.sx[grp]||{};
   const xi=(k,l,ph,mode="decimal")=>`<label class="f">${l}<input id="x_${grp}_${k}" data-sx="${k}" ${mode?`inputmode="${mode}"`:""} placeholder="${ph}" value="${esc(x[k]??"")}"></label>`;
-  h+=`<div class="card"><h3>외관 관찰</h3>
+  if(!DG.includes(grp))h+=`<div class="card"><h3>개체 메모</h3><div style="margin-top:6px">${xi("ids","외상·질병 의심 개체번호","예: 312 발굽 과장","")}</div></div>`;
+  else h+=`<div class="card"><h3>외관 관찰</h3>
     <div class="num-grid" style="margin-top:10px">${xi("resp","분당 호흡수 (평균)","18~30회")}${xi("urin","평균 배뇨 시간 (초)","5초 이상")}${xi("chew","반추 저작 (회/덩이)","60회 이상")}</div>
     <div style="margin-top:10px">${xi("ids","외상·분비물 개체번호","예: 312 외음부 분비물","")}</div></div>`;
   const sg=S.signs[grp]||{};
@@ -1491,7 +1492,7 @@ function vSig(){
     <div class="signs">${signsFor(grp).map(([id,name,cause])=>`<label class="sgin ${sg[id]?"on":""}"><span>${name}<br><span class="small muted">${cause}</span></span><span class="sgr"><input id="sg_${grp}_${id}" data-signin="${id}" inputmode="numeric" placeholder="0" value="${sg[id]||""}" aria-label="${name} 두수"><span class="small muted" id="sgp_${id}">${sg[id]&&signBase(grp)?Math.round(sg[id]/signBase(grp)*100)+"%":""}</span></span></label>`).join("")}</div></div>`;
   const c=S.comfort[grp]||{};
   const ni=(k,l)=>`<label class="f">${l}<input id="c_${grp}_${k}" data-comfort="${k}" inputmode="numeric" value="${esc(c[k]??"")}"></label>`;
-  h+=`<div class="card"><h3>소 상태 두수 카운팅</h3>
+  if(DG.includes(grp))h+=`<div class="card"><h3>소 상태 두수 카운팅</h3>
     <div class="small muted">급여 직후가 아닌 시간에 우방 전체를 한 번에 세어 주세요.</div>
     <div class="num-grid" style="margin-top:10px">${ni("lying","누워 있는 소")}${ni("stand","서 있는 소 (사조·물통 외)")}${ni("feed","사료 섭취 중")}${ni("drink","물 섭취 중")}${ni("rumi","누운 소 중 반추 중")}</div>
     <div id="comfortOut" style="margin-top:10px">${comfortHtml(comfortStat(grp))}</div></div>`;
@@ -1866,6 +1867,7 @@ function helpManual(){
    <li>우군당 최소 10두, 가능하면 20두 이상 보고, 전체 관찰은 30분 이상 하는 것이 좋습니다(교재).</li>
    <li>지수마다 <b>평균 점수</b>를 계산해 우군별 <b>평균 목표</b>와 비교합니다(예: 비유초기 BCS 2.5~3.25, 보행지수 1.8 이하). 평균이 목표를 벗어나면 리포트에 "평균 2.05 — 목표 1.8 이하 (높음)"처럼 개선 항목으로 올라가고, 평균은 맞아도 빨간 글씨(문제 점수) 소가 많으면 "우군 내 편차가 큼"으로 표시됩니다. 평균 목표는 파워북·CowSignals 목표 점수를 바탕으로 했고 일부(비유중기 BCS, 발목·청결·미소화분변·유두 평균)는 앱에서 정한 값입니다.</li>
    <li><b>체크포인트</b>: 목 혹, 무릎 부종처럼 CowSignals(젖소) 포스터의 이상 신호가 보이는 소의 두수를 숫자로 입력하면 원인과 함께 리포트에 나옵니다. 낙농 우군에서만 보입니다.</li>
+   <li><b>한우 우군</b>(번식우·육성우·비육 육성·큰소·마무리)은 회사 번식우·비육우군 점검표의 관찰 항목인 <b>체형점수(BCS)</b>와 <b>체모 상태</b>만 봅니다. 입력하면 번식우 점검표의 체형점수·체모 상태, 비육우군 점검표의 체형점수·체모 상태 점수가 자동으로 정해집니다.</li>
    <li><b>우군 두수 연결</b>: 농장 탭에 착유우 초기·중기·말기, 건유우, 초산우, 비육 육성·큰소·마무리 두수를 넣으면 개체관찰 우군마다 두수와 관찰률이 표시되고, 체크포인트 비율은 우군 두수 대비로 계산됩니다. 초산우는 따로 보는 우군이라 <b>비유초기·중기·말기 우군 두수에서는 초산우를 뺍니다</b>(검정성적 개체 파일을 불러오면 정확히, 직접 입력이면 단계 비율대로 나눠 추정).</li>
    <li><b>두수 카운팅</b>: 급여 직후가 아닌 시간(착유 1~2시간 전)에 우방 전체를 한 번에 세어 휴식 중 누운 소 비율과 반추 비율을 구합니다. 이 값은 CCCS의 "누워 있는 개체" 점수에 자동 반영됩니다.</li></ul>
   <h3>리포트</h3>
