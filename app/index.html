@@ -1275,8 +1275,8 @@ function signBase(g){const N=headN(g);return N||groupN(g)||null}
 /* ---------- 검정성적 파일 불러오기 (엑셀·CSV) ----------
    개체별 성적(명호·산차·일수·유량·유성분)이면 비유단계별 두수·평균을 계산하고,
    목장 요약(검정월·착유우·공태일수·분만간격 등)이면 가장 최근 달의 값을 씁니다. 머리글 이름으로 열을 찾습니다. */
-const DCIC_COLS={no:/명호|개체|관리번호|이표/,drydt:/건유일(자)?$/,code:/가수제\s*코드|^상태$/,par:/^(산차|차|산)$/,dim:/비유\s*일수|착유\s*일수|^일수$|비유일령|DIM/,yld:/^유량|일일\s*유량|유량\s*\(?kg/,scc:/체세포/,fat:/유지(율|방)/,prot:/단백(율)?|유단백/,snf:/고형(율)?|무지고형|SNF/,mun:/MUN/i,
-  month:/검정\s*(월|일|년월)/,adult:/^경산우/,milking:/^착유우|착유\s*두수/,heifer:/미경산/,first:/초산\s*(두수|우)/,dry:/건유\s*(두수|우)?$/,open:/공태/,parity:/평균\s*산차/,ci:/^분만\s*간격/,preg:/임신\s*두수/,y305:/305/};
+const DCIC_COLS={no:/명호|개체|관리번호|이표/,drydt:/건유일(자)?$/,code:/가수제\s*코드|^상태$/,par:/^(산차|차|산)$/,dim:/비유\s*일수|착유\s*일수|^일수$|비유일령|DIM/,yld:/^유량|일일\s*유량|유량\s*\(?kg/,scc:/체세포/,fat:/^유지|유지(율|방)/,prot:/단백(율)?|유단백/,snf:/고형(율)?|무지고형|SNF/,mun:/MUN/i,
+  month:/검정\s*(월|일|년월)/,adult:/^경산(우|두수)?$/,milking:/^착유우|착유\s*두수/,heifer:/미경산/,first:/초산\s*(두수|우)/,dry:/건유\s*(두수|우)?$/,open:/공태/,parity:/평균\s*산차/,ci:/^분만\s*간격/,preg:/임신\s*두수/,y305:/305/};
 function loadXLSX(){return window.XLSX?Promise.resolve(window.XLSX):new Promise((ok,no)=>{const sc=document.createElement("script");sc.src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js";sc.onload=()=>ok(window.XLSX);sc.onerror=()=>no(new Error("엑셀 읽기 도구를 불러오지 못했습니다"));document.head.appendChild(sc)})}
 function csvRows(t){return t.split(/\r?\n/).map(l=>{const out=[];let c="",q=false;for(let i=0;i<l.length;i++){const ch=l[i];if(q){if(ch==='"'&&l[i+1]==='"'){c+='"';i++}else if(ch==='"')q=false;else c+=ch}else if(ch==='"')q=true;else if(ch===","||ch==="\t"){out.push(c);c=""}else c+=ch}out.push(c);return out})}
 function nv(x){if(x==null)return null;const v=parseFloat(String(x).replace(/[,\s%]/g,""));return isFinite(v)?v:null}
@@ -1284,7 +1284,7 @@ function dcicParse(sheets){
   const res={cows:[],summary:null};
   sheets.forEach(rows=>{
     for(let r=0;r<rows.length;r++){
-      const row=(rows[r]||[]).map(x=>String(x??"").trim()), map={};
+      const row=(rows[r]||[]).map(x=>String(x??"").replace(/\s+/g,"")), map={};
       row.forEach((h,ci)=>{if(!h||h.length>20)return;for(const [k,re] of Object.entries(DCIC_COLS))if(map[k]==null&&re.test(h)){map[k]=ci;break}});
       const indiv=map.par!=null&&map.dim!=null, summ=map.month!=null&&["open","parity","ci","milking","adult","dim","first"].some(k=>map[k]!=null);
       if(!indiv&&!summ)continue;
@@ -1295,7 +1295,7 @@ function dcicParse(sheets){
           res.cows.push({par,dim,dry:map.drydt!=null&&String(d[map.drydt]??"").trim()!==""&&!(g("yld")>0),code:map.code!=null?String(d[map.code]??"").trim():"",open:g("open"),y305:g("y305"),yld:map.yld!=null?nv(d[map.yld]):null,scc:map.scc!=null?nv(d[map.scc]):null,fat:map.fat!=null?nv(d[map.fat]):null,prot:map.prot!=null?nv(d[map.prot]):null,snf:map.snf!=null?nv(d[map.snf]):null,mun:map.mun!=null?nv(d[map.mun]):null})}
         else{const vals={};for(const k of Object.keys(map)){if(k==="month")continue;const v=nv(d[map[k]]);if(v!=null&&v!==0)vals[k]=v}if(Object.keys(vals).length>=2)last={...(last||{}),...vals}}}
       r--; if(last)res.summary={...(res.summary||{}),...last};
-      if(indiv&&map.scc!=null)res.sccK=/천/.test(row[map.scc]);
+      if(map.scc!=null)res.sccK=/천/.test(row[map.scc]);
     }
   });
   return res;
@@ -1322,7 +1322,7 @@ function dcicApply(res){
   const m=res.summary;
   if(m){
     if(!res.cows.length){if(m.milking!=null)put("milking",m.milking,0);if(m.first!=null)put("first",m.first,0);if(m.dim!=null)put("dim",m.dim,0);if(m.parity!=null)put("parity",m.parity,1);
-      if(m.yld!=null)put("yield",m.yld,1);if(m.fat!=null)put("fat",m.fat,2);if(m.prot!=null)put("prot",m.prot,2);if(m.snf!=null)put("snf",m.snf,2);if(m.mun!=null)put("mun",m.mun,1);if(m.scc!=null)put("scc",m.scc>60?m.scc/10:m.scc,1)}
+      if(m.yld!=null)put("yield",m.yld,1);if(m.fat!=null)put("fat",m.fat,2);if(m.prot!=null)put("prot",m.prot,2);if(m.snf!=null)put("snf",m.snf,2);if(m.mun!=null)put("mun",m.mun,1);if(m.scc!=null)put("scc",res.sccK||m.scc>60?m.scc/10:m.scc,1)}
     if(m.adult!=null&&m.milking!=null&&m.adult>=m.milking)put("dry",m.adult-m.milking,0);
     if(m.heifer!=null)put("heifer",m.heifer,0);if(m.open!=null)put("open",m.open,0);if(m.ci!=null)put("ci",m.ci,0);if(m.preg!=null)put("preg",m.preg,0);if(m.y305!=null&&m.y305>3000)put("y305",m.y305,0);
   }
