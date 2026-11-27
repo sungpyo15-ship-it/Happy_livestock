@@ -99,6 +99,11 @@ nav.tabs button[aria-selected="true"]{color:var(--accent);font-weight:700}
 .tally button.isbad{border-color:color-mix(in srgb,var(--bad) 45%,var(--line))}
 .tally button.isbad .lb{color:var(--bad)}
 .tally button.flash{background:var(--good-bg)}
+.tally .tin{display:flex;flex-direction:column;align-items:center;gap:4px;min-width:0}
+.tally .tin .lb{font-size:12.5px;color:var(--muted);text-align:center;line-height:1.2;min-height:30px;display:flex;align-items:center}
+.tally .tin input{text-align:center;font:600 18px var(--mono);padding:8px 2px;min-height:48px}
+.tally .tin.isbad .lb{color:var(--bad);font-weight:600}
+.tally .tin.isbad input{border-color:color-mix(in srgb,var(--bad) 45%,var(--line))}
 .minus-on .tally button{border-style:dashed}
 .pill{display:inline-flex;align-items:center;gap:4px;border-radius:99px;padding:2px 10px;font-size:12.5px;font-weight:600;white-space:nowrap}
 .pill.good{background:var(--good-bg);color:var(--good)} .pill.warn{background:var(--warn-bg);color:var(--warn)} .pill.bad{background:var(--bad-bg);color:var(--bad)} .pill.na{background:var(--line);color:var(--muted)}
@@ -1218,17 +1223,17 @@ function vSig(){
   if(!grp)return `<h2>개체관찰</h2><div class="card muted">농장 탭에서 점검 분야를 먼저 고르세요.</div>`;
   let h=`${exampleBanner()}<div class="toolbar">
     <div class="chips" role="group" aria-label="우군 선택">${gs.map(g=>{const n=groupN(g.id);return `<button data-grp="${g.id}" aria-pressed="${grp===g.id}">${g.name}${n?` <span class="mono">${n}</span>`:""}</button>`}).join("")}</div>
-    <label class="switch"><input type="checkbox" id="minus" ${minus?"checked":""}> 빼기 모드 (잘못 누른 경우)</label>
+    <label class="switch"><input type="checkbox" id="minus" ${minus?"checked":""}> 빼기 모드 (체크포인트를 잘못 누른 경우)</label>
   </div>
-  <div class="small muted">30분 이상 관찰하며 소를 한 마리씩 보고 해당 점수를 누르세요. 우군당 10두 이상, 가능하면 20두 이상을 권장합니다.</div>
+  <div class="small muted">30분 이상 관찰하며 지수별로 점수마다 해당하는 두수를 숫자로 입력하세요. 우군당 10두 이상, 가능하면 20두 이상을 권장합니다.</div>
   <div class="stack ${minus?"minus-on":""}" style="margin-top:10px">`;
   indFor(grp).forEach(ind=>{
     const c=(S.signals[grp]||{})[ind.id]||ind.opts.map(()=>0), st=sigStat(grp,ind);
     const tgt=ind.targetBy?ind.targetBy[grp]:ind.target;
-    const pill=!st?'<span class="pill na">미입력</span>':ind.mode==="mean"?`<span class="pill ${st.status}">평균 ${st.mean.toFixed(2)} · ${st.n}두</span>`:`<span class="pill ${st.status}">${st.pct}% · ${st.n}두</span>`;
+    const pill=`<span id="sp_${ind.id}">${sigPill(st,ind)}</span>`;
     h+=`<div class="card"><div class="ind-head"><div style="min-width:0"><h3>${ind.name}</h3><div class="small muted">${esc(ind.how)}</div><div class="small">목표: ${esc(tgt)}${ind.limitRef?' <span class="src l">허용 비율 참고치</span>':""}</div>${whyHtml(SIGWHY[ind.id])}</div>${pill}</div>
-      <div class="tally" style="grid-template-columns:repeat(${ind.opts.length},1fr)">${ind.opts.map((op,i)=>`<button data-tally="${ind.id}" data-i="${i}" class="${ind.bad&&ind.bad(op.v,grp)?"isbad":""}" aria-label="${ind.name} ${op.l}, 현재 ${c[i]}두"><span class="lb">${op.l}</span><span class="ct">${c[i]}</span></button>`).join("")}</div>
-      ${st&&ind.mode!=="mean"&&ind.id!=="hbcs"?`<div class="small muted" style="margin-top:6px">평균 <span class="mono">${st.mean.toFixed(2)}</span></div>`:""}</div>`;
+      <div class="tally" style="grid-template-columns:repeat(${Math.min(ind.opts.length,5)},1fr)">${ind.opts.map((op,i)=>`<label class="tin ${ind.bad&&ind.bad(op.v,grp)?"isbad":""}"><span class="lb">${op.l}</span><input id="t_${grp}_${ind.id}_${i}" data-sigin="${ind.id}|${i}" inputmode="numeric" placeholder="0" value="${c[i]||""}" aria-label="${ind.name} ${op.l} 두수"></label>`).join("")}</div>
+      <div class="small muted" style="margin-top:6px" id="sm_${ind.id}">${sigMean(st,ind)}</div></div>`;
   });
   const x=S.sx[grp]||{};
   const xi=(k,l,ph,mode="decimal")=>`<label class="f">${l}<input id="x_${grp}_${k}" data-sx="${k}" ${mode?`inputmode="${mode}"`:""} placeholder="${ph}" value="${esc(x[k]??"")}"></label>`;
@@ -1246,6 +1251,8 @@ function vSig(){
     <div id="comfortOut" style="margin-top:10px">${comfortHtml(comfortStat(grp))}</div></div>`;
   return h+`</div><div class="row" style="margin-top:14px"><button class="primary" data-go="report">리포트 보기</button></div>`;
 }
+function sigPill(st,ind){return !st?'<span class="pill na">미입력</span>':ind.mode==="mean"?`<span class="pill ${st.status}">평균 ${st.mean.toFixed(2)} · ${st.n}두</span>`:`<span class="pill ${st.status}">${st.pct}% · ${st.n}두</span>`}
+function sigMean(st,ind){return st&&ind.mode!=="mean"&&ind.id!=="hbcs"?`평균 <span class="mono">${st.mean.toFixed(2)}</span> · 합계 ${st.n}두`:st?`합계 ${st.n}두`:""}
 function comfortHtml(cs){
   if(!cs||!cs.total)return '<span class="muted small">숫자를 넣으면 지수가 계산됩니다.</span>';
   const row=(k,v,t,fn)=>{const s=v==null?null:fn(v);return `<div class="kv"><span>${k}<br><span class="small muted">${t}</span></span><span class="row"><span class="mono">${v==null?"—":v+"%"}</span>${s?`<span class="pill ${s}">${s==="good"?"양호":s==="warn"?"주의":"불량"}</span>`:""}</span></div>`};
@@ -1502,9 +1509,9 @@ function helpManual(){
    <li><b>문제진단</b>: 유량·섭취량·분변에 문제가 있을 때 질문에 답하면 '예'로 답한 항목이 원인 후보로 리포트에 올라갑니다.</li>
    <li>항목마다 <b>"왜 중요한가"</b>를 누르면 기준의 이유를 볼 수 있습니다. 목장주에게 설명할 때 그대로 쓰면 됩니다.</li></ul>
   <h3>개체관찰</h3>
-  <ul><li>우군을 고르고 소를 한 마리씩 보면서 해당 점수를 누릅니다. 누를 때마다 1두씩 늘어나고, 잘못 눌렀으면 "빼기 모드"를 켜고 다시 누릅니다.</li>
+  <ul><li>우군을 고르고 지수마다 점수별 두수를 숫자로 입력합니다. 입력하면 문제 비율과 평균이 바로 계산됩니다. 잘못 넣은 숫자는 고쳐 쓰면 됩니다.</li>
    <li>우군당 최소 10두, 가능하면 20두 이상 보고, 전체 관찰은 30분 이상 하는 것이 좋습니다(교재).</li>
-   <li>빨간 테두리 점수는 문제 점수입니다. 문제 개체 비율이 기준을 넘으면 리포트에 올라갑니다. 분변지수는 우군 평균을 목표값과 비교합니다.</li>
+   <li>빨간 글씨 점수는 문제 점수입니다. 문제 개체 비율이 기준을 넘으면 리포트에 올라갑니다. 분변지수는 우군 평균을 목표값과 비교합니다.</li>
    <li><b>체크포인트</b>: 목 혹, 비절 부종처럼 CowSignals 포스터의 이상 신호를 발견할 때마다 누르면 원인과 함께 리포트에 나옵니다.</li>
    <li><b>두수 카운팅</b>: 급여 직후가 아닌 시간(착유 1~2시간 전)에 우방 전체를 한 번에 세어 휴식 중 누운 소 비율과 반추 비율을 구합니다. 이 값은 CCCS의 "누워 있는 개체" 점수에 자동 반영됩니다.</li></ul>
   <h3>리포트</h3>
@@ -1857,6 +1864,10 @@ document.addEventListener("input",e=>{
   if(d.pv){S.pv[d.pv]=t.value;save();const it=Object.values(PITEM).find(i=>i.f&&i.f.some(f=>f[0]===d.pv));if(it){if($("#pa_"+it.id))$("#pa_"+it.id).innerHTML=pAutoHtml(it);
     if(it.rule&&!it.obs){const a=it.rule(S.pv),mx=maxOf(it);const el=$("#pr_"+it.id);if(el)el.innerHTML=a==null?'<span class="small muted">측정값을 넣으면 점수가 계산됩니다</span>':`<span class="pill ${barCls(Math.max(0,a)/mx)}">자동 ${Math.max(0,Math.min(mx,a))}점</span>`}
     if(it.obs&&it.rule&&S.pts[it.id]==null){const a=it.rule(S.pv);t.closest(".item").querySelectorAll("[data-pt]").forEach(x=>x.setAttribute("aria-pressed",+x.dataset.i===a))}}}
+  if(d.sigin){const [id,i]=d.sigin.split("|"),ind=SIGNALS.find(x=>x.id===id),v=t.value.replace(/[^0-9]/g,"");if(v!==t.value)t.value=v;
+    S.signals[grp]=S.signals[grp]||{};const c=S.signals[grp][id]=S.signals[grp][id]||ind.opts.map(()=>0);c[+i]=v===""?0:+v;save();
+    const st=sigStat(grp,ind);if($("#sp_"+id))$("#sp_"+id).innerHTML=sigPill(st,ind);if($("#sm_"+id))$("#sm_"+id).innerHTML=sigMean(st,ind);
+    const gb=document.querySelector(`[data-grp="${grp}"]`),n=groupN(grp);if(gb){let ch=gb.querySelector(".mono");if(!ch&&n){gb.insertAdjacentHTML("beforeend",' <span class="mono"></span>');ch=gb.querySelector(".mono")}if(ch)ch.textContent=n||""}}
   if(d.pn){const v=t.value.replace(/[^0-9]/g,"");S.pts[d.pn]=v===""?null:{n:v};save()}
   if(d.room!=null&&d.room!==""&&d.rk){const r=S.rooms[+d.room];r[d.rk]=t.value;save();const o=$("#rc_"+d.room);if(o)o.innerHTML=roomOut(roomCalc(r))}
   if(d.rec&&d.rk){S.rec[d.rec]=S.rec[d.rec]||{};S.rec[d.rec][d.rk]=t.value;save()}
