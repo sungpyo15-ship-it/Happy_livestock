@@ -1275,7 +1275,7 @@ function signBase(g){const N=headN(g);return N||groupN(g)||null}
 /* ---------- 검정성적 파일 불러오기 (엑셀·CSV) ----------
    개체별 성적(명호·산차·일수·유량·유성분)이면 비유단계별 두수·평균을 계산하고,
    목장 요약(검정월·착유우·공태일수·분만간격 등)이면 가장 최근 달의 값을 씁니다. 머리글 이름으로 열을 찾습니다. */
-const DCIC_COLS={no:/명호|개체|관리번호|이표/,par:/^(산차|차|산)$/,dim:/비유\s*일수|착유\s*일수|^일수$|비유일령|DIM/,yld:/^유량|일일\s*유량|유량\s*\(?kg/,scc:/체세포/,fat:/유지(율|방)/,prot:/단백(율)?|유단백/,snf:/고형(율)?|무지고형|SNF/,mun:/MUN/i,
+const DCIC_COLS={no:/명호|개체|관리번호|이표/,drydt:/건유일(자)?$/,code:/가수제\s*코드|^상태$/,par:/^(산차|차|산)$/,dim:/비유\s*일수|착유\s*일수|^일수$|비유일령|DIM/,yld:/^유량|일일\s*유량|유량\s*\(?kg/,scc:/체세포/,fat:/유지(율|방)/,prot:/단백(율)?|유단백/,snf:/고형(율)?|무지고형|SNF/,mun:/MUN/i,
   month:/검정\s*(월|일|년월)/,adult:/^경산우/,milking:/^착유우|착유\s*두수/,heifer:/미경산/,first:/초산\s*(두수|우)/,dry:/건유\s*(두수|우)?$/,open:/공태/,parity:/평균\s*산차/,ci:/^분만\s*간격/,preg:/임신\s*두수/,y305:/305/};
 function loadXLSX(){return window.XLSX?Promise.resolve(window.XLSX):new Promise((ok,no)=>{const sc=document.createElement("script");sc.src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js";sc.onload=()=>ok(window.XLSX);sc.onerror=()=>no(new Error("엑셀 읽기 도구를 불러오지 못했습니다"));document.head.appendChild(sc)})}
 function csvRows(t){return t.split(/\r?\n/).map(l=>{const out=[];let c="",q=false;for(let i=0;i<l.length;i++){const ch=l[i];if(q){if(ch==='"'&&l[i+1]==='"'){c+='"';i++}else if(ch==='"')q=false;else c+=ch}else if(ch==='"')q=true;else if(ch===","||ch==="\t"){out.push(c);c=""}else c+=ch}out.push(c);return out})}
@@ -1291,30 +1291,37 @@ function dcicParse(sheets){
       let last=null;
       for(r=r+1;r<rows.length;r++){const d=rows[r]||[];const nums=d.filter(x=>nv(x)!=null).length;if(nums<2)break;
         if(indiv){const par=nv(d[map.par]),dim=nv(d[map.dim]);if(par==null||dim==null)continue;
-          res.cows.push({par,dim,yld:map.yld!=null?nv(d[map.yld]):null,scc:map.scc!=null?nv(d[map.scc]):null,fat:map.fat!=null?nv(d[map.fat]):null,prot:map.prot!=null?nv(d[map.prot]):null,snf:map.snf!=null?nv(d[map.snf]):null,mun:map.mun!=null?nv(d[map.mun]):null})}
+          const g=k=>map[k]!=null?nv(d[map[k]]):null;
+          res.cows.push({par,dim,dry:map.drydt!=null&&String(d[map.drydt]??"").trim()!==""&&!(g("yld")>0),code:map.code!=null?String(d[map.code]??"").trim():"",open:g("open"),y305:g("y305"),yld:map.yld!=null?nv(d[map.yld]):null,scc:map.scc!=null?nv(d[map.scc]):null,fat:map.fat!=null?nv(d[map.fat]):null,prot:map.prot!=null?nv(d[map.prot]):null,snf:map.snf!=null?nv(d[map.snf]):null,mun:map.mun!=null?nv(d[map.mun]):null})}
         else{const vals={};for(const k of Object.keys(map)){if(k==="month")continue;const v=nv(d[map[k]]);if(v!=null&&v!==0)vals[k]=v}if(Object.keys(vals).length>=2)last={...(last||{}),...vals}}}
       r--; if(last)res.summary={...(res.summary||{}),...last};
+      if(indiv&&map.scc!=null)res.sccK=/천/.test(row[map.scc]);
     }
   });
   return res;
 }
 function dcicApply(res){
   const f=S.farm, set={}, put=(k,v,dec=1)=>{if(v==null||!isFinite(v))return;const x=String(Math.round(v*10**dec)/10**dec);f[k]=x;set[k]=x};
-  const C=res.cows;
+  const A=res.cows, hasY=A.some(c=>c.yld!=null);
+  // 착유우: 산차 1 이상이고 유량이 있는 소(유량 열이 없으면 건유일 없는 소) / 건유우: 산차 1 이상, 유량 없음 / 미경산우: 산차 0
+  const C=A.filter(c=>c.par>=1&&!c.dry&&c.code!=="12"&&(hasY?c.yld>0:c.dim>0)), D=A.filter(c=>c.par>=1&&!C.includes(c)), Hf=A.filter(c=>c.par<1), AD=[...C,...D];
   if(C.length){
     const st=c=>c.dim<=100?"E":c.dim<=200?"M":"L", by={E:[],M:[],L:[]};C.forEach(c=>by[st(c)].push(c));
     put("mE",by.E.length,0);put("mM",by.M.length,0);put("mL",by.L.length,0);put("milking",C.length,0);put("first",C.filter(c=>c.par===1).length,0);
-    put("latep",by.L.length/C.length*100,0);put("dim",C.reduce((a,c)=>a+c.dim,0)/C.length,0);put("parity",C.reduce((a,c)=>a+c.par,0)/C.length,1);
+    if(D.length||hasY)put("dry",D.length,0); if(Hf.length)put("heifer",Hf.length,0);
+    put("latep",by.L.length/C.length*100,0);put("dim",C.reduce((a,c)=>a+c.dim,0)/C.length,0);put("parity",AD.reduce((a,c)=>a+c.par,0)/AD.length,1);
     const avg=(arr,k)=>{const a=arr.filter(c=>c[k]!=null&&c[k]>0);return a.length?a.reduce((s,c)=>s+c[k],0)/a.length:null};
     const wavg=(arr,k)=>{const a=arr.filter(c=>c[k]!=null&&c[k]>0&&c.yld>0);const w=a.reduce((s,c)=>s+c.yld,0);return w?a.reduce((s,c)=>s+c[k]*c.yld,0)/w:avg(arr,k)};
     put("yield",avg(C,"yld"),1);put("eyield",avg(by.E,"yld"),1);
     put("fat",wavg(C,"fat"),2);put("prot",wavg(C,"prot"),2);put("snf",wavg(C,"snf"),2);put("mun",avg(C,"mun"),1);
     put("efat",wavg(by.E,"fat"),2);put("eprot",wavg(by.E,"prot"),2);put("lprot",wavg(by.L,"prot"),2);
-    const sc=avg(C,"scc");if(sc!=null)put("scc",sc>60?sc/10:sc,1);
+    const sc=avg(C,"scc");if(sc!=null)put("scc",res.sccK||sc>60?sc/10:sc,1);
+    const y3=avg(AD,"y305");if(y3!=null&&y3>3000)put("y305",y3,0);
+    if(AD.some(c=>c.open!=null)){const pg=AD.filter(c=>c.open>0);put("preg",pg.length,0);const op=avg(pg,"open");if(op!=null)put("open",op,0)}
   }
   const m=res.summary;
   if(m){
-    if(!C.length){if(m.milking!=null)put("milking",m.milking,0);if(m.first!=null)put("first",m.first,0);if(m.dim!=null)put("dim",m.dim,0);if(m.parity!=null)put("parity",m.parity,1);
+    if(!res.cows.length){if(m.milking!=null)put("milking",m.milking,0);if(m.first!=null)put("first",m.first,0);if(m.dim!=null)put("dim",m.dim,0);if(m.parity!=null)put("parity",m.parity,1);
       if(m.yld!=null)put("yield",m.yld,1);if(m.fat!=null)put("fat",m.fat,2);if(m.prot!=null)put("prot",m.prot,2);if(m.snf!=null)put("snf",m.snf,2);if(m.mun!=null)put("mun",m.mun,1);if(m.scc!=null)put("scc",m.scc>60?m.scc/10:m.scc,1)}
     if(m.adult!=null&&m.milking!=null&&m.adult>=m.milking)put("dry",m.adult-m.milking,0);
     if(m.heifer!=null)put("heifer",m.heifer,0);if(m.open!=null)put("open",m.open,0);if(m.ci!=null)put("ci",m.ci,0);if(m.preg!=null)put("preg",m.preg,0);if(m.y305!=null&&m.y305>3000)put("y305",m.y305,0);
@@ -1331,7 +1338,7 @@ async function dcicFile(file){
     save(); render();
     const out=$("#dcicOut");
     if(!keys.length){if(out)out.innerHTML='<div class="banner">검정성적 표의 머리글(산차·일수·유량 또는 검정월·공태일수 등)을 찾지 못했습니다. 파일 형식을 확인하거나 직접 입력해 주세요.</div>';return toast("읽을 수 있는 검정성적이 없습니다")}
-    if(out)out.innerHTML=`<div class="banner" style="border-style:solid;border-color:var(--good);background:var(--good-bg)"><span><b style="color:var(--good)">${esc(file.name)}</b> · ${res.cows.length?`개체 ${res.cows.length}두`:"목장 요약"}에서 ${keys.length}개 항목을 채웠습니다: ${keys.map(k=>`${DCIC_LABEL[k]||k} ${set[k]}`).join(", ")}. 값은 아래에서 고칠 수 있습니다.</span></div>`;
+    if(out)out.innerHTML=`<div class="banner" style="border-style:solid;border-color:var(--good);background:var(--good-bg)"><span><b style="color:var(--good)">${esc(file.name)}</b> · ${res.cows.length?`개체 ${res.cows.length}두(착유 ${set.milking||0}·건유 ${set.dry||0}·미경산 ${set.heifer||0})`:"목장 요약"}에서 ${keys.length}개 항목을 채웠습니다: ${keys.map(k=>`${DCIC_LABEL[k]||k} ${set[k]}`).join(", ")}. 값은 아래에서 고칠 수 있습니다.</span></div>`;
     toast("검정성적을 불러왔습니다");
   }catch(e){toast(e.message||"파일을 읽지 못했습니다")}
 }
