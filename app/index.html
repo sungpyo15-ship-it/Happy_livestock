@@ -1470,7 +1470,7 @@ function vSig(){
   const gs=visGroups(); if(!gs.some(g=>g.id===grp))grp=gs[0]?.id;
   if(!grp)return `<h2>개체관찰</h2><div class="card muted">농장 탭에서 점검 분야를 먼저 고르세요.</div>`;
   let h=`${exampleBanner()}<div class="toolbar">
-    <div class="chips" role="group" aria-label="우군 선택">${gs.map(g=>{const n=groupN(g.id);return `<button data-grp="${g.id}" aria-pressed="${grp===g.id}">${g.name}${n?` <span class="mono">${n}</span>`:""}</button>`}).join("")}</div>
+    <div class="chips" role="group" aria-label="우군 선택">${gs.map(g=>{const n=groupN(g.id),N=headN(g.id),ov=N&&n>N;return `<button data-grp="${g.id}" aria-pressed="${grp===g.id}" ${ov?'style="border-color:var(--bad)"':""}>${g.name}${n||N?` <span class="mono" ${ov?'style="color:var(--bad)"':""}>${n||0}${N?`/${N}`:""}</span>`:""}</button>`}).join("")}</div>
   </div>
   ${headLine(grp)}
   <div class="small muted">30분 이상 관찰하며 지수별로 점수마다 해당하는 두수를 숫자로 입력하세요. 우군당 10두 이상, 가능하면 20두 이상을 권장합니다.</div>
@@ -1479,7 +1479,7 @@ function vSig(){
     const c=(S.signals[grp]||{})[ind.id]||ind.opts.map(()=>0), st=sigStat(grp,ind);
     const tgt=ind.targetBy?ind.targetBy[grp]:ind.target;
     const pill=`<span id="sp_${ind.id}">${sigPill(st,ind)}</span>`;
-    h+=`<div class="card"><div class="ind-head"><div style="min-width:0"><h3>${ind.name}</h3><div class="small muted">${esc(ind.how)}</div><div class="small">목표: ${esc(tgt)}${mRange(ind,grp)?` · <b>평균 목표 ${mFmt(ind,mRange(ind,grp))}</b>`:""}</div>${whyHtml(SIGWHY[ind.id])}</div>${pill}</div>
+    h+=`<div class="card" id="sc_${ind.id}" style="${st&&sigOver(grp,st.n)?"border-color:var(--bad)":""}"><div class="ind-head"><div style="min-width:0"><h3>${ind.name}</h3><div class="small muted">${esc(ind.how)}</div><div class="small">목표: ${esc(tgt)}${mRange(ind,grp)?` · <b>평균 목표 ${mFmt(ind,mRange(ind,grp))}</b>`:""}</div>${whyHtml(SIGWHY[ind.id])}</div>${pill}</div>
       <div class="tally" style="grid-template-columns:repeat(${Math.min(ind.opts.length,5)},1fr)">${ind.opts.map((op,i)=>`<label class="tin ${ind.bad&&ind.bad(op.v,grp)?"isbad":""}"><span class="lb">${op.l}</span><input id="t_${grp}_${ind.id}_${i}" data-sigin="${ind.id}|${i}" inputmode="numeric" placeholder="0" value="${c[i]||""}" aria-label="${ind.name} ${op.l} 두수"></label>`).join("")}</div>
       <div class="small muted" style="margin-top:6px" id="sm_${ind.id}">${sigMean(st,ind)}</div></div>`;
   });
@@ -1500,7 +1500,8 @@ function vSig(){
   return h+`</div><div class="row" style="margin-top:14px"><button class="primary" data-go="report">리포트 보기</button></div>`;
 }
 function sigPill(st,ind){return !st?'<span class="pill na">미입력</span>':`<span class="pill ${st.status}">평균 ${st.mean.toFixed(2)} · ${st.n}두</span>`}
-function sigMean(st,ind){return st?`평균 <b class="mono">${st.mean.toFixed(2)}</b>${st.tgt?` (평균 목표 ${st.tgt}${st.spread?", 적정이나 편차 큼":st.status==="good"?", 적정":st.dir==="low"?", 낮음":", 높음"})`:""}${st.pct!=null&&ind.mode!=="mean"?` · 문제 점수 ${st.pct}%`:""} · 합계 ${st.n}두`:""}
+function sigOver(g,n){const N=headN(g);return N&&n>N?N:0}
+function sigMean(st,ind,g){g=g||grp;const N=headN(g),ov=st&&N&&st.n>N;return st?`${ov?`<div style="color:var(--bad);font-weight:700">⚠ 점수별 두수 합계 ${st.n}두가 우군 ${N}두보다 많습니다. 숫자를 확인해 주세요.</div>`:""}평균 <b class="mono">${st.mean.toFixed(2)}</b>${st.tgt?` (평균 목표 ${st.tgt}${st.spread?", 적정이나 편차 큼":st.status==="good"?", 적정":st.dir==="low"?", 낮음":", 높음"})`:""}${st.pct!=null&&ind.mode!=="mean"?` · 문제 점수 ${st.pct}%`:""} · 합계 <b>${st.n}</b>${N?` / 우군 ${N}두`:"두"}`:(N?`우군 ${N}두 중 관찰한 소의 점수별 두수를 입력하세요`:"")}
 function stageSync(){const f=S.farm,v=["mE","mM","mL"].map(k=>num(f[k]));if(v.every(x=>x==null))return;const sum=v.reduce((a,b)=>a+(b||0),0);
   f.milking=String(sum);const el=$("#f_milking");if(el)el.value=f.milking;
   if(v[2]!=null&&sum){f.latep=String(Math.round(v[2]/sum*100));const l=$("#f_latep");if(l)l.value=f.latep}}
@@ -1508,8 +1509,9 @@ function stageSync(){const f=S.farm,v=["mE","mM","mL"].map(k=>num(f[k]));if(v.ev
 function badPct(groups,indId){const ind=SIGNALS.find(x=>x.id===indId);let b=0,n=0;groups.forEach(g=>{const st=sigStat(g,ind);if(st&&st.bad!=null){b+=st.bad;n+=st.n}});return n?Math.round(b/n*100):null}
 function clean5(groups){const p=badPct(groups,"clean");return p==null?null:p<=10?5:Math.max(0,5-Math.ceil((p-10)/10))}
 function signPct(groups,ids){let k=0,base=0,any=false;groups.forEach(g=>{const sg=S.signs[g];if(!sg)return;const c=ids.reduce((a,id)=>a+(sg[id]||0),0);if(Object.keys(sg).length)any=true;k+=c;const b=signBase(g);if(b)base+=b});return any&&base?Math.min(100,Math.round(k/base*100)):null}
-function headLine(g){const hi=headInfo(g),N=hi?hi.n:null,n=groupN(g);if(N==null&&!n)return "";
-  return `<div class="small" style="margin-top:4px">우군 ${N!=null?`<b>${N}두</b> (농장 탭${hi.note?`, ${hi.note}`:""})`:"두수 미입력 (농장 탭에서 입력)"}${n?` · 관찰 ${n}두${N?` (관찰률 ${Math.round(n/N*100)}%)`:""}`:""}</div>`}
+function headLine(g){const hi=headInfo(g),N=hi?hi.n:null,n=groupN(g);if(N==null&&!n)return '<div id="headLine"></div>';
+  if(N!=null&&n>N)return `<div id="headLine" class="small" style="margin-top:4px;color:var(--bad);font-weight:700">우군 ${N}두 (농장 탭${hi.note?`, ${hi.note}`:""}) · ⚠ 입력한 관찰 두수 ${n}두가 우군보다 많습니다. 빨간 테두리 지수의 숫자를 확인해 주세요.</div>`;
+  return `<div id="headLine" class="small" style="margin-top:4px">우군 ${N!=null?`<b>${N}두</b> (농장 탭${hi.note?`, ${hi.note}`:""})`:"두수 미입력 (농장 탭에서 입력)"}${n?` · 관찰 ${n}두${N?` (관찰률 ${Math.round(n/N*100)}%)`:""}`:""}</div>`}
 function signBase(g){const N=headN(g);return N||groupN(g)||null}
 /* ---------- 검정성적 파일 불러오기 (엑셀·CSV) ----------
    개체별 성적(명호·산차·일수·유량·유성분)이면 비유단계별 두수·평균을 계산하고,
@@ -1608,6 +1610,7 @@ function vReport(){
   <div class="calc" style="margin-top:10px">${ids.map(id=>{const m=MOD[id],sc=modScore(id);return `<div class="stat"><div class="v">${sc.label}</div><div class="k">${m.grp==="dairy"?"낙농 ":""}${m.name}${m.diag||m.kind==="judge"?"":` · ${grade(sc.pct,m)}`}</div></div>`}).join("")||'<div class="muted small">아직 입력된 점검이 없습니다.</div>'}</div>
   ${(()=>{const c=compareVisits();return c?`<h2>지난 방문 대비 <span class="small muted" style="font-weight:400">${esc(c.date)} 점검과 비교</span></h2><div class="card">${cmpHtml(c)}</div>`:""})()}
   ${(()=>{const G=gains();return G.length?`<h2>개선하면 얻는 효과</h2><div class="card stack">${G.slice(0,3).map(x=>`<div><b>${esc(x.t)}</b> <span class="pill ${x.sens?"na":"good"}">${esc(x.txt)}</span><div class="small muted">${esc(x.how)}</div></div>`).join("")}${G.some(x=>x.est)?'<div class="small muted">추정 항목은 계산 가정에 따른 참고값입니다.</div>':""}</div>`:""})()}
+  ${(()=>{const bad=[];visGroups().forEach(g=>{const N=headN(g.id);if(!N)return;indFor(g.id).forEach(ind=>{const st=sigStat(g.id,ind);if(st&&st.n>N)bad.push(`${g.name} ${ind.name} ${st.n}두 > 우군 ${N}두`)})});return bad.length?`<div class="banner" style="border-color:var(--bad);background:var(--bad-bg)"><b style="color:var(--bad)">입력 확인 필요</b> 개체관찰 점수별 두수 합계가 우군 두수보다 많습니다: ${esc(bad.join(" · "))}</div>`:""})()}
   <h2>핵심 권고</h2><div class="card stack">
     ${top.length?top.map((x,i)=>`<div><b>${i+1}. ${esc(x.t)}</b><div class="small">→ ${esc(x.a.split(" (기준:")[0])}</div></div>`).join(""):'<span class="muted">입력된 문제 항목이 없습니다.</span>'}
     ${F.length>top.length?`<div class="small muted">그 밖의 개선 항목 ${F.length-top.length}건 (우선 ${Math.max(0,p1-top.filter(x=>x.p===1).length)}건)은 아래 상세 분석에 있습니다.</div>`:""}</div>
@@ -2225,8 +2228,8 @@ document.addEventListener("input",e=>{
   if(d.signin){const v=t.value.replace(/[^0-9]/g,"");if(v!==t.value)t.value=v;S.signs[grp]=S.signs[grp]||{};if(v===""||+v===0)delete S.signs[grp][d.signin];else S.signs[grp][d.signin]=+v;save();t.closest(".sgin").classList.toggle("on",!!S.signs[grp][d.signin]);const pe=$("#sgp_"+d.signin),k=S.signs[grp][d.signin],b=signBase(grp);if(pe)pe.textContent=k&&b?Math.round(k/b*100)+"%":""}
   if(d.sigin){const [id,i]=d.sigin.split("|"),ind=SIGNALS.find(x=>x.id===id),v=t.value.replace(/[^0-9]/g,"");if(v!==t.value)t.value=v;
     S.signals[grp]=S.signals[grp]||{};const c=S.signals[grp][id]=S.signals[grp][id]||ind.opts.map(()=>0);c[+i]=v===""?0:+v;save();
-    const st=sigStat(grp,ind);if($("#sp_"+id))$("#sp_"+id).innerHTML=sigPill(st,ind);if($("#sm_"+id))$("#sm_"+id).innerHTML=sigMean(st,ind);
-    const gb=document.querySelector(`[data-grp="${grp}"]`),n=groupN(grp);if(gb){let ch=gb.querySelector(".mono");if(!ch&&n){gb.insertAdjacentHTML("beforeend",' <span class="mono"></span>');ch=gb.querySelector(".mono")}if(ch)ch.textContent=n||""}}
+    const st=sigStat(grp,ind);if($("#sp_"+id))$("#sp_"+id).innerHTML=sigPill(st,ind);if($("#sm_"+id))$("#sm_"+id).innerHTML=sigMean(st,ind);{const cd=$("#sc_"+id);if(cd)cd.style.borderColor=st&&sigOver(grp,st.n)?"var(--bad)":""}{const hl=$("#headLine");if(hl)hl.outerHTML=headLine(grp)}
+    const gb=document.querySelector(`[data-grp="${grp}"]`),n=groupN(grp),N=headN(grp),ov=N&&n>N;if(gb){let ch=gb.querySelector(".mono");if(!ch&&(n||N)){gb.insertAdjacentHTML("beforeend",' <span class="mono"></span>');ch=gb.querySelector(".mono")}if(ch){ch.textContent=(n||0)+(N?"/"+N:"");ch.style.color=ov?"var(--bad)":""}gb.style.borderColor=ov?"var(--bad)":""}}
   if(d.pn){const v=t.value.replace(/[^0-9]/g,"");S.pts[d.pn]=v===""?null:{n:v};save()}
   if(d.room!=null&&d.room!==""&&d.rk){const r=S.rooms[+d.room];r[d.rk]=t.value;save();const o=$("#rc_"+d.room);if(o)o.innerHTML=roomOut(roomCalc(r));const fs=$("#feedSum");if(fs)fs.innerHTML=beefCostHtml()}
   if(d.rec&&d.rk){S.rec[d.rec]=S.rec[d.rec]||{};S.rec[d.rec][d.rk]=t.value;save();if(d.rec==="feed"){S.rooms.forEach((r,i)=>{const o=$("#rc_"+i);if(o)o.innerHTML=roomOut(roomCalc(r))});const fs=$("#feedSum");if(fs)fs.innerHTML=beefCostHtml()}}
