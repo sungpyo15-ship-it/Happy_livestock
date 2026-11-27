@@ -1275,10 +1275,12 @@ function signBase(g){const N=headN(g);return N||groupN(g)||null}
 /* ---------- 검정성적 파일 불러오기 (엑셀·CSV) ----------
    개체별 성적(명호·산차·일수·유량·유성분)이면 비유단계별 두수·평균을 계산하고,
    목장 요약(검정월·착유우·공태일수·분만간격 등)이면 가장 최근 달의 값을 씁니다. 머리글 이름으로 열을 찾습니다. */
-const DCIC_COLS={no:/명호|개체|관리번호|이표/,drydt:/건유일(자)?$/,code:/가수제\s*코드|^상태$/,par:/^(산차|차|산)$/,dim:/비유\s*일수|착유\s*일수|^일수$|비유일령|DIM/,yld:/^유량|일일\s*유량|유량\s*\(?kg/,scc:/체세포/,fat:/^유지|유지(율|방)/,prot:/단백(율)?|유단백/,snf:/고형(율)?|무지고형|SNF/,mun:/MUN/i,
+const DCIC_COLS={no:/명호|개체|관리번호|이표/,birth:/생년월일|출생일/,calv:/분만일(자)?$/,drydt:/건유일(자)?$/,code:/가수제\s*코드|^상태$/,par:/^(산차|차|산)$/,dim:/비유\s*일수|착유\s*일수|^일수$|비유일령|DIM/,yld:/^유량|일일\s*유량|유량\s*\(?kg/,scc:/체세포/,fat:/^유지|유지(율|방)/,prot:/단백(율)?|유단백/,snf:/고형(율)?|무지고형|SNF/,mun:/MUN/i,
   month:/검정\s*(월|일|년월)/,adult:/^경산(우|두수)?$/,milking:/^착유우|착유\s*두수/,heifer:/미경산/,first:/초산\s*(두수|우)/,dry:/건유\s*(두수|우)?$/,open:/공태/,parity:/평균\s*산차/,ci:/^분만\s*간격/,preg:/임신\s*두수/,y305:/305/};
 function loadXLSX(){return window.XLSX?Promise.resolve(window.XLSX):new Promise((ok,no)=>{const sc=document.createElement("script");sc.src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js";sc.onload=()=>ok(window.XLSX);sc.onerror=()=>no(new Error("엑셀 읽기 도구를 불러오지 못했습니다"));document.head.appendChild(sc)})}
 function csvRows(t){return t.split(/\r?\n/).map(l=>{const out=[];let c="",q=false;for(let i=0;i<l.length;i++){const ch=l[i];if(q){if(ch==='"'&&l[i+1]==='"'){c+='"';i++}else if(ch==='"')q=false;else c+=ch}else if(ch==='"')q=true;else if(ch===","||ch==="\t"){out.push(c);c=""}else c+=ch}out.push(c);return out})}
+function ymd(x){if(x==null||x==="")return null;if(typeof x==="number"&&x>20000&&x<80000)return new Date(Date.UTC(1899,11,30)+x*864e5);
+  const m=String(x).trim().match(/^(\d{4})[-.\/]?(\d{1,2})[-.\/]?(\d{1,2})/);if(!m)return null;const t=new Date(Date.UTC(+m[1],+m[2]-1,+m[3]));return isNaN(t)?null:t}
 function nv(x){if(x==null)return null;const v=parseFloat(String(x).replace(/[,\s%]/g,""));return isFinite(v)?v:null}
 function dcicParse(sheets){
   const res={cows:[],summary:null};
@@ -1292,7 +1294,7 @@ function dcicParse(sheets){
       for(r=r+1;r<rows.length;r++){const d=rows[r]||[];const nums=d.filter(x=>nv(x)!=null).length;if(nums<2)break;
         if(indiv){const par=nv(d[map.par]),dim=nv(d[map.dim]);if(par==null||dim==null)continue;
           const g=k=>map[k]!=null?nv(d[map[k]]):null;
-          res.cows.push({par,dim,dry:map.drydt!=null&&String(d[map.drydt]??"").trim()!==""&&!(g("yld")>0),code:map.code!=null?String(d[map.code]??"").trim():"",open:g("open"),y305:g("y305"),yld:map.yld!=null?nv(d[map.yld]):null,scc:map.scc!=null?nv(d[map.scc]):null,fat:map.fat!=null?nv(d[map.fat]):null,prot:map.prot!=null?nv(d[map.prot]):null,snf:map.snf!=null?nv(d[map.snf]):null,mun:map.mun!=null?nv(d[map.mun]):null})}
+          res.cows.push({par,dim,birth:map.birth!=null?ymd(d[map.birth]):null,calv:map.calv!=null?ymd(d[map.calv]):null,dry:map.drydt!=null&&String(d[map.drydt]??"").trim()!==""&&!(g("yld")>0),code:map.code!=null?String(d[map.code]??"").trim():"",open:g("open"),y305:g("y305"),yld:map.yld!=null?nv(d[map.yld]):null,scc:map.scc!=null?nv(d[map.scc]):null,fat:map.fat!=null?nv(d[map.fat]):null,prot:map.prot!=null?nv(d[map.prot]):null,snf:map.snf!=null?nv(d[map.snf]):null,mun:map.mun!=null?nv(d[map.mun]):null})}
         else{const vals={};for(const k of Object.keys(map)){if(k==="month")continue;const v=nv(d[map[k]]);if(v!=null&&v!==0)vals[k]=v}if(Object.keys(vals).length>=2)last={...(last||{}),...vals}}}
       r--; if(last)res.summary={...(res.summary||{}),...last};
       if(map.scc!=null)res.sccK=/천/.test(row[map.scc]);
@@ -1317,6 +1319,8 @@ function dcicApply(res){
     put("efat",wavg(by.E,"fat"),2);put("eprot",wavg(by.E,"prot"),2);put("lprot",wavg(by.L,"prot"),2);
     const sc=avg(C,"scc");if(sc!=null)put("scc",res.sccK||sc>60?sc/10:sc,1);
     const y3=avg(AD,"y305");if(y3!=null&&y3>3000)put("y305",y3,0);
+    const af=AD.filter(c=>c.par===1&&c.birth&&c.calv).map(c=>(c.calv-c.birth)/864e5/30.4375).filter(m=>m>=18&&m<=48);
+    if(af.length)put("afc",af.reduce((a,b)=>a+b,0)/af.length,1);
     if(AD.some(c=>c.open!=null)){const pg=AD.filter(c=>c.open>0);put("preg",pg.length,0);const op=avg(pg,"open");if(op!=null)put("open",op,0)}
   }
   const m=res.summary;
@@ -1328,7 +1332,7 @@ function dcicApply(res){
   }
   return set;
 }
-const DCIC_LABEL={mE:"착유우 초기",mM:"착유우 중기",mL:"착유우 말기",milking:"착유두수",first:"초산우",dry:"건유우",heifer:"육성우",latep:"비유말기 비율(%)",dim:"평균 착유일수",parity:"평균산차",yield:"평균 유량",eyield:"비유초기 유량",fat:"유지방",prot:"유단백",snf:"무지고형분",mun:"MUN",efat:"초기 유지방",eprot:"초기 유단백",lprot:"말기 유단백",scc:"체세포(만)",open:"공태일수",ci:"분만간격",preg:"임신두수",y305:"305일 유량"};
+const DCIC_LABEL={afc:"초산분만월령",mE:"착유우 초기",mM:"착유우 중기",mL:"착유우 말기",milking:"착유두수",first:"초산우",dry:"건유우",heifer:"육성우",latep:"비유말기 비율(%)",dim:"평균 착유일수",parity:"평균산차",yield:"평균 유량",eyield:"비유초기 유량",fat:"유지방",prot:"유단백",snf:"무지고형분",mun:"MUN",efat:"초기 유지방",eprot:"초기 유단백",lprot:"말기 유단백",scc:"체세포(만)",open:"공태일수",ci:"분만간격",preg:"임신두수",y305:"305일 유량"};
 async function dcicFile(file){
   try{
     let sheets;
@@ -1589,7 +1593,7 @@ function helpManual(){
   <h3>농장</h3>
   <ul><li>점검 분야 버튼으로 이번 방문에서 볼 분야를 고릅니다. 고른 분야만 점검표·개체관찰·리포트에 나옵니다.</li>
    <li>낙농은 검정성적을 넣으면 유성분 해석(지방/단백 비, MUN, SNF, 비유단계별 기준), 적정 건유우·갱신·육성우 두수, 원유 등급, 필요건물량이 자동 계산됩니다.</li>
-   <li><b>검정성적 불러오기</b>: 검정성적 파일(엑셀 .xlsx·.xls 또는 CSV)을 고르면 표의 머리글로 열을 찾아 자동으로 채웁니다. <b>개체별 성적</b>(명호·산차·일수·유량·체세포·유지율·단백율·고형율·MUN)이면 비유단계별 두수(초기 0~100일·중기 101~200일·말기 201일 이상), 초산우 두수, 평균 착유일수·산차, 유성분 평균(유량 가중)을 계산하고, <b>목장 요약</b>(검정월·경산우·착유우·공태일수·분만간격 등)이면 가장 최근 달 값을 씁니다. 채운 값은 직접 고칠 수 있습니다.</li>
+   <li><b>검정성적 불러오기</b>: 검정성적 파일(엑셀 .xlsx·.xls 또는 CSV)을 고르면 표의 머리글로 열을 찾아 자동으로 채웁니다. <b>개체별 성적</b>(명호·산차·일수·유량·체세포·유지율·단백율·고형율·MUN)이면 비유단계별 두수(초기 0~100일·중기 101~200일·말기 201일 이상), 초산우 두수, 초산분만월령(1산 소의 생년월일~분만일 평균), 평균 착유일수·산차, 유성분 평균(유량 가중)을 계산하고, <b>목장 요약</b>(검정월·경산우·착유우·공태일수·분만간격 등)이면 가장 최근 달 값을 씁니다. 채운 값은 직접 고칠 수 있습니다.</li>
    <li>착유우 초기·중기·말기 두수를 넣으면 착유두수 합계와 비유말기 비율이 자동으로 계산되고, 개체관찰 우군 두수로 쓰입니다.</li>
    <li>목장 이메일을 넣어 두면 보고서 받는 사람에 자동으로 들어갑니다.</li></ul>
   <h3>점검표</h3>
