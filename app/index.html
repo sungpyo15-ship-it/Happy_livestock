@@ -804,7 +804,7 @@ const PITEM=Object.fromEntries(MODS.filter(m=>m.kind==="pts").flatMap(m=>m.secs.
 
 function blank(){
   return {id:uid(),example:false,mods:["dairy"],
-    farm:{name:"",owner:"",date:today(),inspector:"",mE:"",mM:"",mL:"",milking:"",sick:"",dry:"",heifer:"",parity:"",ci:"",afc:"",ship:"",scc:"",bac:"",fat:"",prot:"",snf:"",mun:"",efat:"",eprot:"",lprot:"",y305:"",dim:"",open:"",preg:"",first:"",eyield:"",latep:"",yield:"",bw:"",env:"",dmi:"",asfed:"",dmp:"",goal:"",concern:"",email:"",
+    farm:{name:"",owner:"",date:today(),inspector:"",mE:"",mM:"",mL:"",milking:"",sick:"",dry:"",heifer:"",parity:"",ci:"",afc:"",ship:"",scc:"",bac:"",fat:"",prot:"",snf:"",mun:"",efat:"",eprot:"",lprot:"",y305:"",dim:"",open:"",preg:"",first:"",eyield:"",latep:"",yield:"",bw:"",env:"",dmi:"",asfed:"",dmp:"",ciEst:"",goal:"",concern:"",email:"",
       hcow:"",hgrow:"",hfat:"",hcalf:"",temp:"",rh:"",notes:""},
     chk:{},val:{},memo:{},pts:{},pv:{},rooms:[],rec:{},opinion:{},signals:{},sx:{},signs:{},comfort:{}};
 }
@@ -929,7 +929,7 @@ function herd(){
 }
 /* 베스트목장 (검정기록 활용 교육): 305일 유량 10,000kg 이상 · 평균산차 2.7산 이상 · 체세포 20만 이하 · 분만간격 435일 이하 */
 function bestFarm(){
-  const f=S.farm, c=[["305일 유량",num(f.y305),v=>v>=10000,"10,000 kg 이상",v=>v.toLocaleString()+" kg"],["평균산차",num(f.parity),v=>v>=2.7,"2.7산 이상",v=>v+"산"],["체세포",num(f.scc),v=>v<=20,"20만 이하",v=>v+"만"],["분만간격",num(f.ci),v=>v<=435,"435일 이하",v=>v+"일"]];
+  const f=S.farm, c=[["305일 유량",num(f.y305),v=>v>=10000,"10,000 kg 이상",v=>v.toLocaleString()+" kg"],["평균산차",num(f.parity),v=>v>=2.7,"2.7산 이상",v=>v+"산"],["체세포",num(f.scc),v=>v<=20,"20만 이하",v=>v+"만"],["분만간격",num(f.ci),v=>v<=435,"435일 이하",v=>v+"일"+(f.ciEst?"(예상)":"")]];
   const items=c.map(([l,v,ok,std,fmt])=>({l,v,std,txt:v==null?null:fmt(v),pass:v==null?null:ok(v)}));
   const known=items.filter(i=>i.pass!=null), met=known.filter(i=>i.pass).length;
   return {items,met,known:known.length,ok:known.length===4&&met===4};
@@ -1085,7 +1085,7 @@ function vFarm(){
     <div class="small muted">착유우 비유단계별 두수 (비유초기 0~100일 · 중기 101~200일 · 말기 201일 이상)</div>
     <div class="grid2">${inp("mE","착유우 초기 (0~100일)","두","numeric")}${inp("mM","착유우 중기 (101~200일)","두","numeric")}${inp("mL","착유우 말기 (201일~)","두","numeric")}${inp("milking","착유두수 (합계)","초기+중기+말기 자동","numeric")}
     ${inp("dry","건유우","두","numeric")}${inp("first","초산우 (착유 중)","두","numeric")}${inp("sick","환축우","두","numeric")}${inp("heifer","육성우 (미경산)","두","numeric")}</div>
-    <div class="grid2">${inp("parity","평균산차 (산)","2.5 이상 · 베스트 2.7")}${inp("ci","분만간격 (일)","베스트 435 이하")}${inp("afc","초산분만월령 (개월)","검정평균 27.8")}${inp("ship","납유량 (L/일)","2,000 이상")}
+    <div class="grid2">${inp("parity","평균산차 (산)","2.5 이상 · 베스트 2.7")}${inp("ci",f.ciEst?"분만간격 (일) · 예상값":"분만간격 (일)","베스트 435 이하")}${inp("afc","초산분만월령 (개월)","검정평균 27.8")}${inp("ship","납유량 (L/일)","2,000 이상")}
     ${inp("scc","체세포 (만/mL)","20 이하 (베스트)")}${inp("bac","세균수 (만/mL)","3 미만 1A")}${inp("fat","유지방 (%)","3.7~4.2")}${inp("prot","유단백 (%)","2.8~3.6")}${inp("snf","무지고형분 (%)","8.4~8.7")}${inp("mun","MUN (mg/dL)","12~16")}</div>
     <div class="small muted">검정성적 (24개월 검정·번식 성적, 선택)</div>
     <div class="grid2">${inp("y305","305일 유량 (kg/두)","베스트 10,000 이상")}${inp("dim","평균 착유일수 (일)","150 이하 최대 유량")}${inp("open","공태일수 (일)","150 이하 훌륭")}${inp("preg","임신두수 (두)","경산우의 60% 이상","numeric")}${inp("eyield","비유초기 평균 유량 (kg)","35 이상")}${inp("latep","비유말기 두수 비율 (%)","말기 두수로 자동 · 40 이하")}</div>
@@ -1321,28 +1321,30 @@ function dcicApply(res){
     const y3=avg(AD,"y305");if(y3!=null&&y3>3000)put("y305",y3,0);
     const af=AD.filter(c=>c.par===1&&c.birth&&c.calv).map(c=>(c.calv-c.birth)/864e5/30.4375).filter(m=>m>=18&&m<=48);
     if(af.length)put("afc",af.reduce((a,b)=>a+b,0)/af.length,1);
-    if(AD.some(c=>c.open!=null)){const pg=AD.filter(c=>c.open>0);put("preg",pg.length,0);const op=avg(pg,"open");if(op!=null)put("open",op,0)}
+    if(AD.some(c=>c.open!=null)){const pg=AD.filter(c=>c.open>0);put("preg",pg.length,0);const op=avg(pg,"open");if(op!=null)put("open",op,0);
+      /* 예상 분만간격 = 임신우 평균 공태일수 + 임신기간 280일. 실제 분만간격(요약 파일·직접 입력)이 있으면 덮어쓰지 않음 */
+      if(op!=null&&(!f.ci||f.ciEst)){put("ci",op+280,0);f.ciEst="1";set.ciEst=true}}
   }
   const m=res.summary;
   if(m){
     if(!res.cows.length){if(m.milking!=null)put("milking",m.milking,0);if(m.first!=null)put("first",m.first,0);if(m.dim!=null)put("dim",m.dim,0);if(m.parity!=null)put("parity",m.parity,1);
       if(m.yld!=null)put("yield",m.yld,1);if(m.fat!=null)put("fat",m.fat,2);if(m.prot!=null)put("prot",m.prot,2);if(m.snf!=null)put("snf",m.snf,2);if(m.mun!=null)put("mun",m.mun,1);if(m.scc!=null)put("scc",res.sccK||m.scc>60?m.scc/10:m.scc,1)}
     if(m.adult!=null&&m.milking!=null&&m.adult>=m.milking)put("dry",m.adult-m.milking,0);
-    if(m.heifer!=null)put("heifer",m.heifer,0);if(m.open!=null)put("open",m.open,0);if(m.ci!=null)put("ci",m.ci,0);if(m.preg!=null)put("preg",m.preg,0);if(m.y305!=null&&m.y305>3000)put("y305",m.y305,0);
+    if(m.heifer!=null)put("heifer",m.heifer,0);if(m.open!=null)put("open",m.open,0);if(m.ci!=null){put("ci",m.ci,0);f.ciEst=""}if(m.preg!=null)put("preg",m.preg,0);if(m.y305!=null&&m.y305>3000)put("y305",m.y305,0);
   }
   return set;
 }
-const DCIC_LABEL={afc:"초산분만월령",mE:"착유우 초기",mM:"착유우 중기",mL:"착유우 말기",milking:"착유두수",first:"초산우",dry:"건유우",heifer:"육성우",latep:"비유말기 비율(%)",dim:"평균 착유일수",parity:"평균산차",yield:"평균 유량",eyield:"비유초기 유량",fat:"유지방",prot:"유단백",snf:"무지고형분",mun:"MUN",efat:"초기 유지방",eprot:"초기 유단백",lprot:"말기 유단백",scc:"체세포(만)",open:"공태일수",ci:"분만간격",preg:"임신두수",y305:"305일 유량"};
+const DCIC_LABEL={ciEst:null,afc:"초산분만월령",mE:"착유우 초기",mM:"착유우 중기",mL:"착유우 말기",milking:"착유두수",first:"초산우",dry:"건유우",heifer:"육성우",latep:"비유말기 비율(%)",dim:"평균 착유일수",parity:"평균산차",yield:"평균 유량",eyield:"비유초기 유량",fat:"유지방",prot:"유단백",snf:"무지고형분",mun:"MUN",efat:"초기 유지방",eprot:"초기 유단백",lprot:"말기 유단백",scc:"체세포(만)",open:"공태일수",ci:"분만간격",preg:"임신두수",y305:"305일 유량"};
 async function dcicFile(file){
   try{
     let sheets;
     if(/\.csv$|\.txt$/i.test(file.name)){sheets=[csvRows(await file.text())]}
     else{const X=await loadXLSX();const wb=X.read(await file.arrayBuffer(),{type:"array"});sheets=wb.SheetNames.map(n=>X.utils.sheet_to_json(wb.Sheets[n],{header:1,raw:true,defval:""}))}
-    const res=dcicParse(sheets), set=dcicApply(res), keys=Object.keys(set);
+    const res=dcicParse(sheets), set=dcicApply(res), keys=Object.keys(set).filter(k=>k!=="ciEst");
     save(); render();
     const out=$("#dcicOut");
     if(!keys.length){if(out)out.innerHTML='<div class="banner">검정성적 표의 머리글(산차·일수·유량 또는 검정월·공태일수 등)을 찾지 못했습니다. 파일 형식을 확인하거나 직접 입력해 주세요.</div>';return toast("읽을 수 있는 검정성적이 없습니다")}
-    if(out)out.innerHTML=`<div class="banner" style="border-style:solid;border-color:var(--good);background:var(--good-bg)"><span><b style="color:var(--good)">${esc(file.name)}</b> · ${res.cows.length?`개체 ${res.cows.length}두(착유 ${set.milking||0}·건유 ${set.dry||0}·미경산 ${set.heifer||0})`:"목장 요약"}에서 ${keys.length}개 항목을 채웠습니다: ${keys.map(k=>`${DCIC_LABEL[k]||k} ${set[k]}`).join(", ")}. 값은 아래에서 고칠 수 있습니다.</span></div>`;
+    if(out)out.innerHTML=`<div class="banner" style="border-style:solid;border-color:var(--good);background:var(--good-bg)"><span><b style="color:var(--good)">${esc(file.name)}</b> · ${res.cows.length?`개체 ${res.cows.length}두(착유 ${set.milking||0}·건유 ${set.dry||0}·미경산 ${set.heifer||0})`:"목장 요약"}에서 ${keys.length}개 항목을 채웠습니다: ${keys.map(k=>`${DCIC_LABEL[k]||k}${k==="ci"&&set.ciEst?"(예상: 공태일수+280일)":""} ${set[k]}`).join(", ")}. 값은 아래에서 고칠 수 있습니다.</span></div>`;
     toast("검정성적을 불러왔습니다");
   }catch(e){toast(e.message||"파일을 읽지 못했습니다")}
 }
@@ -1593,7 +1595,7 @@ function helpManual(){
   <h3>농장</h3>
   <ul><li>점검 분야 버튼으로 이번 방문에서 볼 분야를 고릅니다. 고른 분야만 점검표·개체관찰·리포트에 나옵니다.</li>
    <li>낙농은 검정성적을 넣으면 유성분 해석(지방/단백 비, MUN, SNF, 비유단계별 기준), 적정 건유우·갱신·육성우 두수, 원유 등급, 필요건물량이 자동 계산됩니다.</li>
-   <li><b>검정성적 불러오기</b>: 검정성적 파일(엑셀 .xlsx·.xls 또는 CSV)을 고르면 표의 머리글로 열을 찾아 자동으로 채웁니다. <b>개체별 성적</b>(명호·산차·일수·유량·체세포·유지율·단백율·고형율·MUN)이면 비유단계별 두수(초기 0~100일·중기 101~200일·말기 201일 이상), 초산우 두수, 초산분만월령(1산 소의 생년월일~분만일 평균), 평균 착유일수·산차, 유성분 평균(유량 가중)을 계산하고, <b>목장 요약</b>(검정월·경산우·착유우·공태일수·분만간격 등)이면 가장 최근 달 값을 씁니다. 채운 값은 직접 고칠 수 있습니다.</li>
+   <li><b>검정성적 불러오기</b>: 검정성적 파일(엑셀 .xlsx·.xls 또는 CSV)을 고르면 표의 머리글로 열을 찾아 자동으로 채웁니다. <b>개체별 성적</b>(명호·산차·일수·유량·체세포·유지율·단백율·고형율·MUN)이면 비유단계별 두수(초기 0~100일·중기 101~200일·말기 201일 이상), 초산우 두수, 초산분만월령(1산 소의 생년월일~분만일 평균), 예상 분만간격(임신우 평균 공태일수 + 임신기간 280일, 실제 분만간격이 있으면 그대로 둠), 평균 착유일수·산차, 유성분 평균(유량 가중)을 계산하고, <b>목장 요약</b>(검정월·경산우·착유우·공태일수·분만간격 등)이면 가장 최근 달 값을 씁니다. 채운 값은 직접 고칠 수 있습니다.</li>
    <li>착유우 초기·중기·말기 두수를 넣으면 착유두수 합계와 비유말기 비율이 자동으로 계산되고, 개체관찰 우군 두수로 쓰입니다.</li>
    <li>목장 이메일을 넣어 두면 보고서 받는 사람에 자동으로 들어갑니다.</li></ul>
   <h3>점검표</h3>
@@ -1950,6 +1952,7 @@ document.addEventListener("input",e=>{
   const t=e.target, d=t.dataset;
   if(d.farm){S.farm[d.farm]=t.value;
     if(["mE","mM","mL"].includes(d.farm))stageSync();
+    if(d.farm==="ci")S.farm.ciEst="";
     save();
     if(["temp","rh"].includes(d.farm)){const th=thi();$("#thiOut").innerHTML=thiHtml(th,thiLevel(th))}
     else if(!["notes","goal","concern"].includes(d.farm)){if($("#herdOut"))$("#herdOut").innerHTML=herdHtml(); if($("#hTotal"))$("#hTotal").textContent=`한우 합계 ${herd().htotal||"—"}두`}}
