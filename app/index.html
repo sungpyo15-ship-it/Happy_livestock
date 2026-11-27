@@ -1094,6 +1094,21 @@ function dairyCost(){const f=S.farm,tp=num(f.tmrp),mp=num(f.milkp),d=dmi();if(tp
   const r={cost:Math.round(cost),perKg:y?Math.round(cost/y):null};
   if(mp!=null&&y){r.income=Math.round(y*mp);r.iofc=Math.round(y*mp-cost);r.ratio=Math.round(cost/(y*mp)*100);if(M)r.iofcM=Math.round(r.iofc*M*30.4)}
   return r}
+
+/* ---------- 개선하면 얻는 효과 (금액) ----------
+   계산 근거가 있는 항목만: 비육 표준 대비 과다 급여·체중 미달, 낙농 체세포 유량 손실(교재 표), 건물섭취량 부족(현장 환산), IOFC 민감도 */
+const MAN=v=>`${Math.round(v/10000).toLocaleString()}만 원`;
+function gains(){const out=[],f=S.farm,h=herd();
+  if(S.mods.includes("beef")){const b=beefCost();
+    if(b&&b.diff>0)out.push({t:"비육 사료 표준 정량 조정",v:b.diff*12,txt:`월 ${MAN(b.diff)} · 연 ${MAN(b.diff*12)} 절감`,how:"표준보다 많이 먹이는 우방을 회사 30개월 표준 정량으로 조정"});
+    if(b&&b.lag>0)out.push({t:"체중 미달 소 따라잡기",v:b.lag,txt:`추가 사료비 약 ${MAN(b.lag)} 절감 (추정)`,how:`${b.lagN}두가 표준 체중에 늦게 도달하는 만큼 드는 사료비`,est:1})}
+  if(S.mods.includes("dairy")){const mp=num(f.milkp),scc=num(f.scc),A=h.adult||num(f.milking);
+    if(mp&&scc!=null&&scc>=20&&h.sccLoss&&A)out.push({t:"체세포 1등급(20만 미만) 달성",v:h.sccLoss*A*mp,txt:`월 약 ${MAN(h.sccLoss*A*mp/12)} · 연 약 ${MAN(h.sccLoss*A*mp)} (추정)`,how:`현재 체세포 구간의 경산우 두당 연 ${h.sccLoss.toLocaleString()} kg 유량 손실(교재 표) × ${A}두 × 원유 단가`,est:1});
+    const d=dmi(),tp=num(f.tmrp),dp=num(f.dmp),M=num(f.milking);
+    if(d&&d.gap!=null&&d.gap<0&&mp&&M){const g=-d.gap,milk=g*2,inc=milk*mp,cost=tp&&dp?g/(dp/100)*tp:0,net=(inc-cost)*M*30.4;
+      if(net>0)out.push({t:"건물섭취량 부족분 채우기",v:net*12,txt:`월 약 ${MAN(net)} · 연 약 ${MAN(net*12)} (추정)`,how:`부족 ${g.toFixed(1)} kg × 건물 1 kg당 우유 약 2 kg(현장 환산) × 착유 ${M}두, 늘어난 사료비 차감`,est:1})}
+    const c=dairyCost();if(c&&c.iofc!=null&&M)out.push({t:"사료비 공제 소득(IOFC) 두당 1,000원 개선",v:1000*M*30.4*12,txt:`월 ${MAN(1000*M*30.4)} · 연 ${MAN(1000*M*30.4*12)}`,how:`현재 IOFC ${c.iofc.toLocaleString()}원/두/일 기준, 착유 ${M}두`,sens:1})}
+  return out.sort((a,b)=>(a.sens||0)-(b.sens||0)||b.v-a.v)}
 function roomCalc(r){
   const m=roomMonth(r), s=m!=null?std(m):null; if(!s)return null;
   const wt=num(r.wt), c=num(r.conc), rg=num(r.rough);
@@ -1243,6 +1258,7 @@ function autoFeedback(){
       const std=(rest.join(" — ")||stdOf(x)||(bm?`우수농장 평균 ${bm[1]}점`:"")).replace(SRCX,""), cz=causeOf(x);
       t+=`\n${N[i]} ${kwOf(x)[0]} ${x.p===1?"[시급]":"[개선]"}\n   · 현재: ${cur}${std?`\n   · 기준: ${std}`:""}${cz?`\n   · 원인: ${cz}`:""}\n   · 실행: ${actOf(x)}\n`});
   } else t+=`\n▣ 큰 문제 항목이 없습니다. 지금 관리 수준을 유지해 주세요.\n`;
+  {const G=gains();if(G.length)t+=`\n▣ 개선하면 얻는 효과\n`+G.slice(0,3).map(x=>`· ${x.t}: ${x.txt}`).join("\n")+(G.some(x=>x.est)?"\n  (추정: 실제 효과는 목장 여건에 따라 다릅니다)":"")+"\n"}
   {const c=compareVisits();if(c&&c.rows.length){const g=cmpPick(c,1,3),b=cmpPick(c,-1,2);
     if(g.length||b.length)t+=`\n▣ 지난 방문(${c.date}) 대비\n`+[...g.map(r=>"· 좋아짐: "+cmpLine(r)),...b.map(r=>"· 나빠짐: "+cmpLine(r))].join("\n")+"\n"}}
   t+=`\n▣ 잘하고 계신 점\n`+(good.length?good.slice(0,3).map(x=>`· ${x}`).join("\n"):"· 다음 방문 때 함께 강점을 찾아보겠습니다");
@@ -1582,6 +1598,7 @@ function vReport(){
   ${(()=>{const b=bestFarm();return b.ok&&S.mods.includes("dairy")?`<div class="card" style="margin-top:10px;border-color:var(--good);background:var(--good-bg)"><b style="color:var(--good);font-size:17px">★ 베스트목장</b><div class="small">${b.items.map(i=>`${i.l} ${i.txt}`).join(" · ")}</div><div class="small muted">기준: ${BEST_STD} (검정기록 활용 교육)</div></div>`:""})()}
   <div class="calc" style="margin-top:10px">${ids.map(id=>{const m=MOD[id],sc=modScore(id);return `<div class="stat"><div class="v">${sc.label}</div><div class="k">${m.grp==="dairy"?"낙농 ":""}${m.name}${m.diag||m.kind==="judge"?"":` · ${grade(sc.pct,m)}`}</div></div>`}).join("")||'<div class="muted small">아직 입력된 점검이 없습니다.</div>'}</div>
   ${(()=>{const c=compareVisits();return c?`<h2>지난 방문 대비 <span class="small muted" style="font-weight:400">${esc(c.date)} 점검과 비교</span></h2><div class="card">${cmpHtml(c)}</div>`:""})()}
+  ${(()=>{const G=gains();return G.length?`<h2>개선하면 얻는 효과</h2><div class="card stack">${G.map(x=>`<div><b>${esc(x.t)}</b> <span class="pill ${x.sens?"na":"good"}">${esc(x.txt)}</span><div class="small muted">${esc(x.how)}</div></div>`).join("")}${G.some(x=>x.est)?'<div class="small muted">추정 항목은 계산 가정에 따른 참고값입니다.</div>':""}</div>`:""})()}
   <h2>핵심 권고</h2><div class="card stack">
     ${top.length?top.map((x,i)=>`<div><b>${i+1}. ${esc(x.t)}</b><div class="small">→ ${esc(x.a.split(" (기준:")[0])}</div></div>`).join(""):'<span class="muted">입력된 문제 항목이 없습니다.</span>'}
     ${F.length>top.length?`<div class="small muted">그 밖의 개선 항목 ${F.length-top.length}건 (우선 ${Math.max(0,p1-top.filter(x=>x.p===1).length)}건)은 아래 상세 분석에 있습니다.</div>`:""}</div>
@@ -1616,6 +1633,7 @@ function summaryText(){
   let s=`[현장점검] ${f.name||""} ${f.date}\n`;
   if(bestFarm().ok&&S.mods.includes("dairy"))s+=`★ 베스트목장 (${bestFarm().items.map(i=>`${i.l} ${i.txt}`).join(", ")})\n`;
   entered().filter(id=>!MOD[id].diag).forEach(id=>{const m=MOD[id],sc=modScore(id);s+=`· ${m.grp==="dairy"?"낙농 ":""}${m.name} ${sc.label}${m.diag||m.kind==="judge"?"":"점"}${m.diag||m.kind==="judge"?"":` (${grade(sc.pct,m)})`}\n`});
+  {const G=gains().filter(x=>!x.sens);if(G.length)s+=`\n[개선하면 얻는 효과]\n`+G.slice(0,2).map(x=>`· ${x.t}: ${x.txt}`).join("\n")+"\n"}
   {const c=compareVisits();if(c&&c.rows.length){const g=cmpPick(c,1,3),b=cmpPick(c,-1,2);if(g.length||b.length)s+=`\n[지난 방문(${c.date}) 대비]\n`+[...g.map(r=>"▲ "+cmpLine(r)),...b.map(r=>"▼ "+cmpLine(r))].join("\n")+"\n"}}
   s+=`\n${fbText()}`;
   if(S.fb&&S.fb.opinion)s+=`\n\n[평가자 소견]\n${S.fb.opinion}`;
@@ -1758,6 +1776,7 @@ function reportHtml(note,full){
   ${note?`<p ${P}>${esc(note).replace(/\n/g,"<br>")}</p>`:""}
   <table style="border-collapse:collapse;width:100%;margin:8px 0">${entered().filter(id=>!MOD[id].diag).map(id=>{const m=MOD[id],sc=modScore(id);return `<tr><td ${TD}>${m.grp==="dairy"?"낙농 ":""}${esc(m.name)}</td><td ${TD}><b>${esc(sc.label)}</b>${m.diag||m.kind==="judge"?"":` · ${esc(grade(sc.pct,m))}`}</td></tr>`}).join("")}</table>
   <div style="background:#f3f5f4;border-radius:8px;padding:12px 14px;margin-top:12px">${esc(fbText()).replace(/\n/g,"<br>")}</div>`;
+  {const G=gains();if(G.length)o+=`<h3 ${H3}>개선하면 얻는 효과</h3><ul style="padding-left:20px;margin:0">${G.map(x=>`<li style="margin-bottom:4px"><b>${esc(x.t)}</b> — ${esc(x.txt)}<br><span style="color:#5d6b75;font-size:13px">${esc(x.how)}</span></li>`).join("")}</ul>`;}
   {const c=compareVisits();if(c&&c.rows.length)o+=`<h3 ${H3}>지난 방문 대비 (${esc(c.date)})</h3><div>${cmpHtml(c,true)}</div>`;}
   if(S.fb&&S.fb.opinion)o+=`<h3 ${H3}>평가자 소견</h3><div style="border-left:3px solid #2f6f8f;padding:4px 12px">${esc(S.fb.opinion).replace(/\n/g,"<br>")}</div>`;
   if(r.long)o+=`<p style="margin:12px 0 8px"><b>장기 목표</b> ${esc(r.long)}</p>`;
@@ -1826,6 +1845,7 @@ function helpManual(){
    <li><b>한우비육 (회사 Beef Walk-through)</b>: ① <b>관리표(종합)</b> 100점으로 농장 전반을 보고 ② <b>비육우군 점검표</b> 120점으로 입식우·육성·큰소·마무리 단계를 봅니다. 관리표에서 매긴 구충·사육밀도·급수기 청결·환기·섭취량 점수는 비육우군 점검표에 자동 선택됩니다. ③ 비육우군 점검표 아래 <b>기초정보(사료 단가)</b>와 <b>우방별 급여량 점검</b>에서 생년월일만 넣으면 월령·출하예정일·표준 대비 체중·급여량·사료비가 계산됩니다(회사 30개월 표준). 우수농장 비교 설문(5점 30문항)은 농장 탭에서 필요할 때만 켭니다.</li>
    <li><b>한우 번식</b>: 번식우 점검표(회사 원본 100점)와 한우송아지 체크리스트를 함께 봅니다. 번식우 점검표의 송아지 항목(입붙임·급수·건초·폐사율)은 송아지 체크리스트를 입력하면 자동 선택됩니다.</li>
    <li><b>사료비 분석</b>: 비육은 우방별 두수·실제 급여량으로 월 사료비와 회사 30개월 표준 대비 차이(월·연), 체중 미달 소의 추가 사료비(추정), 표준 출하두당 사료비를 계산합니다(기초정보 단가). 낙농은 TMR 원물 단가와 원유 단가를 넣으면 두당 사료비, 유사비(우유 1 kg당 사료비), 사료비 공제 소득(IOFC)을 계산합니다.</li>
+   <li><b>개선하면 얻는 효과</b>: 리포트·보고서·농가 피드백에 금액으로 표시합니다. 비육 표준 정량 조정 절감액, 체중 미달 소의 추가 사료비(추정), 체세포 1등급 달성 시 유량 손실 회복액(교재 유량 손실 표 × 원유 단가, 추정), 건물섭취량 부족분을 채울 때의 소득 증가(건물 1 kg당 우유 약 2 kg 현장 환산, 추정), IOFC 두당 1,000원 개선 시 월·연 금액입니다. 원유 단가·TMR 단가·사료 단가를 넣어야 계산됩니다.</li>
    <li><b>지난 방문 대비</b>: 같은 목장명으로 저장한 이전 점검 기록이 이 기기에 있으면, 리포트·보고서·농가 피드백에 점수·검정성적·개체관찰 평균의 변화(▲ 좋아짐 / ▼ 나빠짐)가 자동으로 나옵니다. 점검이 끝나면 꼭 "점검 기록 저장"을 눌러 두세요.</li>
    <li><b>해당없음</b>: 그늘막, 환기처럼 해당 시설이 없는 항목은 해당없음을 누르면 만점으로 처리되어 총점이 유지됩니다.</li>
    <li><b>판정형</b> (사양·환경): 측정값을 넣으면 양호·주의·불량이 자동으로 정해지고, 버튼을 누르면 직접 판정이 우선합니다. 메모 칸에 위치나 수치를 적어 두면 리포트에 함께 나옵니다.</li>
