@@ -151,6 +151,7 @@ pre.copy{white-space:pre-wrap;font-size:12.5px;background:var(--bg);border:1px s
 .signs button.on{border-color:var(--warn);background:var(--warn-bg)}
 .signs .sgin{display:flex;justify-content:space-between;align-items:center;gap:8px;min-height:56px;padding:6px 8px 6px 10px;font-size:13px;line-height:1.3;border:1px solid var(--line);border-radius:8px;background:var(--surface)}
 .signs .sgin.on{border-color:var(--warn);background:var(--warn-bg)}
+.signs .sgr{display:flex;flex-direction:column;align-items:center;gap:2px;flex:0 0 64px}
 .signs .sgin input{width:64px;flex:0 0 64px;text-align:center;font:600 17px var(--mono);padding:6px 2px;min-height:44px}
 .calc{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;margin-top:4px}
 .calc .stat .v{font-size:19px}
@@ -202,6 +203,7 @@ nav.tabs button{position:relative}
 </div></nav>
 
 <input type="file" id="fileIn" accept="application/json,.json" hidden>
+<input type="file" id="dcicIn" accept=".xlsx,.xls,.csv,.txt" hidden>
 
 <script>
 /* ============================================================
@@ -521,15 +523,15 @@ function activeMods(){return MODS.filter(m=>S.mods.includes(m.grp)).map(m=>m.id)
 
 /* ---------- 개체 관찰 (카우시그널) ---------- */
 const GROUPS=[
- {id:"heifer",name:"초산우",mod:"dairy"},{id:"early",name:"비유초기 (0~100일)",mod:"dairy"},{id:"late",name:"착유우 101일~ (중기·말기)",mod:"dairy"},{id:"dry",name:"건유우",mod:"dairy"},
+ {id:"heifer",name:"초산우",mod:"dairy"},{id:"early",name:"비유초기 (0~100일)",mod:"dairy"},{id:"mid",name:"비유중기 (101~200일)",mod:"dairy"},{id:"late",name:"비유말기 (201일~)",mod:"dairy"},{id:"dry",name:"건유우",mod:"dairy"},
  {id:"hcow",name:"번식우",mod:"cow"},{id:"hgrow",name:"육성우",mod:"cow"},{id:"hfat1",name:"비육 육성·큰소",mod:"beef"},{id:"hfat2",name:"비육 마무리",mod:"beef"}
 ];
-const DG=["heifer","early","late","dry"], HG=["hcow","hgrow","hfat1","hfat2"];
+const DG=["heifer","early","mid","late","dry"], HG=["hcow","hgrow","hfat1","hfat2"];
 const o=(a)=>a.map(v=>Array.isArray(v)?{v:v[0],l:v[1]}:{v,l:String(v)});
 const SIGNALS = [
  {id:"bcs",name:"BCS 신체충실지수",groups:DG,how:"꼬리 위쪽, 좌골 사이, 엉덩이, 요추 부위 지방. 1 여윔 ~ 5 비만",
   opts:o([[2.25,"≤2.25"],[2.5,"2.5"],[2.75,"2.75"],[3,"3.0"],[3.25,"3.25"],[3.5,"3.5"],[3.75,"3.75"],[4,"≥4.0"]]),
-  bad:(v,g)=>g==="dry"?(v<3||v>=4):g==="late"?(v<2.75||v>=4):(v<2.5||v>=3.75),limit:20,
+  bad:(v,g)=>g==="dry"?(v<3||v>=4):(g==="late"||g==="mid")?(v<2.75||v>=4):(v<2.5||v>=3.75),limit:20,
   targetBy:{heifer:"2.5~3.25 (비유초기 2.75~3.25, 피크기 2.0~3.0)",early:"2.5~3.25 (비유초기 2.75~3.25, 피크기 2.0~3.0)",late:"3.0~3.5 (건유 2달 전 3.5 목표)",dry:"3.0~3.75 (분만 전 3.0~4.0)"},
   act:"평균 높음: 비유후기·건유기 과비 방지 / 낮음: 건물섭취량·에너지 밀도 상향 / 분포 넓음: 우군 분리"},
  {id:"hbcs",name:"체형점수",groups:["hcow","hgrow"],how:"교재 점검표의 마름 ~ 살찜 5단계",
@@ -555,9 +557,13 @@ const SIGNALS = [
  {id:"dung",name:"미소화분변지수",groups:[...DG,"hfat1","hfat2"],how:"분변 체로 씻은 뒤. 1 크림처럼 균질 / 3 섬유가 손가락에 묻음 / 5 큰 사료 덩어리",
   opts:o([1,2,3,4,5]),bad:v=>v>=4,limit:20,limitRef:true,target:"1~2 (착유우는 3까지) · 씻은 뒤 절반 이하만 남아야 함",
   act:"통과속도 과다: 물리적 섬유·곡류 가공도·입자도 점검"},
- {id:"teat",name:"유두지수",groups:["heifer","early","late"],how:"1 굳은 곳 없음 / 2 부드러운 링 / 3 거친 링 / 4 매우 거칠고 닳음",
+ {id:"teat",name:"유두지수",groups:["heifer","early","mid","late"],how:"1 굳은 곳 없음 / 2 부드러운 링 / 3 거친 링 / 4 매우 거칠고 닳음",
   opts:o([1,2,3,4]),bad:v=>v>=3,limit:20,target:"3~4 점이 20% 미만",act:"착유기(진공압·맥동·자동탈착)와 착유 방법 점검"}
 ];
+SIGNALS.forEach(x=>{if(x.targetBy&&x.targetBy.late&&!x.targetBy.mid)x.targetBy.mid=x.targetBy.late;if(x.tgtBy&&x.tgtBy.late!=null&&x.tgtBy.mid==null)x.tgtBy.mid=x.tgtBy.late});
+/* 우군 두수: 농장 탭 입력값과 연결 */
+const GN={heifer:"first",early:"mE",mid:"mM",late:"mL",dry:"dry",hcow:"hcow",hgrow:"hgrow"};
+function headN(g){return GN[g]?num(S.farm[GN[g]]):null}
 const SIGNS = [
  ["neck","목 위 혹·굳은살","스탄천·사료조 펜스가 너무 낮음"],
  ["shoulder","어깨 혹","사료조 펜스 설계 불량, 사료가 너무 멂"],
@@ -798,13 +804,13 @@ const PITEM=Object.fromEntries(MODS.filter(m=>m.kind==="pts").flatMap(m=>m.secs.
 
 function blank(){
   return {id:uid(),example:false,mods:["dairy"],
-    farm:{name:"",owner:"",date:today(),inspector:"",milking:"",sick:"",dry:"",heifer:"",parity:"",ci:"",afc:"",ship:"",scc:"",bac:"",fat:"",prot:"",snf:"",mun:"",efat:"",eprot:"",lprot:"",y305:"",dim:"",open:"",preg:"",first:"",eyield:"",latep:"",yield:"",bw:"",env:"",dmi:"",asfed:"",dmp:"",goal:"",concern:"",email:"",
+    farm:{name:"",owner:"",date:today(),inspector:"",mE:"",mM:"",mL:"",milking:"",sick:"",dry:"",heifer:"",parity:"",ci:"",afc:"",ship:"",scc:"",bac:"",fat:"",prot:"",snf:"",mun:"",efat:"",eprot:"",lprot:"",y305:"",dim:"",open:"",preg:"",first:"",eyield:"",latep:"",yield:"",bw:"",env:"",dmi:"",asfed:"",dmp:"",goal:"",concern:"",email:"",
       hcow:"",hgrow:"",hfat:"",hcalf:"",temp:"",rh:"",notes:""},
     chk:{},val:{},memo:{},pts:{},pv:{},rooms:[],rec:{},opinion:{},signals:{},sx:{},signs:{},comfort:{}};
 }
 function sample(){
   const s=blank(); s.example=true; s.mods=["dairy","beef","cow","calf"];
-  Object.assign(s.farm,{name:"예시 목장",owner:"홍길동",milking:"68",sick:"2",dry:"10",heifer:"35",parity:"2.3",ci:"440",afc:"26",ship:"2150",scc:"24",bac:"2.5",fat:"3.82",prot:"3.21",mun:"15.8",
+  Object.assign(s.farm,{name:"예시 목장",owner:"홍길동",mE:"20",mM:"17",mL:"31",milking:"68",sick:"2",dry:"10",heifer:"35",parity:"2.3",ci:"440",afc:"26",ship:"2150",scc:"24",bac:"2.5",fat:"3.82",prot:"3.21",mun:"15.8",
     hcow:"42",hgrow:"8",hfat:"95",hcalf:"30",temp:"27",rh:"70",notes:"예시 데이터입니다."});
   Object.assign(s.farm,{y305:"9200",dim:"195",open:"172",preg:"30",first:"28",eyield:"33",latep:"45",snf:"8.35",efat:"3.3",eprot:"2.95",lprot:"3.45",bw:"650",env:"0",asfed:"42.2",dmp:"50",goal:"평균 유량 33 kg, 체세포 1등급 유지",concern:"여름철 유량·유지방 하락, 비유초기 연변"});
   s.val={fl1:"3.2",fl9:"120",fl2:"85",fl3:"9",e2:"1.8",e3:"28",e5:"5",e6:"120",w2:"22",w3:"75",w4:"25",w5:"8",w9:"34",w10:"14",f4:"1.5",t1:"18",t2:"34",t3:"48",t5:"52",d1:"9",m8:"시간당 32두, 착유자 2명",t7:"두당 원물 33.4 kg / 건물 21.1 kg"};
@@ -1009,7 +1015,7 @@ function findings(){
     if(num(x.chew)!=null&&num(x.chew)<55) out.push({m:gm,p:2,src:`개체관찰 · ${g.name}`,t:`반추 저작 ${x.chew}회/덩이 — 기준 55~70회 (교재 60회 이상)`,a:"섬유 부족 또는 입자도 과소"});
     if(num(x.urin)!=null&&num(x.urin)<10) out.push({m:gm,p:num(x.urin)<5?1:2,src:`개체관찰 · ${g.name}`,t:`평균 배뇨 시간 ${x.urin}초 — 파워북 10초 이상 (CCCS 점검표 5초 이상)`,a:"음수량 부족 가능성: 급수조 수·수압·청결·물 온도 점검"});
     if(x.ids) out.push({m:gm,p:1,src:`개체관찰 · ${g.name}`,t:`개체 조치: ${x.ids}`,a:"개별 확인 및 수의사 진료"});
-    const n=groupN(g.id);
+    const n=signBase(g.id);
     SIGNS.forEach(([id,name,cause])=>{const k=(S.signs[g.id]||{})[id]; if(!k)return; const pc=n?Math.round(k/n*100):null;
       out.push({m:gm,p:pc!=null&&pc>=15?1:2,src:`체크포인트 · ${g.name}`,t:`${name} ${k}두${pc!=null?` (${pc}%)`:""}`,a:`원인 추정: ${cause}`})});
   });
@@ -1074,11 +1080,15 @@ function vFarm(){
     <label class="f">가장 큰 고민<textarea id="f_concern" data-farm="concern">${esc(f.concern)}</textarea></label></div>`;
   if(on("dairy")) h+=`<h2>낙농 사육두수·생산성</h2>
   <div class="card stack">
-    <div class="grid2">${inp("milking","착유두수","두","numeric")}${inp("sick","환축우","두","numeric")}${inp("dry","건유우","두","numeric")}${inp("heifer","육성우","두","numeric")}</div>
+    <div class="row" style="justify-content:space-between"><span class="small muted">검정성적 파일(엑셀·CSV)을 불러오면 두수·성적이 자동으로 채워집니다. 직접 입력도 됩니다.</span><button data-act="dcicLoad">검정성적 불러오기</button></div>
+    <div id="dcicOut"></div>
+    <div class="small muted">착유우 비유단계별 두수 (비유초기 0~100일 · 중기 101~200일 · 말기 201일 이상)</div>
+    <div class="grid2">${inp("mE","착유우 초기 (0~100일)","두","numeric")}${inp("mM","착유우 중기 (101~200일)","두","numeric")}${inp("mL","착유우 말기 (201일~)","두","numeric")}${inp("milking","착유두수 (합계)","초기+중기+말기 자동","numeric")}
+    ${inp("dry","건유우","두","numeric")}${inp("first","초산우 (착유 중)","두","numeric")}${inp("sick","환축우","두","numeric")}${inp("heifer","육성우 (미경산)","두","numeric")}</div>
     <div class="grid2">${inp("parity","평균산차 (산)","2.5 이상 · 베스트 2.7")}${inp("ci","분만간격 (일)","베스트 435 이하")}${inp("afc","초산분만월령 (개월)","검정평균 27.8")}${inp("ship","납유량 (L/일)","2,000 이상")}
     ${inp("scc","체세포 (만/mL)","20 이하 (베스트)")}${inp("bac","세균수 (만/mL)","3 미만 1A")}${inp("fat","유지방 (%)","3.7~4.2")}${inp("prot","유단백 (%)","2.8~3.6")}${inp("snf","무지고형분 (%)","8.4~8.7")}${inp("mun","MUN (mg/dL)","12~16")}</div>
     <div class="small muted">검정성적 (24개월 검정·번식 성적, 선택)</div>
-    <div class="grid2">${inp("y305","305일 유량 (kg/두)","베스트 10,000 이상")}${inp("dim","평균 착유일수 (일)","150 이하 최대 유량")}${inp("open","공태일수 (일)","150 이하 훌륭")}${inp("preg","임신두수 (두)","경산우의 60% 이상","numeric")}${inp("first","초산우 두수 (두)","경산우의 40% 미만","numeric")}${inp("eyield","비유초기 평균 유량 (kg)","35 이상")}${inp("latep","비유말기 두수 비율 (%)","40 이하")}</div>
+    <div class="grid2">${inp("y305","305일 유량 (kg/두)","베스트 10,000 이상")}${inp("dim","평균 착유일수 (일)","150 이하 최대 유량")}${inp("open","공태일수 (일)","150 이하 훌륭")}${inp("preg","임신두수 (두)","경산우의 60% 이상","numeric")}${inp("eyield","비유초기 평균 유량 (kg)","35 이상")}${inp("latep","비유말기 두수 비율 (%)","말기 두수로 자동 · 40 이하")}</div>
     <div class="small muted">비유단계별 유성분 (검정성적 우군 평균, 선택) · 비유초기 0~100일 / 비유중기 101~200일 / 비유말기 201일 이상, 단계별 두수 각 30% 내외가 목표 (검정기록 교육)</div>
     <div class="grid2">${inp("efat","비유초기 (0~100일) 유지방 (%)","3.4~4.5")}${inp("eprot","비유초기 (0~100일) 유단백 (%)","3.0 초과")}${inp("lprot","비유말기 (201일~) 유단백 (%)","3.6 미만")}</div>
     <div class="small muted">건물섭취량 (필요건물량 = 유량/3 + 체중×2% + 환경)</div>
@@ -1227,6 +1237,7 @@ function vSig(){
   let h=`${exampleBanner()}<div class="toolbar">
     <div class="chips" role="group" aria-label="우군 선택">${gs.map(g=>{const n=groupN(g.id);return `<button data-grp="${g.id}" aria-pressed="${grp===g.id}">${g.name}${n?` <span class="mono">${n}</span>`:""}</button>`}).join("")}</div>
   </div>
+  ${headLine(grp)}
   <div class="small muted">30분 이상 관찰하며 지수별로 점수마다 해당하는 두수를 숫자로 입력하세요. 우군당 10두 이상, 가능하면 20두 이상을 권장합니다.</div>
   <div class="stack" style="margin-top:10px">`;
   indFor(grp).forEach(ind=>{
@@ -1243,8 +1254,8 @@ function vSig(){
     <div class="num-grid" style="margin-top:10px">${xi("resp","분당 호흡수 (평균)","18~30회")}${xi("urin","평균 배뇨 시간 (초)","5초 이상")}${xi("chew","반추 저작 (회/덩이)","60회 이상")}</div>
     <div style="margin-top:10px">${xi("ids","외상·분비물 개체번호","예: 312 외음부 분비물","")}</div></div>`;
   const sg=S.signs[grp]||{};
-  h+=`<div class="card"><h3>건강·복지 체크포인트</h3><div class="small muted">CowSignals 포스터의 이상 신호입니다. 해당하는 소의 두수를 숫자로 입력하면 리포트에 원인과 함께 표시됩니다.</div>
-    <div class="signs">${SIGNS.map(([id,name,cause])=>`<label class="sgin ${sg[id]?"on":""}"><span>${name}<br><span class="small muted">${cause}</span></span><input id="sg_${grp}_${id}" data-signin="${id}" inputmode="numeric" placeholder="0" value="${sg[id]||""}" aria-label="${name} 두수"></label>`).join("")}</div></div>`;
+  h+=`<div class="card"><h3>건강·복지 체크포인트</h3><div class="small muted">CowSignals 포스터의 이상 신호입니다. 해당하는 소의 두수를 숫자로 입력하면 ${headN(grp)?`우군 ${headN(grp)}두(농장 탭) 대비`:"관찰 두수 대비"} 비율이 계산되고 리포트에 원인과 함께 표시됩니다.</div>
+    <div class="signs">${SIGNS.map(([id,name,cause])=>`<label class="sgin ${sg[id]?"on":""}"><span>${name}<br><span class="small muted">${cause}</span></span><span class="sgr"><input id="sg_${grp}_${id}" data-signin="${id}" inputmode="numeric" placeholder="0" value="${sg[id]||""}" aria-label="${name} 두수"><span class="small muted" id="sgp_${id}">${sg[id]&&signBase(grp)?Math.round(sg[id]/signBase(grp)*100)+"%":""}</span></span></label>`).join("")}</div></div>`;
   const c=S.comfort[grp]||{};
   const ni=(k,l)=>`<label class="f">${l}<input id="c_${grp}_${k}" data-comfort="${k}" inputmode="numeric" value="${esc(c[k]??"")}"></label>`;
   h+=`<div class="card"><h3>소 상태 두수 카운팅</h3>
@@ -1255,6 +1266,75 @@ function vSig(){
 }
 function sigPill(st,ind){return !st?'<span class="pill na">미입력</span>':ind.mode==="mean"?`<span class="pill ${st.status}">평균 ${st.mean.toFixed(2)} · ${st.n}두</span>`:`<span class="pill ${st.status}">${st.pct}% · ${st.n}두</span>`}
 function sigMean(st,ind){return st&&ind.mode!=="mean"&&ind.id!=="hbcs"?`평균 <span class="mono">${st.mean.toFixed(2)}</span> · 합계 ${st.n}두`:st?`합계 ${st.n}두`:""}
+function stageSync(){const f=S.farm,v=["mE","mM","mL"].map(k=>num(f[k]));if(v.every(x=>x==null))return;const sum=v.reduce((a,b)=>a+(b||0),0);
+  f.milking=String(sum);const el=$("#f_milking");if(el)el.value=f.milking;
+  if(v[2]!=null&&sum){f.latep=String(Math.round(v[2]/sum*100));const l=$("#f_latep");if(l)l.value=f.latep}}
+function headLine(g){const N=headN(g),n=groupN(g);if(N==null&&!n)return "";
+  return `<div class="small" style="margin-top:4px">우군 ${N!=null?`<b>${N}두</b> (농장 탭)`:"두수 미입력 (농장 탭에서 입력)"}${n?` · 관찰 ${n}두${N?` (관찰률 ${Math.round(n/N*100)}%)`:""}`:""}</div>`}
+function signBase(g){const N=headN(g);return N||groupN(g)||null}
+/* ---------- 검정성적 파일 불러오기 (엑셀·CSV) ----------
+   개체별 성적(명호·산차·일수·유량·유성분)이면 비유단계별 두수·평균을 계산하고,
+   목장 요약(검정월·착유우·공태일수·분만간격 등)이면 가장 최근 달의 값을 씁니다. 머리글 이름으로 열을 찾습니다. */
+const DCIC_COLS={no:/명호|개체|관리번호|이표/,par:/^(산차|차|산)$/,dim:/비유\s*일수|착유\s*일수|^일수$|비유일령|DIM/,yld:/^유량|일일\s*유량|유량\s*\(?kg/,scc:/체세포/,fat:/유지(율|방)/,prot:/단백(율)?|유단백/,snf:/고형(율)?|무지고형|SNF/,mun:/MUN/i,
+  month:/검정\s*(월|일|년월)/,adult:/^경산우/,milking:/^착유우|착유\s*두수/,heifer:/미경산/,first:/초산\s*(두수|우)/,dry:/건유\s*(두수|우)?$/,open:/공태/,parity:/평균\s*산차/,ci:/^분만\s*간격/,preg:/임신\s*두수/,y305:/305/};
+function loadXLSX(){return window.XLSX?Promise.resolve(window.XLSX):new Promise((ok,no)=>{const sc=document.createElement("script");sc.src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js";sc.onload=()=>ok(window.XLSX);sc.onerror=()=>no(new Error("엑셀 읽기 도구를 불러오지 못했습니다"));document.head.appendChild(sc)})}
+function csvRows(t){return t.split(/\r?\n/).map(l=>{const out=[];let c="",q=false;for(let i=0;i<l.length;i++){const ch=l[i];if(q){if(ch==='"'&&l[i+1]==='"'){c+='"';i++}else if(ch==='"')q=false;else c+=ch}else if(ch==='"')q=true;else if(ch===","||ch==="\t"){out.push(c);c=""}else c+=ch}out.push(c);return out})}
+function nv(x){if(x==null)return null;const v=parseFloat(String(x).replace(/[,\s%]/g,""));return isFinite(v)?v:null}
+function dcicParse(sheets){
+  const res={cows:[],summary:null};
+  sheets.forEach(rows=>{
+    for(let r=0;r<rows.length;r++){
+      const row=(rows[r]||[]).map(x=>String(x??"").trim()), map={};
+      row.forEach((h,ci)=>{if(!h||h.length>20)return;for(const [k,re] of Object.entries(DCIC_COLS))if(map[k]==null&&re.test(h)){map[k]=ci;break}});
+      const indiv=map.par!=null&&map.dim!=null, summ=map.month!=null&&["open","parity","ci","milking","adult","dim","first"].some(k=>map[k]!=null);
+      if(!indiv&&!summ)continue;
+      let last=null;
+      for(r=r+1;r<rows.length;r++){const d=rows[r]||[];const nums=d.filter(x=>nv(x)!=null).length;if(nums<2)break;
+        if(indiv){const par=nv(d[map.par]),dim=nv(d[map.dim]);if(par==null||dim==null)continue;
+          res.cows.push({par,dim,yld:map.yld!=null?nv(d[map.yld]):null,scc:map.scc!=null?nv(d[map.scc]):null,fat:map.fat!=null?nv(d[map.fat]):null,prot:map.prot!=null?nv(d[map.prot]):null,snf:map.snf!=null?nv(d[map.snf]):null,mun:map.mun!=null?nv(d[map.mun]):null})}
+        else{const vals={};for(const k of Object.keys(map)){if(k==="month")continue;const v=nv(d[map[k]]);if(v!=null&&v!==0)vals[k]=v}if(Object.keys(vals).length>=2)last={...(last||{}),...vals}}}
+      r--; if(last)res.summary={...(res.summary||{}),...last};
+    }
+  });
+  return res;
+}
+function dcicApply(res){
+  const f=S.farm, set={}, put=(k,v,dec=1)=>{if(v==null||!isFinite(v))return;const x=String(Math.round(v*10**dec)/10**dec);f[k]=x;set[k]=x};
+  const C=res.cows;
+  if(C.length){
+    const st=c=>c.dim<=100?"E":c.dim<=200?"M":"L", by={E:[],M:[],L:[]};C.forEach(c=>by[st(c)].push(c));
+    put("mE",by.E.length,0);put("mM",by.M.length,0);put("mL",by.L.length,0);put("milking",C.length,0);put("first",C.filter(c=>c.par===1).length,0);
+    put("latep",by.L.length/C.length*100,0);put("dim",C.reduce((a,c)=>a+c.dim,0)/C.length,0);put("parity",C.reduce((a,c)=>a+c.par,0)/C.length,1);
+    const avg=(arr,k)=>{const a=arr.filter(c=>c[k]!=null&&c[k]>0);return a.length?a.reduce((s,c)=>s+c[k],0)/a.length:null};
+    const wavg=(arr,k)=>{const a=arr.filter(c=>c[k]!=null&&c[k]>0&&c.yld>0);const w=a.reduce((s,c)=>s+c.yld,0);return w?a.reduce((s,c)=>s+c[k]*c.yld,0)/w:avg(arr,k)};
+    put("yield",avg(C,"yld"),1);put("eyield",avg(by.E,"yld"),1);
+    put("fat",wavg(C,"fat"),2);put("prot",wavg(C,"prot"),2);put("snf",wavg(C,"snf"),2);put("mun",avg(C,"mun"),1);
+    put("efat",wavg(by.E,"fat"),2);put("eprot",wavg(by.E,"prot"),2);put("lprot",wavg(by.L,"prot"),2);
+    const sc=avg(C,"scc");if(sc!=null)put("scc",sc>60?sc/10:sc,1);
+  }
+  const m=res.summary;
+  if(m){
+    if(!C.length){if(m.milking!=null)put("milking",m.milking,0);if(m.first!=null)put("first",m.first,0);if(m.dim!=null)put("dim",m.dim,0);if(m.parity!=null)put("parity",m.parity,1);
+      if(m.yld!=null)put("yield",m.yld,1);if(m.fat!=null)put("fat",m.fat,2);if(m.prot!=null)put("prot",m.prot,2);if(m.snf!=null)put("snf",m.snf,2);if(m.mun!=null)put("mun",m.mun,1);if(m.scc!=null)put("scc",m.scc>60?m.scc/10:m.scc,1)}
+    if(m.adult!=null&&m.milking!=null&&m.adult>=m.milking)put("dry",m.adult-m.milking,0);
+    if(m.heifer!=null)put("heifer",m.heifer,0);if(m.open!=null)put("open",m.open,0);if(m.ci!=null)put("ci",m.ci,0);if(m.preg!=null)put("preg",m.preg,0);if(m.y305!=null&&m.y305>3000)put("y305",m.y305,0);
+  }
+  return set;
+}
+const DCIC_LABEL={mE:"착유우 초기",mM:"착유우 중기",mL:"착유우 말기",milking:"착유두수",first:"초산우",dry:"건유우",heifer:"육성우",latep:"비유말기 비율(%)",dim:"평균 착유일수",parity:"평균산차",yield:"평균 유량",eyield:"비유초기 유량",fat:"유지방",prot:"유단백",snf:"무지고형분",mun:"MUN",efat:"초기 유지방",eprot:"초기 유단백",lprot:"말기 유단백",scc:"체세포(만)",open:"공태일수",ci:"분만간격",preg:"임신두수",y305:"305일 유량"};
+async function dcicFile(file){
+  try{
+    let sheets;
+    if(/\.csv$|\.txt$/i.test(file.name)){sheets=[csvRows(await file.text())]}
+    else{const X=await loadXLSX();const wb=X.read(await file.arrayBuffer(),{type:"array"});sheets=wb.SheetNames.map(n=>X.utils.sheet_to_json(wb.Sheets[n],{header:1,raw:true,defval:""}))}
+    const res=dcicParse(sheets), set=dcicApply(res), keys=Object.keys(set);
+    save(); render();
+    const out=$("#dcicOut");
+    if(!keys.length){if(out)out.innerHTML='<div class="banner">검정성적 표의 머리글(산차·일수·유량 또는 검정월·공태일수 등)을 찾지 못했습니다. 파일 형식을 확인하거나 직접 입력해 주세요.</div>';return toast("읽을 수 있는 검정성적이 없습니다")}
+    if(out)out.innerHTML=`<div class="banner" style="border-style:solid;border-color:var(--good);background:var(--good-bg)"><span><b style="color:var(--good)">${esc(file.name)}</b> · ${res.cows.length?`개체 ${res.cows.length}두`:"목장 요약"}에서 ${keys.length}개 항목을 채웠습니다: ${keys.map(k=>`${DCIC_LABEL[k]||k} ${set[k]}`).join(", ")}. 값은 아래에서 고칠 수 있습니다.</span></div>`;
+    toast("검정성적을 불러왔습니다");
+  }catch(e){toast(e.message||"파일을 읽지 못했습니다")}
+}
 function comfortHtml(cs){
   if(!cs||!cs.total)return '<span class="muted small">숫자를 넣으면 지수가 계산됩니다.</span>';
   const row=(k,v,t,fn)=>{const s=v==null?null:fn(v);return `<div class="kv"><span>${k}<br><span class="small muted">${t}</span></span><span class="row"><span class="mono">${v==null?"—":v+"%"}</span>${s?`<span class="pill ${s}">${s==="good"?"양호":s==="warn"?"주의":"불량"}</span>`:""}</span></div>`};
@@ -1502,6 +1582,8 @@ function helpManual(){
   <h3>농장</h3>
   <ul><li>점검 분야 버튼으로 이번 방문에서 볼 분야를 고릅니다. 고른 분야만 점검표·개체관찰·리포트에 나옵니다.</li>
    <li>낙농은 검정성적을 넣으면 유성분 해석(지방/단백 비, MUN, SNF, 비유단계별 기준), 적정 건유우·갱신·육성우 두수, 원유 등급, 필요건물량이 자동 계산됩니다.</li>
+   <li><b>검정성적 불러오기</b>: 검정성적 파일(엑셀 .xlsx·.xls 또는 CSV)을 고르면 표의 머리글로 열을 찾아 자동으로 채웁니다. <b>개체별 성적</b>(명호·산차·일수·유량·체세포·유지율·단백율·고형율·MUN)이면 비유단계별 두수(초기 0~100일·중기 101~200일·말기 201일 이상), 초산우 두수, 평균 착유일수·산차, 유성분 평균(유량 가중)을 계산하고, <b>목장 요약</b>(검정월·경산우·착유우·공태일수·분만간격 등)이면 가장 최근 달 값을 씁니다. 채운 값은 직접 고칠 수 있습니다.</li>
+   <li>착유우 초기·중기·말기 두수를 넣으면 착유두수 합계와 비유말기 비율이 자동으로 계산되고, 개체관찰 우군 두수로 쓰입니다.</li>
    <li>목장 이메일을 넣어 두면 보고서 받는 사람에 자동으로 들어갑니다.</li></ul>
   <h3>점검표</h3>
   <ul><li>위쪽 버튼으로 점검표를 바꿉니다. 섹션 제목을 누르면 항목이 펼쳐집니다.</li>
@@ -1515,6 +1597,7 @@ function helpManual(){
    <li>우군당 최소 10두, 가능하면 20두 이상 보고, 전체 관찰은 30분 이상 하는 것이 좋습니다(교재).</li>
    <li>빨간 글씨 점수는 문제 점수입니다. 문제 개체 비율이 기준을 넘으면 리포트에 올라갑니다. 분변지수는 우군 평균을 목표값과 비교합니다.</li>
    <li><b>체크포인트</b>: 목 혹, 비절 부종처럼 CowSignals 포스터의 이상 신호가 보이는 소의 두수를 숫자로 입력하면 원인과 함께 리포트에 나옵니다.</li>
+   <li><b>우군 두수 연결</b>: 농장 탭에 착유우 초기·중기·말기, 건유우, 초산우 두수를 넣으면 개체관찰 우군마다 두수와 관찰률이 표시되고, 체크포인트 비율은 우군 두수 대비로 계산됩니다.</li>
    <li><b>두수 카운팅</b>: 급여 직후가 아닌 시간(착유 1~2시간 전)에 우방 전체를 한 번에 세어 휴식 중 누운 소 비율과 반추 비율을 구합니다. 이 값은 CCCS의 "누워 있는 개체" 점수에 자동 반영됩니다.</li></ul>
   <h3>리포트</h3>
   <ul><li><b>점검 결과</b>와 <b>핵심 권고 3개</b>가 자동으로 정리됩니다. 서로 다른 분야에서 가장 시급한 것을 고릅니다.</li>
@@ -1850,10 +1933,13 @@ document.addEventListener("click",e=>{
   if(a==="csv")return download(fname("csv"),csv(),"text/csv;charset=utf-8");
   if(a==="backup")return download(`점검기록_백업_${today()}.json`,JSON.stringify({visits:store.get(KEY_VISITS,[]),draft:S},null,1),"application/json");
   if(a==="restore")return $("#fileIn").click();
+  if(a==="dcicLoad")return $("#dcicIn").click();
 });
 document.addEventListener("input",e=>{
   const t=e.target, d=t.dataset;
-  if(d.farm){S.farm[d.farm]=t.value;save();
+  if(d.farm){S.farm[d.farm]=t.value;
+    if(["mE","mM","mL"].includes(d.farm))stageSync();
+    save();
     if(["temp","rh"].includes(d.farm)){const th=thi();$("#thiOut").innerHTML=thiHtml(th,thiLevel(th))}
     else if(!["notes","goal","concern"].includes(d.farm)){if($("#herdOut"))$("#herdOut").innerHTML=herdHtml(); if($("#hTotal"))$("#hTotal").textContent=`한우 합계 ${herd().htotal||"—"}두`}}
   if(d.val){S.val[d.val]=t.value;save();const it=DITEM[d.val];const a=$("#a_"+d.val);if(a)a.innerHTML=autoHtml(it);
@@ -1866,7 +1952,7 @@ document.addEventListener("input",e=>{
   if(d.pv){S.pv[d.pv]=t.value;save();const it=Object.values(PITEM).find(i=>i.f&&i.f.some(f=>f[0]===d.pv));if(it){if($("#pa_"+it.id))$("#pa_"+it.id).innerHTML=pAutoHtml(it);
     if(it.rule&&!it.obs){const a=it.rule(S.pv),mx=maxOf(it);const el=$("#pr_"+it.id);if(el)el.innerHTML=a==null?'<span class="small muted">측정값을 넣으면 점수가 계산됩니다</span>':`<span class="pill ${barCls(Math.max(0,a)/mx)}">자동 ${Math.max(0,Math.min(mx,a))}점</span>`}
     if(it.obs&&it.rule&&S.pts[it.id]==null){const a=it.rule(S.pv);t.closest(".item").querySelectorAll("[data-pt]").forEach(x=>x.setAttribute("aria-pressed",+x.dataset.i===a))}}}
-  if(d.signin){const v=t.value.replace(/[^0-9]/g,"");if(v!==t.value)t.value=v;S.signs[grp]=S.signs[grp]||{};if(v===""||+v===0)delete S.signs[grp][d.signin];else S.signs[grp][d.signin]=+v;save();t.closest(".sgin").classList.toggle("on",!!S.signs[grp][d.signin])}
+  if(d.signin){const v=t.value.replace(/[^0-9]/g,"");if(v!==t.value)t.value=v;S.signs[grp]=S.signs[grp]||{};if(v===""||+v===0)delete S.signs[grp][d.signin];else S.signs[grp][d.signin]=+v;save();t.closest(".sgin").classList.toggle("on",!!S.signs[grp][d.signin]);const pe=$("#sgp_"+d.signin),k=S.signs[grp][d.signin],b=signBase(grp);if(pe)pe.textContent=k&&b?Math.round(k/b*100)+"%":""}
   if(d.sigin){const [id,i]=d.sigin.split("|"),ind=SIGNALS.find(x=>x.id===id),v=t.value.replace(/[^0-9]/g,"");if(v!==t.value)t.value=v;
     S.signals[grp]=S.signals[grp]||{};const c=S.signals[grp][id]=S.signals[grp][id]||ind.opts.map(()=>0);c[+i]=v===""?0:+v;save();
     const st=sigStat(grp,ind);if($("#sp_"+id))$("#sp_"+id).innerHTML=sigPill(st,ind);if($("#sm_"+id))$("#sm_"+id).innerHTML=sigMean(st,ind);
@@ -1881,6 +1967,7 @@ document.addEventListener("input",e=>{
 document.addEventListener("change",e=>{
 
   if(e.target.dataset.mailc){S.mail=S.mail||{};S.mail[e.target.dataset.mailc]=e.target.checked;save()}
+  if(e.target.id==="dcicIn"){const f=e.target.files[0];e.target.value="";if(f)dcicFile(f);return}
   if(e.target.id==="fileIn"){const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{try{const dd=JSON.parse(r.result);const V=store.get(KEY_VISITS,[]);let n=0;(dd.visits||[]).forEach(v=>{if(!v||!v.farm)return;const i=V.findIndex(x=>x.id===v.id);if(i>=0)V[i]=v;else V.push(v);n++});if(!n)throw 0;store.set(KEY_VISITS,V);const who=[...new Set((dd.visits||[]).map(v=>v._from).filter(Boolean))];toast(`${who.length?who.join(", ")+"님의 ":""}점검 ${n}건을 불러왔습니다`);tab="hist";render()}catch(err){toast("점검 기록 파일 형식이 아닙니다")}};r.readAsText(f);e.target.value=""}
 });
 window.addEventListener("hashchange",()=>{const t=location.hash.slice(1);if(t&&t!==tab){tab=t;render()}});
