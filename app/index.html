@@ -1036,6 +1036,38 @@ const BEST_STD="305일 유량 10,000 kg 이상 · 평균산차 2.7산 이상 · 
 function ymdStr(x){const m=String(x||"").trim().match(/^(\d{4})[-.\/]?(\d{1,2})[-.\/]?(\d{1,2})$/);if(!m)return null;const t=new Date(+m[1],+m[2]-1,+m[3]);return isNaN(t)?null:t}
 function roomMonth(r){const b=ymdStr(r.birth);if(b){const d=new Date(S.farm.date||Date.now());return Math.round((d-b)/864e5/30.4*10)/10}return num(r.m)}
 function shipDate(r){const b=ymdStr(r.birth),sm=num((S.rec.feed||{}).shipm)||30;if(!b)return null;const d=new Date(b.getTime()+sm*30.4*864e5);return `${d.getFullYear()}.${d.getMonth()+1}.${d.getDate()}`}
+
+/* ---------- 지난 방문 대비 변화 ----------
+   같은 목장명으로 저장된 이전 점검 기록(이 기기) 중 가장 최근 것과 비교 */
+function prevVisit(){const nm=(S.farm.name||"").trim();if(!nm||S.example)return null;
+  const V=store.get(KEY_VISITS,[]).filter(v=>v&&v.farm&&(v.farm.name||"").trim()===nm&&v.id!==S.id&&(v.farm.date||"")<=(S.farm.date||"9999")&&!(v.farm.date===S.farm.date&&v.savedAt>=(S.savedAt||Infinity)));
+  V.sort((a,b)=>(b.farm.date||"").localeCompare(a.farm.date||"")||(b.savedAt||0)-(a.savedAt||0));return V[0]||null}
+function withS(v,fn){const cur=S;try{S=migrate(JSON.parse(JSON.stringify(v)));return fn()}catch(e){return null}finally{S=cur}}
+function snapMetrics(){const m={},h=herd(),f=S.farm,n=x=>num(x);
+  activeMods().forEach(id=>{const M=MOD[id];if(M.diag)return;const sc=modScore(id);
+    if(M.kind==="judge"){if(sc.done)m["mod:"+id]={l:(M.grp==="dairy"?"낙농 ":"")+M.name+" 불량",v:sc.bad,u:"건",better:-1}}
+    else if(sc.done)m["mod:"+id]={l:(M.grp==="dairy"?"낙농 ":"")+M.name,v:Math.round(sc.pct),u:"%",better:1,txt:`${sc.got}/${sc.full}점`}});
+  /* 점검표 점수는 입력한 항목 기준 % (입력 항목 수가 달라도 비교 가능) */
+  const K=[["perHead","두당 산유량",h.perHead,"L",1],["scc","체세포",n(f.scc),"만",-1],["dim","평균 착유일수",n(f.dim),"일",-1],["open","공태일수",n(f.open),"일",-1],["preg","임신두수 비율",h.pregPct,"%",1],
+    ["ci","분만간격",n(f.ci),"일",-1],["latep","비유말기 비율",n(f.latep),"%",-1],["fat","유지방",n(f.fat),"%",1],["prot","유단백",n(f.prot),"%",1],["parity","평균산차",n(f.parity),"산",1],["y305","305일 유량",n(f.y305),"kg",1]];
+  if(S.mods.includes("dairy"))K.forEach(([k,l,v,u,b])=>{if(v!=null)m["kpi:"+k]={l,v,u,better:b}});
+  visGroups().forEach(g=>indFor(g.id).forEach(ind=>{const st=sigStat(g.id,ind);if(!st)return;const r=mRange(ind,g.id);
+    const dist=r?(st.mean<r.lo?r.lo-st.mean:st.mean>r.hi?st.mean-r.hi:0):null;m[`sig:${g.id}:${ind.id}`]={l:`${g.name} ${ind.name} 평균`,v:Math.round(st.mean*100)/100,u:"",dist,better:0}}));
+  const F=findings();m["find:p1"]={l:"시급 개선 항목",v:F.filter(x=>x.p===1).length,u:"건",better:-1};m["find:all"]={l:"전체 개선 항목",v:F.length,u:"건",better:-1};
+  return m}
+function compareVisits(){const pv=prevVisit();if(!pv)return null;const A=withS(pv,snapMetrics);if(!A)return null;const B=snapMetrics(),rows=[];
+  Object.keys(B).forEach(k=>{const a=A[k],b=B[k];if(!a||a.v==null||b.v==null)return;const d=Math.round((b.v-a.v)*100)/100;
+    let tone=0;if(k.startsWith("sig:")){if(a.dist!=null&&b.dist!=null){const dd=Math.round((a.dist-b.dist)*100)/100;tone=dd>0.04?1:dd<-0.04?-1:0}}else tone=d===0?0:Math.sign(d)*b.better;
+    if(d===0&&!k.startsWith("mod:"))return;rows.push({k,l:b.l,a:a.v,b:b.v,d,u:b.u,tone,txt:b.txt,atxt:a.txt})});
+  const ord=k=>k.startsWith("mod:")?0:k.startsWith("kpi:")?1:k.startsWith("find:")?2:3;rows.sort((x,y)=>ord(x.k)-ord(y.k));
+  return {date:pv.farm.date,rows}}
+/* 피드백·요약용: 의미 있는 변화만 (검정성적 → 점검표 3%p 이상 → 개체관찰 평균), 시급 항목 수 */
+function cmpPick(c,tone,n){const pr=k=>k.startsWith("kpi:")?0:k.startsWith("mod:")?1:k.startsWith("sig:")?2:k==="find:p1"?3:9;
+  return c.rows.filter(r=>r.tone===tone&&pr(r.k)<9&&!(r.k.startsWith("mod:")&&Math.abs(r.d)<3)).sort((a,b)=>pr(a.k)-pr(b.k)).slice(0,n)}
+function cmpLine(r){const sign=r.d>0?"+":"";return `${r.l} ${r.a}${r.u} → ${r.b}${r.u} (${sign}${r.d}${r.u})`}
+function cmpHtml(c,inline){if(!c)return "";if(!c.rows.length)return `<div class="small muted">지난 방문(${esc(c.date)})과 비교할 같은 항목이 없습니다.</div>`;
+  const col=t=>t>0?(inline?"#2e7d4f":"var(--good)"):t<0?(inline?"#b3352b":"var(--bad)"):(inline?"#5d6b75":"var(--muted)"),ar=t=>t>0?"▲ 좋아짐":t<0?"▼ 나빠짐":"–";
+  return c.rows.map(r=>`<div style="display:flex;justify-content:space-between;gap:8px;padding:5px 0;border-top:1px solid ${inline?"#eee":"var(--line)"}"><span>${esc(r.l)}</span><span style="white-space:nowrap"><span class="mono">${r.a}${esc(r.u)} → <b>${r.b}${esc(r.u)}</b></span> <span style="color:${col(r.tone)};font-weight:600;font-size:12.5px">${ar(r.tone)}</span></span></div>`).join("")}
 function roomCalc(r){
   const m=roomMonth(r), s=m!=null?std(m):null; if(!s)return null;
   const wt=num(r.wt), c=num(r.conc), rg=num(r.rough);
@@ -1183,6 +1215,8 @@ function autoFeedback(){
       const std=(rest.join(" — ")||stdOf(x)||(bm?`우수농장 평균 ${bm[1]}점`:"")).replace(SRCX,""), cz=causeOf(x);
       t+=`\n${N[i]} ${kwOf(x)[0]} ${x.p===1?"[시급]":"[개선]"}\n   · 현재: ${cur}${std?`\n   · 기준: ${std}`:""}${cz?`\n   · 원인: ${cz}`:""}\n   · 실행: ${actOf(x)}\n`});
   } else t+=`\n▣ 큰 문제 항목이 없습니다. 지금 관리 수준을 유지해 주세요.\n`;
+  {const c=compareVisits();if(c&&c.rows.length){const g=cmpPick(c,1,3),b=cmpPick(c,-1,2);
+    if(g.length||b.length)t+=`\n▣ 지난 방문(${c.date}) 대비\n`+[...g.map(r=>"· 좋아짐: "+cmpLine(r)),...b.map(r=>"· 나빠짐: "+cmpLine(r))].join("\n")+"\n"}}
   t+=`\n▣ 잘하고 계신 점\n`+(good.length?good.slice(0,3).map(x=>`· ${x}`).join("\n"):"· 다음 방문 때 함께 강점을 찾아보겠습니다");
   if(f.goal)t+=`\n\n▣ 목표 연결\n· "${f.goal}" — ${top.length?"① 과제부터 실천하시면 가장 빨리 다가갑니다":"현재 관리 수준을 유지하시면 됩니다"}`;
   t+=`\n\n▣ 다음 방문까지\n· ${r.short||(top.length?"①~③ 실천 후 변화를 함께 확인하겠습니다":"현재 상태를 유지해 주세요")}`;
@@ -1517,6 +1551,7 @@ function vReport(){
   <div class="small muted">${esc(S.farm.name||"목장명 미입력")} · ${esc(S.farm.date)}${S.farm.inspector?` · 점검자 ${esc(S.farm.inspector)}`:""}</div>
   ${(()=>{const b=bestFarm();return b.ok&&S.mods.includes("dairy")?`<div class="card" style="margin-top:10px;border-color:var(--good);background:var(--good-bg)"><b style="color:var(--good);font-size:17px">★ 베스트목장</b><div class="small">${b.items.map(i=>`${i.l} ${i.txt}`).join(" · ")}</div><div class="small muted">기준: ${BEST_STD} (검정기록 활용 교육)</div></div>`:""})()}
   <div class="calc" style="margin-top:10px">${ids.map(id=>{const m=MOD[id],sc=modScore(id);return `<div class="stat"><div class="v">${sc.label}</div><div class="k">${m.grp==="dairy"?"낙농 ":""}${m.name}${m.diag||m.kind==="judge"?"":` · ${grade(sc.pct,m)}`}</div></div>`}).join("")||'<div class="muted small">아직 입력된 점검이 없습니다.</div>'}</div>
+  ${(()=>{const c=compareVisits();return c?`<h2>지난 방문 대비 <span class="small muted" style="font-weight:400">${esc(c.date)} 점검과 비교</span></h2><div class="card">${cmpHtml(c)}</div>`:""})()}
   <h2>핵심 권고</h2><div class="card stack">
     ${top.length?top.map((x,i)=>`<div><b>${i+1}. ${esc(x.t)}</b><div class="small">→ ${esc(x.a.split(" (기준:")[0])}</div></div>`).join(""):'<span class="muted">입력된 문제 항목이 없습니다.</span>'}
     ${F.length>top.length?`<div class="small muted">그 밖의 개선 항목 ${F.length-top.length}건 (우선 ${Math.max(0,p1-top.filter(x=>x.p===1).length)}건)은 아래 상세 분석에 있습니다.</div>`:""}</div>
@@ -1551,6 +1586,7 @@ function summaryText(){
   let s=`[현장점검] ${f.name||""} ${f.date}\n`;
   if(bestFarm().ok&&S.mods.includes("dairy"))s+=`★ 베스트목장 (${bestFarm().items.map(i=>`${i.l} ${i.txt}`).join(", ")})\n`;
   entered().filter(id=>!MOD[id].diag).forEach(id=>{const m=MOD[id],sc=modScore(id);s+=`· ${m.grp==="dairy"?"낙농 ":""}${m.name} ${sc.label}${m.diag||m.kind==="judge"?"":"점"}${m.diag||m.kind==="judge"?"":` (${grade(sc.pct,m)})`}\n`});
+  {const c=compareVisits();if(c&&c.rows.length){const g=cmpPick(c,1,3),b=cmpPick(c,-1,2);if(g.length||b.length)s+=`\n[지난 방문(${c.date}) 대비]\n`+[...g.map(r=>"▲ "+cmpLine(r)),...b.map(r=>"▼ "+cmpLine(r))].join("\n")+"\n"}}
   s+=`\n${fbText()}`;
   if(S.fb&&S.fb.opinion)s+=`\n\n[평가자 소견]\n${S.fb.opinion}`;
   return s;
@@ -1692,6 +1728,7 @@ function reportHtml(note,full){
   ${note?`<p ${P}>${esc(note).replace(/\n/g,"<br>")}</p>`:""}
   <table style="border-collapse:collapse;width:100%;margin:8px 0">${entered().filter(id=>!MOD[id].diag).map(id=>{const m=MOD[id],sc=modScore(id);return `<tr><td ${TD}>${m.grp==="dairy"?"낙농 ":""}${esc(m.name)}</td><td ${TD}><b>${esc(sc.label)}</b>${m.diag||m.kind==="judge"?"":` · ${esc(grade(sc.pct,m))}`}</td></tr>`}).join("")}</table>
   <div style="background:#f3f5f4;border-radius:8px;padding:12px 14px;margin-top:12px">${esc(fbText()).replace(/\n/g,"<br>")}</div>`;
+  {const c=compareVisits();if(c&&c.rows.length)o+=`<h3 ${H3}>지난 방문 대비 (${esc(c.date)})</h3><div>${cmpHtml(c,true)}</div>`;}
   if(S.fb&&S.fb.opinion)o+=`<h3 ${H3}>평가자 소견</h3><div style="border-left:3px solid #2f6f8f;padding:4px 12px">${esc(S.fb.opinion).replace(/\n/g,"<br>")}</div>`;
   if(r.long)o+=`<p style="margin:12px 0 8px"><b>장기 목표</b> ${esc(r.long)}</p>`;
   if(full){
@@ -1756,6 +1793,7 @@ function helpManual(){
    <li><b>배점형</b> (CCCS, 관리표(종합), 비육우군, 번식우, 송아지): 점수 버튼을 누릅니다. 측정값 칸이 있는 항목은 숫자를 넣으면 원본 감점 규칙대로 <b>자동 점수</b>가 나오고, "직접 점수"를 넣으면 그 값이 우선합니다.</li>
    <li><b>한우비육 (회사 Beef Walk-through)</b>: ① <b>관리표(종합)</b> 100점으로 농장 전반을 보고 ② <b>비육우군 점검표</b> 120점으로 입식우·육성·큰소·마무리 단계를 봅니다. 관리표에서 매긴 구충·사육밀도·급수기 청결·환기·섭취량 점수는 비육우군 점검표에 자동 선택됩니다. ③ 비육우군 점검표 아래 <b>기초정보(사료 단가)</b>와 <b>우방별 급여량 점검</b>에서 생년월일만 넣으면 월령·출하예정일·표준 대비 체중·급여량·사료비가 계산됩니다(회사 30개월 표준). 우수농장 비교 설문(5점 30문항)은 농장 탭에서 필요할 때만 켭니다.</li>
    <li><b>한우 번식</b>: 번식우 점검표(회사 원본 100점)와 한우송아지 체크리스트를 함께 봅니다. 번식우 점검표의 송아지 항목(입붙임·급수·건초·폐사율)은 송아지 체크리스트를 입력하면 자동 선택됩니다.</li>
+   <li><b>지난 방문 대비</b>: 같은 목장명으로 저장한 이전 점검 기록이 이 기기에 있으면, 리포트·보고서·농가 피드백에 점수·검정성적·개체관찰 평균의 변화(▲ 좋아짐 / ▼ 나빠짐)가 자동으로 나옵니다. 점검이 끝나면 꼭 "점검 기록 저장"을 눌러 두세요.</li>
    <li><b>해당없음</b>: 그늘막, 환기처럼 해당 시설이 없는 항목은 해당없음을 누르면 만점으로 처리되어 총점이 유지됩니다.</li>
    <li><b>판정형</b> (사양·환경): 측정값을 넣으면 양호·주의·불량이 자동으로 정해지고, 버튼을 누르면 직접 판정이 우선합니다. 메모 칸에 위치나 수치를 적어 두면 리포트에 함께 나옵니다.</li>
    <li><b>문제진단</b>: 유량·섭취량·분변에 문제가 있을 때 질문에 답하면 '예'로 답한 항목이 원인 후보로 리포트에 올라갑니다.</li>
