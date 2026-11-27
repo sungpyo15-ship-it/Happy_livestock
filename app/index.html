@@ -440,7 +440,7 @@ const NY=[["아니오",0],["예",0]], GNB=[["좋음",0],["보통",0],["나쁨",0
 const Q=(id,q,hint,more)=>Object.assign({id,q,hint,opts:NY,obs:true},more||{});
 const DDIAG=[
  {code:"A",name:"섭취량 저하",items:[
-  Q("x1","비유일령이 늘어나고 있는가","목표 비유일령 180일. 늘어나면 유량 감소로 섭취량 감소",{f:[["x1d","평균 비유일령","일"]],rule:v=>{const d=num(v.x1d);return d==null?null:d>180?1:0}}),
+  Q("x1","평균 착유(비유)일수가 늘어났는가","150일 이하 최대 유량 / 150~200일 전 유기 평균 유량 / 200일 초과 평균 유량 이하 (검정기록 교육). 비우면 농장 탭의 평균 착유일수를 씁니다",{opts:[["150일 이하",0],["150~200일",0],["200일 초과",0]],f:[["x1d","평균 착유일수","일"]],rule:v=>{const d=num(v.x1d)??num(S.farm.dim);return d==null?null:d<=150?0:d<=200?1:2}}),
   Q("x2","1~2산 비율이 높은가","산차가 어린 젖소가 많으면 반추위 용적 한계로 섭취량 제한",{f:[["x2p","1~2산 비율","%"]]}),
   Q("x3","드레싱 양이 늘었는가","드레싱이 늘면 TMR 섭취량 감소"),
   Q("x4","음수량이 줄었는가","여름철 물통 수압 세게, 겨울철 얼지 않게, 항상 청결. 오줌 누는 시간 10초 이상",{f:[["x4s","평균 배뇨 시간","초"]],rule:v=>{const s=num(v.x4s);return s==null?null:s<10?1:0}}),
@@ -449,13 +449,13 @@ const DDIAG=[
   Q("x7","이상 발효가 일어나는가","여름철 사조·배합기에서 TMR이 뜨는 냄새 확인, 2차 발효 억제제 사용"),
   Q("x8","설사·호흡기·유방염 등 질병이 발생했는가","질병 발생 시 섭취량 감소")]},
  {code:"B",name:"연변",items:[
-  Q("y1","비유일령을 고려할 때 우군 전체에 연변이 많은가","분변 기준: 비유초기(분만~100일) 2.5 / 비유중기(101~229일) 3 / 비유말기(230일 이상) 3.5"),
+  Q("y1","비유일령을 고려할 때 우군 전체에 연변이 많은가","분변 기준: 비유초기(0~100일) 2.5 / 비유중기(101~200일) 3 / 비유말기(201일~) 3.5"),
   Q("y2","지역에 바이러스성 설사병이 도는가","가축위생시험소에 분변 검사 의뢰. 연변하는 소는 배합사료 드레싱 감량"),
   Q("y3","환절기·혹한기 물 온도가 차가운가","물 온도 20℃ 이상으로 관리"),
   Q("y4","바닥 상태",null,{opts:GNB,hint:"새벽 시간 배에 온도 충격으로 반추위 미생물 활동이 멈추는지"}),
   Q("y5","곰팡이 독소가 의심되는 원료가 있는가","시료 채취해 곰팡이 독소 분석 의뢰"),
   Q("y6","사조·물통·배합기 내부 청결",null,{opts:GNB,hint:"이물질 확인 후 청소 권장"}),
-  Q("y7","반추 횟수가 기준에 못 미치는가","연변하는 소를 골라 두당 3회 측정. 기준: 비유초기(분만~100일) 60회 / 비유말기(230일 이상) 80회",{f:[["y7c","평균 반추 횟수","회/덩이"]],rule:v=>{const c=num(v.y7c);return c==null?null:c<60?1:0}}),
+  Q("y7","반추 횟수가 기준에 못 미치는가","연변하는 소를 골라 두당 3회 측정. 기준: 비유초기(0~100일) 60회 / 비유말기(201일~) 80회",{f:[["y7c","평균 반추 횟수","회/덩이"]],rule:v=>{const c=num(v.y7c);return c==null?null:c<60?1:0}}),
   Q("y8","반추 횟수가 적다면 TMR 입자도가 너무 고운가","Penn State 상단 10% / 중단 40% / 하단 50%. 입자가 고우면 배합시간 단축, 장건초 비율 증가"),
   Q("y9","반추 횟수가 적다면 조농비가 불균형한가","현황조사에서 조농비 확인")]},
  {code:"C",name:"생산성 저하",items:[
@@ -513,7 +513,7 @@ function activeMods(){return MODS.filter(m=>S.mods.includes(m.grp)).map(m=>m.id)
 
 /* ---------- 개체 관찰 (카우시그널) ---------- */
 const GROUPS=[
- {id:"heifer",name:"초산우",mod:"dairy"},{id:"early",name:"비유초기 (분만~100일)",mod:"dairy"},{id:"late",name:"착유우 101일~ (중기·후기)",mod:"dairy"},{id:"dry",name:"건유우",mod:"dairy"},
+ {id:"heifer",name:"초산우",mod:"dairy"},{id:"early",name:"비유초기 (0~100일)",mod:"dairy"},{id:"late",name:"착유우 101일~ (중기·말기)",mod:"dairy"},{id:"dry",name:"건유우",mod:"dairy"},
  {id:"hcow",name:"번식우",mod:"cow"},{id:"hgrow",name:"육성우",mod:"cow"},{id:"hfat1",name:"비육 육성·큰소",mod:"beef"},{id:"hfat2",name:"비육 마무리",mod:"beef"}
 ];
 const DG=["heifer","early","late","dry"], HG=["hcow","hgrow","hfat1","hfat2"];
@@ -683,7 +683,7 @@ const WHY={
  q4:"자신 있게 걷지 못하면 바닥이 미끄럽거나 발굽에 통증이 있다는 뜻입니다.",
  q5:"사료·물·휴식 공간이 가까울수록 이동 에너지와 경쟁이 줄어듭니다(CowSignals 15 m 기준).",
  /* 문제진단 */
- x1:"비유일령이 길어지면 유량이 줄고 섭취량도 줄어듭니다. 우군 평균 180일 이하가 목표이며, 길어진다면 번식 문제를 먼저 확인합니다.",
+ x1:"평균 착유일수는 우군이 비유곡선의 어디에 있는지 보여줍니다. 150일 이하면 최대 유량, 150~200일이면 전 유기 평균 유량, 200일을 넘으면 평균 이하 유량 구간입니다(검정기록 활용 교육). 착유일수가 길어지는 가장 큰 원인은 번식 회전이 늦어지는 것이므로 공태일수와 임신두수를 함께 확인합니다.",
  x2:"어린 소는 반추위 용적이 작아 많이 먹지 못합니다. 1~2산 비율이 높으면 같은 배합으로도 섭취량이 낮게 나옵니다.",
  x3:"드레싱(추가 농후사료)이 늘면 TMR을 덜 먹어 섬유 섭취가 줄어듭니다.", x4:W_WATER+" 오줌 누는 시간이 짧으면 음수 부족을 의심합니다.",
  x5:"입자가 너무 길면 반추위에 오래 머물러 다음 섭취가 늦어집니다.", x6:"새 원료나 변질 원료는 기호성을 떨어뜨립니다. 원료를 바꾼 시점과 섭취 감소 시점을 비교합니다.",
@@ -790,7 +790,7 @@ const PITEM=Object.fromEntries(MODS.filter(m=>m.kind==="pts").flatMap(m=>m.secs.
 
 function blank(){
   return {id:uid(),example:false,mods:["dairy"],
-    farm:{name:"",owner:"",date:today(),inspector:"",milking:"",sick:"",dry:"",heifer:"",parity:"",ci:"",afc:"",ship:"",scc:"",bac:"",fat:"",prot:"",snf:"",mun:"",efat:"",eprot:"",lprot:"",yield:"",bw:"",env:"",dmi:"",goal:"",concern:"",email:"",
+    farm:{name:"",owner:"",date:today(),inspector:"",milking:"",sick:"",dry:"",heifer:"",parity:"",ci:"",afc:"",ship:"",scc:"",bac:"",fat:"",prot:"",snf:"",mun:"",efat:"",eprot:"",lprot:"",y305:"",dim:"",open:"",preg:"",first:"",eyield:"",latep:"",yield:"",bw:"",env:"",dmi:"",goal:"",concern:"",email:"",
       hcow:"",hgrow:"",hfat:"",hcalf:"",temp:"",rh:"",notes:""},
     chk:{},val:{},memo:{},pts:{},pv:{},rooms:[],rec:{},opinion:{},signals:{},sx:{},signs:{},comfort:{}};
 }
@@ -798,11 +798,11 @@ function sample(){
   const s=blank(); s.example=true; s.mods=["dairy","beef","cow","calf"];
   Object.assign(s.farm,{name:"예시 목장",owner:"홍길동",milking:"68",sick:"2",dry:"10",heifer:"35",parity:"2.3",ci:"440",afc:"26",ship:"2150",scc:"24",bac:"2.5",fat:"3.82",prot:"3.21",mun:"15.8",
     hcow:"42",hgrow:"8",hfat:"95",hcalf:"30",temp:"27",rh:"70",notes:"예시 데이터입니다."});
-  Object.assign(s.farm,{snf:"8.35",efat:"3.3",eprot:"2.95",lprot:"3.45",bw:"650",env:"0",dmi:"21.1",goal:"평균 유량 33 kg, 체세포 1등급 유지",concern:"여름철 유량·유지방 하락, 비유초기 연변"});
+  Object.assign(s.farm,{y305:"9200",dim:"195",open:"172",preg:"30",first:"28",eyield:"33",latep:"45",snf:"8.35",efat:"3.3",eprot:"2.95",lprot:"3.45",bw:"650",env:"0",dmi:"21.1",goal:"평균 유량 33 kg, 체세포 1등급 유지",concern:"여름철 유량·유지방 하락, 비유초기 연변"});
   s.val={fl1:"3.2",fl9:"120",fl2:"85",fl3:"9",e2:"1.8",e3:"28",e5:"5",e6:"120",w2:"22",w3:"75",w4:"25",w5:"8",w9:"34",w10:"14",f4:"1.5",t1:"18",t2:"34",t3:"48",t5:"52",d1:"9",m8:"시간당 32두, 착유자 2명",t7:"두당 원물 33.4 kg / 건물 21.1 kg"};
   s.chk={fl4:1,fl10:1,fl6:2,fl7:1,fl8:0,e7:0,w7:0,f5:1,t4:1,t8:2,t9:1,d2:1,d3:0,d4:1,d5:0,m6:1,m7:2,h1:2,h2:1,h3:2,h4:1,h5:2,q1:1,q2:0,q3:2,q4:1,q5:1};
   s.memo={f5:"오후 3~6시 사조가 비어 있음"};
-  s.pv={s1p:"12",s6a:"7.2",s7d:"8",s11w:"62",s13n:"4",s15w:"6",s15s:"14",s20a:"1.4",s20t:"70",x1d:"195",x2p:"52",x4s:"6",y7c:"52"};
+  s.pv={s1p:"12",s6a:"7.2",s7d:"8",s11w:"62",s13n:"4",s15w:"6",s15s:"14",s20a:"1.4",s20t:"70",x2p:"52",x4s:"6",y7c:"52"};
   /* 한우비육: 점수 = opts 인덱스 */
   const pick=(id,pts)=>{const it=PITEM[id];s.pts[id]=it.opts.findIndex(x=>x[1]===pts)};
   [["s2",3],["s8",4],["s9",3],["s10",5],["s12",10],["s14",4],["s16",5],["s21",4],["s23",4],["s24",3],["s25",3],["s26",5],["s27",5]].forEach(a=>pick(...a));
@@ -904,9 +904,20 @@ function herd(){
   if(r.replace&&afc)r.heiferNeed=Math.round(r.replace*afc/12);
   if(M&&ship)r.perHead=Math.round(ship/M*10)/10;
   const scc=num(f.scc); if(scc!=null){r.sccLoss=scc>=120?2000:scc>=80?1600:scc>=40?1200:scc>=20?800:0; r.sccGrade=scc<20?"1등급":scc<35?"2등급":scc<50?"3등급":scc<75?"4등급":"5등급"}
+  const D=num(f.dry); r.adult=M!=null?M+(D||0):null;
+  const pg=num(f.preg),fs=num(f.first),hf=num(f.heifer);
+  if(r.adult){ if(pg!=null)r.pregPct=Math.round(pg/r.adult*100); if(fs!=null)r.firstPct=Math.round(fs/r.adult*100); if(hf!=null)r.raisePct=Math.round(hf/r.adult*100); }
   const bac=num(f.bac); if(bac!=null)r.bacGrade=bac<3?"1A":bac<10?"1B":bac<25?"2등급":bac<50?"3등급":"4등급";
   return r;
 }
+/* 베스트목장 (검정기록 활용 교육): 305일 유량 10,000kg 이상 · 평균산차 2.7산 이상 · 체세포 20만 이하 · 분만간격 435일 이하 */
+function bestFarm(){
+  const f=S.farm, c=[["305일 유량",num(f.y305),v=>v>=10000,"10,000 kg 이상",v=>v.toLocaleString()+" kg"],["평균산차",num(f.parity),v=>v>=2.7,"2.7산 이상",v=>v+"산"],["체세포",num(f.scc),v=>v<=20,"20만 이하",v=>v+"만"],["분만간격",num(f.ci),v=>v<=435,"435일 이하",v=>v+"일"]];
+  const items=c.map(([l,v,ok,std,fmt])=>({l,v,std,txt:v==null?null:fmt(v),pass:v==null?null:ok(v)}));
+  const known=items.filter(i=>i.pass!=null), met=known.filter(i=>i.pass).length;
+  return {items,met,known:known.length,ok:known.length===4&&met===4};
+}
+const BEST_STD="305일 유량 10,000 kg 이상 · 평균산차 2.7산 이상 · 체세포 20만 이하 · 분만간격 435일 이하";
 function roomCalc(r){
   const m=num(r.m), s=m!=null?std(m):null; if(!s)return null;
   const wt=num(r.wt), c=num(r.conc), rg=num(r.rough);
@@ -919,15 +930,26 @@ function milkFlags(){
     if(r<1.05)out.push({p:fat<=3.4?1:2,t:`유지방/유단백 비 ${r.toFixed(2)} — 1.05 미만${fat<=3.4?", 유지방 3.4% 이하":""}`,a:"섬유 부족·농후사료 과다. 비유초기에 유지방 3.4% 이하와 겹치면 과산증으로 분류하고 연변 여부 관찰 (파워북)"});
     else if(r>=1.35)out.push({p:2,t:`유지방/유단백 비 ${r.toFixed(2)} — 1.35 이상`,a:"농후사료·에너지 부족. 건물섭취량이 부족한 소라면 즉시 농후사료 증량 (파워북)"});
     if(fat+pr<=6.5)out.push({p:2,t:`유지방+유단백 ${(fat+pr).toFixed(2)}% — 6.5% 이하`,a:"건물섭취량 부족: 사조·급수조 청결, 사조 공간, 기호성, 조농비·입자도 점검 (파워북)"});}
-  if(snf!=null&&snf<=8.3)out.push({p:2,t:`무지고형분 ${snf}% — 8.3% 이하`,a:"건물섭취량 부족 판단 (파워북)"});
-  if(ef!=null&&ef>=4.5)out.push({p:1,t:`비유초기(분만~100일) 유지방 ${ef}% — 4.5% 이상`,a:"케토시스 위험: 반추위 충만도·건물섭취량 확인, 지방간 치료·섭취량 증대 (분만 1주 이내 제외, 파워북)"});
-  if(ef!=null&&ef<3.4)out.push({p:2,t:`비유초기(분만~100일) 유지방 ${ef}% — 3.4% 미만`,a:"반추위 pH 저하 의심: 연변·반추 저작 60회 미만·조농비 확인 (파워북)"});
-  if(ep!=null&&ep<=3.0)out.push({p:2,t:`비유초기(분만~100일) 유단백 ${ep}% — 3.0% 이하`,a:"에너지 공급 부족 지표: 에너지 보강, BCS 저하 방지 (파워북)"});
-  if(lp!=null&&lp>=3.6)out.push({p:2,t:`비유후기(230일 이상) 유단백 ${lp}% — 3.6% 이상`,a:"에너지 과다 예상: BCS 4.0 이상 과비면 드레싱 중단, TMR 위주 (파워북)"});
-  if(mun){ if(mun>18)out.push({p:2,t:`MUN ${mun} mg/dL — 18 초과`,a:"단백질 과다·에너지 부족. 적정 12~18이며 절대값보다 변화 추세로 판단 (파워북)"}); else if(mun<12)out.push({p:2,t:`MUN ${mun} mg/dL — 12 미만`,a:"단백질 부족 가능성. 변화 추세로 판단 (파워북)"});}
+  if(fat!=null&&fat<3.7)out.push({p:2,t:`유지율 ${fat}% — 지표 3.7~4.2% 미만`,a:"반추위 산도·NDF·건물섭취량 점검, 입자도 확인 (검정기록 교육)"});
+  if(pr!=null&&pr<2.8)out.push({p:2,t:`유단백 ${pr}% — 지표 2.8~3.6% 미만`,a:"에너지 공급·건물섭취량 부족 점검 (검정기록 교육)"});
+  if(snf!=null&&snf<8.4)out.push({p:2,t:`무지고형분 ${snf}% — 지표 8.4~8.7% 미만`,a:"8.3% 이하면 건물섭취량 부족으로 판단 (파워북). 사조·급수·기호성 점검 (검정기록 교육)"});
+  if(ef!=null&&ef>=4.5)out.push({p:1,t:`비유초기(0~100일) 유지방 ${ef}% — 4.5% 이상`,a:"케토시스 위험: 반추위 충만도·건물섭취량 확인, 지방간 치료·섭취량 증대 (분만 1주 이내 제외, 파워북)"});
+  if(ef!=null&&ef<3.4)out.push({p:2,t:`비유초기(0~100일) 유지방 ${ef}% — 3.4% 미만`,a:"반추위 pH 저하 의심: 연변·반추 저작 60회 미만·조농비 확인 (파워북)"});
+  if(ep!=null&&ep<=3.0)out.push({p:2,t:`비유초기(0~100일) 유단백 ${ep}% — 3.0% 이하`,a:"에너지 공급 부족 지표: 에너지 보강, BCS 저하 방지 (파워북)"});
+  if(lp!=null&&lp>=3.6)out.push({p:2,t:`비유말기(201일~) 유단백 ${lp}% — 3.6% 이상`,a:"에너지 과다 예상: BCS 4.0 이상 과비면 드레싱 중단, TMR 위주 (파워북 기준은 230일 이상 우군)"});
+  if(mun){ if(mun>16)out.push({p:2,t:`MUN ${mun} mg/dL — 지표 12~16 초과`,a:"단백질 과다·에너지 부족 여부 확인. 절대값보다 변화 추세로 판단 (검정기록 교육, 파워북은 18까지 허용)"}); else if(mun<12)out.push({p:2,t:`MUN ${mun} mg/dL — 12 미만`,a:"단백질 부족 가능성. 변화 추세로 판단 (검정기록 교육·파워북)"});}
   if(scc!=null&&scc>=20)out.push({p:scc>=35?1:2,t:`체세포수 ${scc}만/mL — 원유 ${h.sccGrade}`,a:`1등급(20만 미만) 목표. 경산우 두당 약 ${h.sccLoss} kg 유량 손실 구간(교재 표). 착유 위생·고체세포우 관리`});
   if(h.bacGrade&&h.bacGrade!=="1A")out.push({p:2,t:`세균수 ${f.bac}만/mL — ${h.bacGrade}`,a:"1A(3만 미만) 목표: 착유기·냉각기 세척, 착유 위생"});
   if(h.perHead&&h.perHead<33)out.push({p:2,t:`두당 산유량 ${h.perHead} L — 교재 목표 33 L 이상`,a:"건물섭취량·카우컴포트 제한 요인 점검"});
+  const dm=num(f.dim),op=num(f.open),par=num(f.parity),ey=num(f.eyield),lt=num(f.latep);
+  if(dm!=null&&dm>150)out.push({p:dm>200?1:2,t:`평균 착유일수 ${dm}일 — ${dm>200?"200일 초과: 전 유기 평균 유량 이하":"150일 초과: 전 유기 평균 유량 수준"}`,a:"150일 이하면 최대 유량 구간. 번식 회전(공태일수·임신두수)부터 점검 (검정기록 교육)"});
+  if(op!=null&&op>170)out.push({p:op>=180?1:2,t:`공태일수 ${op}일 — ${op>=200?"200일 이상: 번식회전 매우 심각":op>=180?"180일 이상: 번식회전 심각":"양호 기준 170일 초과"}`,a:"150일 이하 훌륭 · 150~170일 양호. 발정 관찰·수정 적기·에너지 공급 점검 (검정기록 교육)"});
+  if(h.pregPct!=null&&h.pregPct<60)out.push({p:h.pregPct<=40?1:2,t:`임신두수 경산우 대비 ${h.pregPct}% — ${h.pregPct<=40?"40% 이하: 번식 문제":"60% 미만"}`,a:"60% 이상이면 번식이 안정된 목장. 미임신우 감정·호르몬 처리 계획 (검정기록 교육)"});
+  if(par!=null&&par<2.5)out.push({p:par<=2.2?1:2,t:`평균산차 ${par}산 — ${par<=2.2?"2.2산 이하: 육성우·초산우 구입 없이는 규모 유지 어려움":"2.5산 미만: 젖소 기회수익(연산성) 저하"}`,a:"2.5~2.7산 양호 · 2.7~3.0산 훌륭 · 3.0산 이상 매우 훌륭. 도태 원인(번식·유방염·발굽) 점검 (검정기록 교육)"});
+  if(h.firstPct!=null&&h.firstPct>=40)out.push({p:2,t:`초산우 비율 ${h.firstPct}% — 40% 이상`,a:"초산우가 많으면 우군 유량이 낮아짐. 초산우 유량·섭취량 확인 (검정기록 교육)"});
+  if(h.raisePct!=null&&h.raisePct>=100&&par!=null&&par>=2.5)out.push({p:2,t:`육성우 비율 ${h.raisePct}% — 100% 이상 (평균산차 ${par}산)`,a:"경제산차 2.5산 이상이면 육성우 판매 검토로 육성 비용 절감 (검정기록 교육)"});
+  if(ey!=null&&ey<35)out.push({p:2,t:`비유초기 평균 유량 ${ey} kg — 목표 35 kg 이상`,a:"100일 이내 피크 확인, BCS 확인 후 에너지·착유사료 증량 검토 (검정기록 교육)"});
+  if(lt!=null&&lt>40)out.push({p:lt>=50?1:2,t:`비유말기(201일~) 두수 비율 ${lt}% — ${lt>=50?"50% 이상: 유량 생산성 최저":"40% 초과"}`,a:"40% 이하면 유량 생산성 최대. 번식 회전으로 비유초기 소 비율 높이기 (검정기록 교육)"});
   const d=dmi(); if(d&&d.gap!=null&&d.gap<0)out.push({p:d.gap<-1?1:2,t:`건물 급여 ${d.given} kg — 필요 ${d.need} kg (${d.gap} kg)`,a:"필요건물량 = 유량/3 + 체중×2% + 환경 (파워북). 섭취 제한 요인 제거 또는 배합비 조정"});
   return out;
 }
@@ -998,6 +1020,7 @@ function autoFeedback(){
   const f=S.farm, F=findings(), top=topRec(F), good=strengths(), r=S.opinion.report||{};
   const who=f.owner?`${f.owner} 대표님`:(f.name?`${f.name} 대표님`:"대표님");
   let t=`${who}, 오늘 점검에 시간 내 주셔서 감사합니다. 점검 결과를 정리해 드립니다.\n`;
+  const bf=bestFarm(); if(bf.ok&&S.mods.includes("dairy"))good.unshift(`베스트목장 기준(${BEST_STD})을 모두 충족하셨습니다`);
   t+=`\n[잘하고 계신 점]\n`+(good.length?good.map(x=>`- ${x}`).join("\n"):"- 이번 점검에서 기준을 충분히 넘은 항목은 아직 적습니다. 아래 항목부터 함께 개선해 보겠습니다.");
   t+=`\n\n[먼저 개선하면 좋은 점]\n`+(top.length?top.map((x,i)=>`${i+1}. ${x.t}\n   → ${x.a.split(" (기준:")[0]}`).join("\n"):"- 큰 문제 항목이 없습니다. 지금 관리 수준을 유지해 주세요.");
   if(f.goal)t+=`\n\n말씀하신 목표(${f.goal})를 위해 위 항목을 우선 실천하시기를 권합니다.`;
@@ -1041,13 +1064,15 @@ function vFarm(){
   if(on("dairy")) h+=`<h2>낙농 사육두수·생산성</h2>
   <div class="card stack">
     <div class="grid2">${inp("milking","착유두수","두","numeric")}${inp("sick","환축우","두","numeric")}${inp("dry","건유우","두","numeric")}${inp("heifer","육성우","두","numeric")}</div>
-    <div class="grid2">${inp("parity","평균산차 (산)","검정평균 2.4")}${inp("ci","분만간격 (일)","검정평균 465.9")}${inp("afc","초산분만월령 (개월)","검정평균 27.8")}${inp("ship","납유량 (L/일)","2,000 이상")}
-    ${inp("scc","체세포 (만/mL)","20 미만 1등급")}${inp("bac","세균수 (만/mL)","3 미만 1A")}${inp("fat","유지방 (%)","4.0")}${inp("prot","유단백 (%)","3.3")}${inp("snf","무지고형분 (%)","8.3 초과")}${inp("mun","MUN (mg/dL)","12~18")}</div>
-    <div class="small muted">비유단계별 유성분 (검정성적 우군 평균, 선택) · 비유초기 분만~100일 / 비유중기 101~229일 / 비유후기(말기) 230일 이상 (파워북)</div>
-    <div class="grid2">${inp("efat","비유초기 (~100일) 유지방 (%)","3.4~4.5")}${inp("eprot","비유초기 (~100일) 유단백 (%)","3.0 초과")}${inp("lprot","비유후기 (230일~) 유단백 (%)","3.6 미만")}</div>
+    <div class="grid2">${inp("parity","평균산차 (산)","2.5 이상 · 베스트 2.7")}${inp("ci","분만간격 (일)","베스트 435 이하")}${inp("afc","초산분만월령 (개월)","검정평균 27.8")}${inp("ship","납유량 (L/일)","2,000 이상")}
+    ${inp("scc","체세포 (만/mL)","20 이하 (베스트)")}${inp("bac","세균수 (만/mL)","3 미만 1A")}${inp("fat","유지방 (%)","3.7~4.2")}${inp("prot","유단백 (%)","2.8~3.6")}${inp("snf","무지고형분 (%)","8.4~8.7")}${inp("mun","MUN (mg/dL)","12~16")}</div>
+    <div class="small muted">검정성적 (24개월 검정·번식 성적, 선택)</div>
+    <div class="grid2">${inp("y305","305일 유량 (kg/두)","베스트 10,000 이상")}${inp("dim","평균 착유일수 (일)","150 이하 최대 유량")}${inp("open","공태일수 (일)","150 이하 훌륭")}${inp("preg","임신두수 (두)","경산우의 60% 이상","numeric")}${inp("first","초산우 두수 (두)","경산우의 40% 미만","numeric")}${inp("eyield","비유초기 평균 유량 (kg)","35 이상")}${inp("latep","비유말기 두수 비율 (%)","40 이하")}</div>
+    <div class="small muted">비유단계별 유성분 (검정성적 우군 평균, 선택) · 비유초기 0~100일 / 비유중기 101~200일 / 비유말기 201일 이상, 단계별 두수 각 30% 내외가 목표 (검정기록 교육)</div>
+    <div class="grid2">${inp("efat","비유초기 (0~100일) 유지방 (%)","3.4~4.5")}${inp("eprot","비유초기 (0~100일) 유단백 (%)","3.0 초과")}${inp("lprot","비유말기 (201일~) 유단백 (%)","3.6 미만")}</div>
     <div class="small muted">건물섭취량 (필요건물량 = 유량/3 + 체중×2% + 환경)</div>
     <div class="grid2">${inp("yield","평균 유량 (kg)","비우면 두당 산유량")}${inp("bw","평균 체중 (kg)","650")}${inp("env","환경 보정 (kg)","0")}${inp("dmi","두당 급여 건물 (kg)","")}</div>
-    <div class="small muted">자리표시 값은 교재 기준(2015 검정평균)입니다. 원유 등급은 체세포 1등급 20만 미만 ~ 5등급 75만 이상, 세균수 1A 3만 미만 ~ 4등급 50만 이상(낙농진흥회 기준, 최신 고시 확인)으로 계산합니다.</div>
+    <div class="small muted">자리표시 값은 교재 기준(2015 검정평균)입니다. 유성분·번식 기준은 검정기록 활용 교육자료, 원유 등급은 체세포 1등급 20만 미만 ~ 5등급 75만 이상, 세균수 1A 3만 미만 ~ 4등급 50만 이상(낙농진흥회 기준, 최신 고시 확인)으로 계산합니다.</div>
   </div><div id="herdOut"></div>`;
   if(on("beef")||on("cow")||on("calf")) h+=`<h2>한우 사육두수</h2>
   <div class="card stack"><div class="grid2">${inp("hcow","번식우","두","numeric")}${inp("hgrow","육성우 (후보축)","두","numeric")}${inp("hfat","비육우","두","numeric")}${inp("hcalf","송아지","두","numeric")}</div>
@@ -1070,6 +1095,8 @@ function herdHtml(){
   return `<h2>자동 계산</h2><div class="calc">
     ${st("낙농 총 두수",h.total||null)}${st("적정 건유우",h.dryNeed,"착유×(분만간격/365)−착유")}${st("연간 갱신두수",h.replace,"착유÷평균산차")}
     ${st("육성우 요구두수",h.heiferNeed,"갱신×초산월령÷12")}${st("두당 산유량 (L)",h.perHead,"목표 33 L 이상")}${st("원유 등급",h.sccGrade?`${h.sccGrade}`:null,h.bacGrade?`세균 ${h.bacGrade}`:"체세포 기준")}
+    ${st("임신두수 비율",h.pregPct!=null?h.pregPct+"%":null,"경산우 대비 · 60% 이상 안정")}${st("초산우 비율",h.firstPct!=null?h.firstPct+"%":null,"경산우 대비 · 40% 미만")}${st("육성우 비율",h.raisePct!=null?h.raisePct+"%":null,"미경산÷경산")}
+    ${(()=>{const b=bestFarm();return st("베스트목장",b.ok?"★ 충족":b.known?`${b.met}/4`:null,b.ok?"4개 기준 모두 충족":b.known?b.items.filter(i=>i.pass===false).map(i=>i.l).join("·")+(b.known<4?" · 미입력 있음":"")+" 미달":"305일 유량·산차·체세포·분만간격")})()}
     ${(()=>{const d=dmi();return st("필요 건물 (kg)",d?d.need:null,d&&d.gap!=null?`급여 ${d.given} kg (${d.gap>0?"+":""}${d.gap})`:"유량/3+체중×2%+환경")})()}
   </div>${m.length?`<div class="card stack" style="margin-top:10px">${m.map(x=>`<div class="small"><span class="pill ${x.p===1?"bad":"warn"}">확인</span> ${esc(x.t)}</div>`).join("")}</div>`:""}`;
 }
@@ -1230,6 +1257,7 @@ function vReport(){
   const F=findings(), p1=F.filter(x=>x.p===1).length, top=topRec(F), ids=entered();
   let h=`${exampleBanner()}<h2>점검 결과</h2>
   <div class="small muted">${esc(S.farm.name||"목장명 미입력")} · ${esc(S.farm.date)}${S.farm.inspector?` · 점검자 ${esc(S.farm.inspector)}`:""}</div>
+  ${(()=>{const b=bestFarm();return b.ok&&S.mods.includes("dairy")?`<div class="card" style="margin-top:10px;border-color:var(--good);background:var(--good-bg)"><b style="color:var(--good);font-size:17px">★ 베스트목장</b><div class="small">${b.items.map(i=>`${i.l} ${i.txt}`).join(" · ")}</div><div class="small muted">기준: ${BEST_STD} (검정기록 활용 교육)</div></div>`:""})()}
   <div class="calc" style="margin-top:10px">${ids.map(id=>{const m=MOD[id],sc=modScore(id);return `<div class="stat"><div class="v">${sc.label}</div><div class="k">${m.grp==="dairy"?"낙농 ":""}${m.name}${m.diag||m.kind==="judge"?"":` · ${grade(sc.pct,m)}`}</div></div>`}).join("")||'<div class="muted small">아직 입력된 점검이 없습니다.</div>'}</div>
   <h2>핵심 권고</h2><div class="card stack">
     ${top.length?top.map((x,i)=>`<div><b>${i+1}. ${esc(x.t)}</b><div class="small">→ ${esc(x.a.split(" (기준:")[0])}</div></div>`).join(""):'<span class="muted">입력된 문제 항목이 없습니다.</span>'}
@@ -1263,6 +1291,7 @@ function sigTable(){
 function summaryText(){
   const f=S.farm;
   let s=`[현장점검] ${f.name||""} ${f.date}\n`;
+  if(bestFarm().ok&&S.mods.includes("dairy"))s+=`★ 베스트목장 (${bestFarm().items.map(i=>`${i.l} ${i.txt}`).join(", ")})\n`;
   entered().filter(id=>!MOD[id].diag).forEach(id=>{const m=MOD[id],sc=modScore(id);s+=`· ${m.grp==="dairy"?"낙농 ":""}${m.name} ${sc.label}${m.diag||m.kind==="judge"?"":"점"}${m.diag||m.kind==="judge"?"":` (${grade(sc.pct,m)})`}\n`});
   s+=`\n${fbText()}`;
   if(S.fb&&S.fb.opinion)s+=`\n\n[평가자 소견]\n${S.fb.opinion}`;
@@ -1401,6 +1430,7 @@ function reportHtml(note,full){
   let o=`<div style="font-family:'Apple SD Gothic Neo','Malgun Gothic',sans-serif;max-width:640px;color:#16232e;font-size:14px;line-height:1.6">
   <h2 style="font-size:19px;margin:0 0 4px;color:#16324a">현장점검 결과 · ${esc(f.name||"목장")}</h2>
   <p style="margin:0 0 12px;color:#5d6b75">${esc(f.date)}${f.inspector?` · 점검자 ${esc(f.inspector)}`:""}</p>
+  ${(()=>{const b=bestFarm();return b.ok&&S.mods.includes("dairy")?`<div style="background:#e3f2e8;border:1px solid #2e7d4f;border-radius:8px;padding:10px 14px;margin:8px 0 12px;color:#16232e"><b style="color:#2e7d4f;font-size:16px">★ 베스트목장</b><br><span style="font-size:13px">${b.items.map(i=>`${i.l} ${i.txt}`).join(" · ")}<br><span style="color:#5d6b75">기준: ${BEST_STD}</span></span></div>`:""})()}
   ${note?`<p ${P}>${esc(note).replace(/\n/g,"<br>")}</p>`:""}
   <table style="border-collapse:collapse;width:100%;margin:8px 0">${entered().filter(id=>!MOD[id].diag).map(id=>{const m=MOD[id],sc=modScore(id);return `<tr><td ${TD}>${m.grp==="dairy"?"낙농 ":""}${esc(m.name)}</td><td ${TD}><b>${esc(sc.label)}</b>${m.diag||m.kind==="judge"?"":` · ${esc(grade(sc.pct,m))}`}</td></tr>`}).join("")}</table>
   <div style="background:#f3f5f4;border-radius:8px;padding:12px 14px;margin-top:12px">${esc(fbText()).replace(/\n/g,"<br>")}</div>`;
@@ -1408,7 +1438,7 @@ function reportHtml(note,full){
   if(r.long)o+=`<p style="margin:12px 0 8px"><b>장기 목표</b> ${esc(r.long)}</p>`;
   if(full){
     const info=[];
-    if(S.mods.includes("dairy")&&f.milking)info.push(`착유 ${esc(f.milking)}두`+(h.perHead?` · 두당 ${h.perHead} L`:"")+(f.scc?` · 체세포 ${esc(f.scc)}만(${h.sccGrade})`:""));
+    if(S.mods.includes("dairy")&&f.milking)info.push(`착유 ${esc(f.milking)}두`+(h.perHead?` · 두당 ${h.perHead} L`:"")+(f.scc?` · 체세포 ${esc(f.scc)}만(${h.sccGrade})`:"")+(f.y305?` · 305일 유량 ${esc(f.y305)} kg`:"")+(f.parity?` · 평균산차 ${esc(f.parity)}산`:"")+(f.ci?` · 분만간격 ${esc(f.ci)}일`:""));
     if(h.htotal)info.push(`한우 ${h.htotal}두`);
     if(t!=null)info.push(`THI ${t} (${thiLevel(t)[1]})`);
     o+=`<hr style="border:0;border-top:1px solid #d9e0e3;margin:22px 0 4px"><h3 ${H3}>상세 분석</h3>`;
@@ -1486,7 +1516,8 @@ function helpManual(){
   <ul><li>총점은 점검표마다 다릅니다(CCCS 200, 고급육 150, 우군별 상태·번식우 100, 송아지 200점). 등급은 입력한 항목 만점 대비 비율로 정합니다.</li>
    <li>입력하지 않은 항목은 점수 계산에서 빠집니다. 점검표 위의 "입력 N/M"으로 빠진 항목을 확인하세요.</li>
    <li>개선 항목은 <b>우선</b>(빨강: 0점이거나 기준을 크게 벗어남)과 <b>개선</b>(노랑)으로 나뉩니다.</li>
-   <li><b>비유 단계 구분</b>(파워북): 비유초기 분만~100일, 비유중기 101~229일, 비유후기(말기) 230일 이상~건유. 파워북은 초기(~100일)와 후기(230일 이상)를 정의하고, 중기는 그 사이 기간입니다.</li>
+   <li><b>비유 단계 구분</b>(검정기록 활용 교육): 비유초기 0~100일, 비유중기 101~200일, 비유말기 201일 이상. 단계별 두수가 각 30% 내외가 목표이고, 비유말기 비율이 50% 이상이면 유량 생산성이 가장 낮습니다. 비유말기 유단백 3.6% 기준만 파워북의 230일 이상 우군 기준입니다.</li>
+   <li><b>베스트목장</b>(검정기록 활용 교육): 305일 유량 10,000 kg 이상, 평균산차 2.7산 이상, 체세포 20만 이하, 분만간격 435일 이하를 모두 충족하면 리포트에 "베스트목장"으로 표시됩니다.</li>
    <li>앱의 기준 가운데 <span class="src k">교재</span>는 CCCS 교육자료, 그 밖에 파워북·Walkthrough·CowSignals·팀 자료 등 출처를 표시했고, <span class="src l">문헌</span>은 일반 문헌 값이라 농장 상황에 맞게 판단이 필요합니다.</li></ul>
   <h2 id="h-send">5. 보고서 보내기</h2>
   <ul><li><b>Gmail로 보내기 / 초안 만들기</b> (claude.ai에서 열었을 때): 받는 사람, 제목, 인사말을 넣고 누릅니다. 처음 한 번 Gmail 연결 허용을 묻습니다. 보내기 전에 받는 사람을 한 번 더 확인합니다.</li>
