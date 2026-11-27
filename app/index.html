@@ -263,37 +263,30 @@ const BEEF = [
 const BEEF_REC=[["sw","평균 출하체중","kg"],["cw","평균 도체중","kg"],["sm","평균 출하월령","개월"],["q1","1등급 이상","%"],["q1p","1+등급 이상","%"],["yc","육량 C등급","%"]];
 
 const COW = [
- {code:"A",name:"송아지",items:[
-  P("k1","어린송아지 따로 먹이기",YN(5),"",{f:[["k1m","이유 시기 생후","개월"]]}),
-  P("k2","보온등 / 송아지방",YN(5),"",{f:[["k2n","보온등","개"],["k2r","송아지방","개"]]}),
-  P("k3","물통 비치 및 상태",YN(5),"관리 상태·보온 확인"),
-  P("k4","조사료 종류·급여량",3,"",{f:[["k4t","조사료",""],["k4k","급여량","kg/두/일"]]}),
-  P("k5","생시체중 및 폐사율",2,"",{f:[["k5w","생시체중","kg"],["k5d","폐사율(지난 1년)","%"],["k5c","주요 폐사 원인 (설사·호흡기·기타)",""]]}),
-  P("k6","구충 / 백신",5,"")]},
  {code:"B",name:"육성우 (후보축)",items:[
-  P("k7","사료 급여량",3,"",{f:[["k7m","월령","개월"],["k7k","급여량","kg"]]}),
+  P("k7","사료 급여량",5,"",{f:[["k7m","월령","개월"],["k7k","급여량","kg"]]}),
   P("k8","미네랄 블록 설치",YN(2),""),
-  P("k9","조사료 종류·급여량",2,"",{f:[["k9t","조사료",""],["k9k","급여량","kg/두/일"]]}),
-  P("k10","초종부",3,"",{f:[["k10m","초종부 생후","개월"],["k10t","인공수정/자연종부",""]]}),
+  P("k9","조사료 종류·급여량",3,"",{f:[["k9t","조사료",""],["k9k","급여량","kg/두/일"]]}),
+  P("k10","초종부",5,"",{f:[["k10m","초종부 생후","개월"],["k10t","인공수정/자연종부",""]]}),
   P("k11","백신",2,""),
   P("k12","두당 사육면적",3,"",{f:[["k12a","두당","㎡"]]})]},
  {code:"C",name:"번식우",items:[
-  P("k13","사료 급여량",5,"",{f:[["k13k","급여량","kg/일/두"],["k13n","급여","회/일"]]}),
-  P("k14","분만 전후 돋아먹이기",YN(1),"",{f:[["k14t","종류·급여량",""]]}),
-  P("k15","분만사 운영",YN(1),"",{f:[["k15n","분만사","개"]]}),
-  P("k16","체형점수 (BCS)",3,"마름 ~ 살찜 중 적정이면 만점. 개체관찰 번식우 체형점수를 넣으면 자동 채점: 마름·살찜 비율 15% 이하 3점, 15%p마다 1점 감점",{f:[["k16w","체중","kg"]],rule:()=>{const p=badPct(["hcow"],"hbcs");return p==null?null:p<=15?3:Math.max(0,3-Math.ceil((p-15)/15))},autoMsg:"개체관찰 체형점수를 넣으면 자동 채점됩니다"}),
-  P("k17","조사료 종류·급여량",2,"",{f:[["k17t","조사료",""],["k17k","급여량","kg/두/일"]]}),
+  P("k13","사료 급여량",8,"",{f:[["k13k","급여량","kg/일/두"],["k13n","급여","회/일"]]}),
+  P("k14","분만 전후 돋아먹이기",YN(3),"",{f:[["k14t","종류·급여량",""]]}),
+  P("k15","분만사 운영",YN(3),"",{f:[["k15n","분만사","개"]]}),
+  P("k16","체형점수 (BCS)",5,"마름 ~ 살찜 중 적정이면 만점. 개체관찰 번식우 체형점수를 넣으면 자동 채점: 마름·살찜 비율 15% 이하 5점, 10%p마다 1점 감점",{f:[["k16w","체중","kg"]],rule:()=>{const p=badPct(["hcow"],"hbcs");return p==null?null:p<=15?5:Math.max(0,5-Math.ceil((p-15)/10))},autoMsg:"개체관찰 체형점수를 넣으면 자동 채점됩니다"}),
+  P("k17","조사료 종류·급여량",3,"",{f:[["k17t","조사료",""],["k17k","급여량","kg/두/일"]]}),
   P("k18","스탄치온 설치",[["예",1],["간이",1],["아니오",0]],""),
   P("k19","구충 / 백신",5,""),
   P("k20","미네랄 블록 설치",YN(2),""),
   P("k21","두당 사육면적",3,"번식우 10 ㎡ 이상 (축산법 적정사육기준, 확인 권장)",{f:[["k21a","두당","㎡"]],auto:"cowArea"})]},
  {code:"D",name:"사육환경",items:[
   P("k22","바닥 상태",5,""),P("k23","체모 상태",5,"개체관찰 번식우 청결지수를 넣으면 자동 채점: 3점 이상 비율 10% 이하 5점, 10%p마다 1점 감점",{rule:()=>clean5(["hcow"]),autoMsg:"개체관찰 청결지수를 넣으면 자동 채점됩니다"}),P("k24","물통 상태",5,""),
-  P("k25","보온 급수",YN(1),"",{f:[["k25t","설정 온도","℃"]]}),P("k26","환기 상태",5,"")]},
+  P("k25","보온 급수",YN(2),"",{f:[["k25t","설정 온도","℃"]]}),P("k26","환기 상태",5,"")]},
  {code:"E",name:"기타",items:[
   P("k27","개체 기록부 기록",YN(10),""),
-  P("k28","수정 방법",[["인공수정 (KPN)",3],["자연종부",0]],"",{f:[["k28k","KPN",""]]}),
-  P("k29","분만율",3,"지난 1년 송아지 분만두수 ÷ 경산우 두수",{f:[["k29c","분만두수","두"],["k29n","경산우","두"]],auto:"calving"})]},
+  P("k28","수정 방법",[["인공수정 (KPN)",5],["자연종부",0]],"",{f:[["k28k","KPN",""]]}),
+  P("k29","분만율",10,"지난 1년 송아지 분만두수 ÷ 경산우 두수",{f:[["k29c","분만두수","두"],["k29n","경산우","두"]],auto:"calving"})]},
  {code:"F",name:"파리 관찰 (점수 없음)",items:[
   P("kf1","(흡혈) 침파리 수 (앞다리당)",[["2 이하",0],["2~5",0],["5 초과",0]],"10두 이상 앞다리(바깥·안쪽) 평균. 파리 시즌(3~11월) 밖이면 비워 둠",{obs:true,s:"해외 연구",f:[["kf1n","앞다리당 평균","마리"]],rule:v=>{const n=num(v.kf1n);return n==null?null:n<=2?0:n<=5?1:2}}),
   P("kf8","(흡혈) 끈끈이 트랩 주간 포획 수",[["50 이하",0],["50~150",0],["150 초과",0]],"우방 옆 트랩 1개의 주간 포획 수 (3~11월 매주 기록). 50 초과 몰림 위험, 150 초과 농장 전체 몰림 위험",{obs:true,s:"해외 연구",f:[["kf8n","주간 포획","마리"]],rule:v=>{const n=num(v.kf8n);return n==null?null:n<=50?0:n<=150?1:2}}),
@@ -493,11 +486,11 @@ const MODS=[
  {id:"dfeed",grp:"dairy",name:"사양·환경",kind:"judge",secs:DFEED,title:"낙농 사양·환경 측정",gradeNote:""},
  {id:"ddiag",grp:"dairy",name:"문제진단",kind:"pts",secs:DDIAG,diag:true,grade:[85,70],title:"낙농 문제 진단",gradeNote:"파워북의 섭취량·연변·생산성 매뉴얼입니다. 점수 없이 '예'로 답한 항목이 리포트의 원인 후보가 됩니다."},
  {id:"beef",grp:"beef",name:"비육 점검",kind:"pts",secs:BEEFM,grade:[80,70],title:"한우비육 점검표",gradeNote:"한우고급육 농장 점검표와 비육 우군별 상태 점검표(CCCS 교재)를 하나로 합치고 겹치는 항목을 뺐습니다. 30개 항목 5점 척도, 150점 만점입니다. 회색 '우수농장' 숫자는 전라도 고급육 우수농장 9곳의 항목 평균입니다. 등급 기준은 원본에 없어 80% 우수, 70% 양호를 참고로 씁니다."},
- {id:"cow",grp:"cow",name:"번식우",kind:"pts",secs:COW,grade:[80,70],title:"한우 번식우 점검표",gradeNote:"교재 배점 100점 만점: 80점 이상 우수, 70점 이상 양호"},
- {id:"calf",grp:"calf",name:"한우송아지",kind:"pts",secs:CALF,grade:[80,70],title:"한우송아지 체크리스트",gradeNote:"한우송아지 체크리스트 200점 만점. 등급 기준은 원본에 없어 80% 우수, 70% 양호를 참고로 씁니다."}
+ {id:"cow",grp:"cow",name:"번식우",kind:"pts",secs:COW,grade:[80,70],title:"한우 번식우 점검표",gradeNote:"교재 번식우 점검표 100점 만점입니다. 송아지 항목은 한우송아지 체크리스트에서 더 자세히 평가하므로 빼고, 그 25점을 육성우·번식우·번식성적 항목에 다시 배분했습니다(분만율 10점, 번식우 사료 급여량 8점 등). 80점 이상 우수, 70점 이상 양호."},
+ {id:"calf",grp:"cow",name:"한우송아지",kind:"pts",secs:CALF,grade:[80,70],title:"한우송아지 체크리스트",gradeNote:"한우송아지 체크리스트 200점 만점. 등급 기준은 원본에 없어 80% 우수, 70% 양호를 참고로 씁니다."}
 ];
 const MOD=Object.fromEntries(MODS.map(m=>[m.id,m]));
-const GRP=[{id:"dairy",name:"낙농"},{id:"beef",name:"한우비육"},{id:"cow",name:"번식우"},{id:"calf",name:"한우송아지"}];
+const GRP=[{id:"dairy",name:"낙농"},{id:"beef",name:"한우비육"},{id:"cow",name:"한우 번식 (번식우·송아지)"}];
 function activeMods(){return MODS.filter(m=>S.mods.includes(m.grp)).map(m=>m.id)}
 
 /* ---------- 개체 관찰 (카우시그널) ---------- */
@@ -794,7 +787,7 @@ function blank(){
     chk:{},val:{},memo:{},pts:{},pv:{},rooms:[],rec:{},opinion:{},signals:{},sx:{},signs:{},comfort:{}};
 }
 function sample(){
-  const s=blank(); s.example=true; s.mods=["dairy","beef","cow","calf"];
+  const s=blank(); s.example=true; s.mods=["dairy","beef","cow"];
   Object.assign(s.farm,{name:"예시 목장",owner:"홍길동",mE:"20",mM:"17",mL:"31",milking:"68",sick:"2",dry:"10",heifer:"35",parity:"2.3",ci:"440",afc:"26",ship:"2150",scc:"24",bac:"2.5",fat:"3.82",prot:"3.21",mun:"15.8",
     hcow:"42",hgrow:"8",hfat:"95",hcalf:"30",temp:"27",rh:"70",notes:"예시 데이터입니다."});
   Object.assign(s.farm,{y305:"9200",dim:"195",open:"172",preg:"30",first:"28",eyield:"33",latep:"45",snf:"8.35",efat:"3.3",eprot:"2.95",lprot:"3.45",bw:"650",env:"0",asfed:"42.2",dmp:"50",goal:"평균 유량 33 kg, 체세포 1등급 유지",concern:"여름철 유량·유지방 하락, 비유초기 연변"});
@@ -832,7 +825,7 @@ function sample(){
   s.comfort={early:{lying:31,stand:9,feed:10,drink:2,rumi:17},late:{lying:26,stand:3,feed:6,drink:1,rumi:16}};
   return s;
 }
-function migrate(x){ if(!x||!x.farm)return null; const b=blank(); for(const k in b) if(x[k]===undefined) x[k]=b[k]; for(const k in b.farm) if(x.farm[k]===undefined) x.farm[k]=""; return x; }
+function migrate(x){ if(!x||!x.farm)return null; if(Array.isArray(x.mods)&&x.mods.includes("calf")){x.mods=x.mods.filter(m=>m!=="calf");if(!x.mods.includes("cow"))x.mods.push("cow")} const b=blank(); for(const k in b) if(x[k]===undefined) x[k]=b[k]; for(const k in b.farm) if(x.farm[k]===undefined) x.farm[k]=""; return x; }
 
 let S=migrate(store.get(KEY_DRAFT,null))||sample();
 let tab=(location.hash||"").slice(1)||"farm";
@@ -1108,7 +1101,7 @@ function vFarm(){
   <h2>농장 정보</h2>
   <div class="card stack"><div class="grid2">${inp("name","목장명","","")}${inp("owner","대표자","","")}${inp("date","점검일","","","date")}${inp("inspector","점검자","","")}</div>${inp("email","목장 이메일 (보고서 받는 사람)","","email","email")}</div>
   <h2>점검 분야</h2>
-  <div class="card stack"><div class="small muted">해당 분야를 모두 고르세요. 한우 일관사육 농장은 번식우·송아지·비육을 함께 고르면 됩니다.</div>
+  <div class="card stack"><div class="small muted">해당 분야를 모두 고르세요. 한우 일관사육 농장은 한우 번식(번식우·송아지)과 한우비육을 함께 고르면 됩니다.</div>
     <div class="opts">${GRP.map(m=>`<button data-mod="${m.id}" aria-pressed="${on(m.id)}">${m.name}</button>`).join("")}</div>
     <div class="small muted">${activeMods().map(id=>MOD[id].title).join(" · ")}</div></div>
   <h2>목장주 이야기</h2>
@@ -1664,7 +1657,7 @@ function helpManual(){
   <ul><li>리포트의 "점검 기록 저장"을 눌러야 기록 탭에 쌓입니다. 이전 점검을 열어 비교하거나 다시 보낼 수 있습니다.</li>
    <li>기록은 이 기기의 브라우저에만 저장됩니다. 기기를 바꾸거나 브라우저 데이터를 지우기 전에 <b>백업 파일 저장</b>을 해 두세요.</li></ul>
   <h2 id="h-score">4. 점수와 판정 읽는 법</h2>
-  <ul><li>총점은 점검표마다 다릅니다(CCCS 200, 한우비육 150, 번식우 100, 송아지 200점). 같은 내용을 두 번 평가하지 않도록, 개체관찰과 겹치는 점수(CCCS 청결도·찰과상, 번식우 체형·체모, 비육 체모)는 개체관찰 값으로 자동 채점됩니다. 등급은 입력한 항목 만점 대비 비율로 정합니다.</li>
+  <ul><li>총점은 점검표마다 다릅니다(CCCS 200, 한우비육 150, 번식우 100점, 송아지 200점(둘 다 한우 번식 분야)). 같은 내용을 두 번 평가하지 않도록, 개체관찰과 겹치는 점수(CCCS 청결도·찰과상, 번식우 체형·체모, 비육 체모)는 개체관찰 값으로 자동 채점됩니다. 등급은 입력한 항목 만점 대비 비율로 정합니다.</li>
    <li>입력하지 않은 항목은 점수 계산에서 빠집니다. 점검표 위의 "입력 N/M"으로 빠진 항목을 확인하세요.</li>
    <li>개선 항목은 <b>우선</b>(빨강: 0점이거나 기준을 크게 벗어남)과 <b>개선</b>(노랑)으로 나뉩니다.</li>
    <li><b>비유 단계 구분</b>(검정기록 활용 교육): 비유초기 0~100일, 비유중기 101~200일, 비유말기 201일 이상. 단계별 두수가 각 30% 내외가 목표이고, 비유말기 비율이 50% 이상이면 유량 생산성이 가장 낮습니다. 비유말기 유단백 3.6% 기준만 파워북의 230일 이상 우군 기준입니다.</li>
