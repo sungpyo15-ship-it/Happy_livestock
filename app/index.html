@@ -1005,7 +1005,45 @@ function findings(){
   });
   return out.sort((a,b)=>a.p-b.p);
 }
-function topRec(F){const out=[],seen=new Set();for(const x of F){const k=x.m+"|"+x.src.replace(/ · .*/,"");if(seen.has(k))continue;seen.add(k);out.push(x);if(out.length===3)break}return out}
+/* 개선 항목 → 핵심 키워드와 기본 실행 방안 (앞에서부터 먼저 맞는 것) */
+const KW=[
+ ["파리·방역",/파리|몰림|럼피|방제/,"사료 잔재·젖은 깔짚 7일마다 제거 · 우방 옆 끈끈이 트랩 · 허가 살충제 오후 살포"],
+ ["번식 회전",/공태|임신|번식|분만간격|착유일수|분만율|수정|발정/,"분만 후 60일 안 첫 수정 · 발정 관찰 하루 3회(활동량계) · 미임신우 감정·호르몬 처리"],
+ ["건유·전환기",/건유|전환기|분만 전|대사질환|유방부종|돋아먹이기/,"분만 3주 전 군 분리·전환기 사료 · 건유우 조사료 12 kg 이상 · BCS 3.5 유지"],
+ ["유방 건강",/체세포|유방|유두|세균|착유 전처리|착유기/,"착유 전처리·1분 안 부착 · 착유기 정기 점검 · 고체세포우 분리 착유·치료"],
+ ["유성분",/유지|유단백|MUN|무지고형|SNF/,"반추위 산도 관리(유효 섬유·완충제) · 에너지·단백 균형 재설계"],
+ ["산유량",/산유량|유량|305/,"건물섭취량·휴식·물 제한 요인부터 제거 · 비유초기 피크 관리"],
+ ["파행·발굽",/보행|파행|발굽|발목|삭제|등 굽/,"3점 이상 소 당일 발굽 처치 · 발굽소독조 주 2~3회 · 정기 삭제 연 2회"],
+ ["체형(BCS)",/BCS|체형|신체충실/,"단계별 BCS 목표로 우군 분리 급여 · 비유말기 과비 방지 · 비유초기 에너지 보강"],
+ ["반추",/반추/,"유효 섬유 보강 · TMR 입자도 상단 10% 이상 · 선별채식 방지"],
+ ["분변·소화",/분변|미소화|연변|산독|과산|고창/,"조농비·입자도 재점검 · 물리적 섬유(R-NDF) 보강 · 조사료 먼저 급여"],
+ ["휴식",/누운|휴식|그늘막|대기장/,"휴식 공간 두당 8㎡ · 깔짚 15cm 유지 · 과밀 우방 재편성"],
+ ["청결·바닥",/청결|오염|체모|바닥|깔짚|미끄럼|무릎|찰과상|혹/,"깔짚 교체 주기 단축 · 통로 분뇨 하루 2회 이상 제거 · 바닥 건조 유지"],
+ ["음수",/급수|음수|배뇨|물통|물은/,"급수조 매일 청소 · 두당 10cm 급수 공간 · 겨울 보온·여름 수압 점검"],
+ ["더위·환기",/(^|[^전])환기|THI|암모니아|열스트레스|팬 |호흡|그늘|조도|빛/,"팬 25℃부터 가동 · 소 위치 풍속 2~3 m/s · 측창 개방·암모니아 제거"],
+ ["송아지",/송아지|초유|이유|대용유|입붙임|분만사|배꼽/,"초유 6시간 안 4 L · 송아지방 건조·외풍 차단 · 입붙임 사료 3일령 시작"],
+ ["질병 예방",/백신|구충|호흡기|설사|질병|폐사|요결석|비타민|크리닝/,"백신·구충 연간 일정표 · 조기 발견 즉시 처치 · 수의사와 처치 기준 작성"],
+ ["우군 구성",/산차|초산|육성우|갱신|비유말기 두수|분만 두수/,"도태 원인 기록·분석 · 초산우 별도 관리 · 육성우 두수 조정"],
+ ["사료 섭취",/건물|섭취|사조|급여|밀어주기|TMR|입자도|잔량|배합|조사료|건초|볏짚|급이조|스트로우|소금|미네랄|블록/,"사조 밀어주기 하루 6회 · 잔량 3~5% 유지 · 우방별 섭취량 기록"],
+ ["기록 관리",/기록|현황판|체중 측정|초음파|매뉴얼|편차/,"월 1회 체중·섭취량 기록 · 현황판으로 급여량 조절"]];
+function kwOf(x){const k=KW.find(k=>k[1].test(x.t))||KW.find(k=>k[1].test(x.src||""));return k||[(x.src||"개선").replace(/ · .*/,"").replace(/^개체관찰$/,"개체 관리"),null,null]}
+const SRCX=/\s*\([^)]*(교육|파워북|교재|CowSignals|Walkthrough|문헌|미국 자료|미네소타대|Texas|UC|자료)[^)]*\)/g;
+function qBare(t){return t.replace(/\s*\(우수농장 평균[^)]*\)/,"").replace(/^\((흡혈|일반|공통)\)\s*/,"")}
+function qDo(q){return q.replace(/하는가$/,"하기").replace(/되는가$/,"되게 하기").replace(/주는가$/,"주기").replace(/지키는가$/,"지키기").replace(/유지하는가$/,"유지하기").replace(/제공하는가$/,"제공하기")}
+function actOf(x){const k=kwOf(x);let a=(x.a||"").split(" (기준:")[0].replace(SRCX,"").trim();
+  const scored=/\d+\/\d+점/.test(x.t);
+  if(/^원인 추정/.test(a))a="";
+  if(a.includes(". "))a=a.split(/\.\s+/).filter(z=>!/=|이면|이하면|이상이면|구간|기준/.test(z)).join(", ")||a;
+  if(scored){const q=x.t.replace(/\s*\d+\/\d+점.*$/,"");const good=a&&!/^5 매우 잘함|감점|만점|점검표 기준에 맞게|비워 두면|적용$|^0 |기준|표기|^\S+ \d/.test(a);
+    const qa=/는가$/.test(q)?qDo(q):/기$/.test(q)?q+" 실시":/(설치|급여|운영|검사|측정|기록|소독|분석|교체|청소|격리|사용|접종|투여|조치|진단|확인|관리)$/.test(q)?q+"하기":q+" 개선";
+    a=good?a:(/ 개선$/.test(qa)&&k[2]&&kwOf(x)===KW.find(z=>z[1].test(x.t))?k[2]:qa)}
+  const txt=a||k[2]||"점검표 기준에 맞게 개선";return txt.split(/,\s*|\s·\s|\s\/\s/).filter(Boolean).slice(0,3).join(" · ")}
+function causeOf(x){const m=(x.a||"").match(/^원인 추정:\s*(.*)$/);return m?m[1]:""}
+function stdOf(x){const m=(x.a||"").match(/\(기준:\s*([^)]*)\)/);return m?m[1]:""}
+/* 핵심 과제 우선순위: 시급도(p) → 생산성 영향이 큰 분야 순 */
+const PRIO=["사료 섭취","번식 회전","파행·발굽","유방 건강","건유·전환기","휴식","체형(BCS)","산유량","반추","분변·소화","더위·환기","음수","질병 예방","송아지","청결·바닥","파리·방역","우군 구성","유성분","기록 관리"];
+function topRec(F){const pr=x=>{const i=PRIO.indexOf(kwOf(x)[0]);return i<0?PRIO.length:i};const S2=[...F].sort((a,b)=>a.p-b.p||pr(a)-pr(b));
+  const out=[],seen=new Set();for(const x of S2){const k=kwOf(x)[0];if(seen.has(k))continue;seen.add(k);out.push(x);if(out.length===3)break}return out}
 /* ---------- 농가 피드백 (자동 작성) · 평가자 소견 ---------- */
 function strengths(){
   const out=[];
@@ -1018,15 +1056,20 @@ function strengths(){
   return out.sort((a,b)=>b.pct-a.pct).slice(0,3).map(x=>x.t);
 }
 function autoFeedback(){
-  const f=S.farm, F=findings(), top=topRec(F), good=strengths(), r=S.opinion.report||{};
+  const f=S.farm, F=findings(), top=topRec(F), good=strengths(), r=S.opinion.report||{}, N=["①","②","③"];
   const who=f.owner?`${f.owner} 대표님`:(f.name?`${f.name} 대표님`:"대표님");
-  let t=`${who}, 오늘 점검에 시간 내 주셔서 감사합니다. 점검 결과를 정리해 드립니다.\n`;
-  const bf=bestFarm(); if(bf.ok&&S.mods.includes("dairy"))good.unshift(`베스트목장 기준(${BEST_STD})을 모두 충족하셨습니다`);
-  t+=`\n[잘하고 계신 점]\n`+(good.length?good.map(x=>`- ${x}`).join("\n"):"- 이번 점검에서 기준을 충분히 넘은 항목은 아직 적습니다. 아래 항목부터 함께 개선해 보겠습니다.");
-  t+=`\n\n[먼저 개선하면 좋은 점]\n`+(top.length?top.map((x,i)=>`${i+1}. ${x.t}\n   → ${x.a.split(" (기준:")[0]}`).join("\n"):"- 큰 문제 항목이 없습니다. 지금 관리 수준을 유지해 주세요.");
-  if(f.goal)t+=`\n\n말씀하신 목표(${f.goal})를 위해 위 항목을 우선 실천하시기를 권합니다.`;
-  t+=`\n\n[다음 방문까지]\n`+(r.short?r.short:"위 항목을 실천해 보시고, 다음 방문 때 변화를 함께 확인하겠습니다.");
-  if(r.next)t+=`\n다음 방문 때 확인할 것: ${r.next}`;
+  const bf=bestFarm(); if(bf.ok&&S.mods.includes("dairy"))good.unshift(`★ 베스트목장 (${BEST_STD}) 모두 충족`);
+  let t=`${who}, 오늘 점검 결과를 핵심만 정리해 드립니다.\n`;
+  if(top.length){
+    t+=`\n▣ 핵심 과제  ${top.map((x,i)=>`${N[i]} ${kwOf(x)[0]}`).join("  ")}\n`;
+    top.forEach((x,i)=>{const [cur0,...rest]=x.t.split(" — ");const cur=qBare(cur0).replace(/(을|를)?\s*(하는가|되는가|주는가|지키는가)(\s+\d+\/\d+점)/,"$3");const bm=x.t.match(/우수농장 평균 ([\d.]+)/);
+      const std=(rest.join(" — ")||stdOf(x)||(bm?`우수농장 평균 ${bm[1]}점`:"")).replace(SRCX,""), cz=causeOf(x);
+      t+=`\n${N[i]} ${kwOf(x)[0]} ${x.p===1?"[시급]":"[개선]"}\n   · 현재: ${cur}${std?`\n   · 기준: ${std}`:""}${cz?`\n   · 원인: ${cz}`:""}\n   · 실행: ${actOf(x)}\n`});
+  } else t+=`\n▣ 큰 문제 항목이 없습니다. 지금 관리 수준을 유지해 주세요.\n`;
+  t+=`\n▣ 잘하고 계신 점\n`+(good.length?good.slice(0,3).map(x=>`· ${x}`).join("\n"):"· 다음 방문 때 함께 강점을 찾아보겠습니다");
+  if(f.goal)t+=`\n\n▣ 목표 연결\n· "${f.goal}" — ${top.length?"① 과제부터 실천하시면 가장 빨리 다가갑니다":"현재 관리 수준을 유지하시면 됩니다"}`;
+  t+=`\n\n▣ 다음 방문까지\n· ${r.short||(top.length?"①~③ 실천 후 변화를 함께 확인하겠습니다":"현재 상태를 유지해 주세요")}`;
+  if(r.next)t+=`\n· 확인할 것: ${r.next}`;
   return t;
 }
 function fbText(){S.fb=S.fb||{};return S.fb.edited&&S.fb.text!=null?S.fb.text:autoFeedback()}
