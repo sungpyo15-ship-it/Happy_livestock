@@ -50,7 +50,7 @@ h3{font-size:15px;margin:0;font-weight:600}
 .stack{display:flex;flex-direction:column;gap:10px}
 .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-@media (max-width:420px){.grid2{grid-template-columns:1fr}}
+@media (max-width:340px){.grid2{grid-template-columns:1fr}}
 label.f{display:flex;flex-direction:column;gap:4px;font-size:13px;color:var(--muted);min-width:0}
 input,select,textarea{font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:10px;min-height:44px;width:100%}
 textarea{min-height:64px;resize:vertical}
@@ -157,6 +157,11 @@ pre.copy{white-space:pre-wrap;font-size:12.5px;background:var(--bg);border:1px s
 .calc .stat .v{font-size:19px}
 nav.tabs .wrap{grid-template-columns:repeat(5,1fr)}
 nav.tabs button{font-size:11.5px}
+details.det{border-top:1px solid var(--line);padding-top:8px}
+details.det summary{cursor:pointer;list-style:none;min-height:40px;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+details.det summary::-webkit-details-marker{display:none}
+details.det summary::before{content:"＋";color:var(--accent-2);font-weight:700}
+details.det[open] summary::before{content:"－"}
 details.why{font-size:13px;color:var(--muted);border-left:3px solid color-mix(in srgb,var(--accent-2) 40%,var(--line));padding:2px 0 2px 10px}
 details.why summary{cursor:pointer;color:var(--accent-2);font-weight:600;list-style:none;min-height:28px;display:flex;align-items:center}
 details.why summary::-webkit-details-marker{display:none}
@@ -1065,7 +1070,7 @@ function compareVisits(){const pv=prevVisit();if(!pv)return null;const A=withS(p
 function cmpPick(c,tone,n){const pr=k=>k.startsWith("kpi:")?0:k.startsWith("mod:")?1:k.startsWith("sig:")?2:k==="find:p1"?3:9;
   return c.rows.filter(r=>r.tone===tone&&pr(r.k)<9&&!(r.k.startsWith("mod:")&&Math.abs(r.d)<3)).sort((a,b)=>pr(a.k)-pr(b.k)).slice(0,n)}
 function cmpLine(r){const sign=r.d>0?"+":"";return `${r.l} ${r.a}${r.u} → ${r.b}${r.u} (${sign}${r.d}${r.u})`}
-function cmpHtml(c,inline){if(!c)return "";if(!c.rows.length)return `<div class="small muted">지난 방문(${esc(c.date)})과 비교할 같은 항목이 없습니다.</div>`;
+function cmpHtml(c,inline){if(!c)return "";c={...c,rows:c.rows.filter(r=>r.tone!==0).slice(0,6)};if(!c.rows.length)return `<div class="small muted">지난 방문(${esc(c.date)})과 비교해 달라진 항목이 없습니다.</div>`;
   const col=t=>t>0?(inline?"#2e7d4f":"var(--good)"):t<0?(inline?"#b3352b":"var(--bad)"):(inline?"#5d6b75":"var(--muted)"),ar=t=>t>0?"▲ 좋아짐":t<0?"▼ 나빠짐":"–";
   return c.rows.map(r=>`<div style="display:flex;justify-content:space-between;gap:8px;padding:5px 0;border-top:1px solid ${inline?"#eee":"var(--line)"}"><span>${esc(r.l)}</span><span style="white-space:nowrap"><span class="mono">${r.a}${esc(r.u)} → <b>${r.b}${esc(r.u)}</b></span> <span style="color:${col(r.tone)};font-weight:600;font-size:12.5px">${ar(r.tone)}</span></span></div>`).join("")}
 
@@ -1258,9 +1263,9 @@ function autoFeedback(){
       const std=(rest.join(" — ")||stdOf(x)||(bm?`우수농장 평균 ${bm[1]}점`:"")).replace(SRCX,""), cz=causeOf(x);
       t+=`\n${N[i]} ${kwOf(x)[0]} ${x.p===1?"[시급]":"[개선]"}\n   · 현재: ${cur}${std?`\n   · 기준: ${std}`:""}${cz?`\n   · 원인: ${cz}`:""}\n   · 실행: ${actOf(x)}\n`});
   } else t+=`\n▣ 큰 문제 항목이 없습니다. 지금 관리 수준을 유지해 주세요.\n`;
-  {const G=gains();if(G.length)t+=`\n▣ 개선하면 얻는 효과\n`+G.slice(0,3).map(x=>`· ${x.t}: ${x.txt}`).join("\n")+(G.some(x=>x.est)?"\n  (추정: 실제 효과는 목장 여건에 따라 다릅니다)":"")+"\n"}
+  {const G=gains().filter(x=>!x.sens);if(G.length)t+=`\n▣ 개선하면 얻는 효과\n`+G.slice(0,2).map(x=>`· ${x.t}: ${x.txt}`).join("\n")+(G.some(x=>x.est)?"\n  (추정: 실제 효과는 목장 여건에 따라 다릅니다)":"")+"\n"}
   {const c=compareVisits();if(c&&c.rows.length){const g=cmpPick(c,1,3),b=cmpPick(c,-1,2);
-    if(g.length||b.length)t+=`\n▣ 지난 방문(${c.date}) 대비\n`+[...g.map(r=>"· 좋아짐: "+cmpLine(r)),...b.map(r=>"· 나빠짐: "+cmpLine(r))].join("\n")+"\n"}}
+    g.splice(2);b.splice(1);if(g.length||b.length)t+=`\n▣ 지난 방문(${c.date}) 대비\n`+[...g.map(r=>"· 좋아짐: "+cmpLine(r)),...b.map(r=>"· 나빠짐: "+cmpLine(r))].join("\n")+"\n"}}
   t+=`\n▣ 잘하고 계신 점\n`+(good.length?good.slice(0,3).map(x=>`· ${x}`).join("\n"):"· 다음 방문 때 함께 강점을 찾아보겠습니다");
   if(f.goal)t+=`\n\n▣ 목표 연결\n· "${f.goal}" — ${top.length?"① 과제부터 실천하시면 가장 빨리 다가갑니다":"현재 관리 수준을 유지하시면 됩니다"}`;
   t+=`\n\n▣ 다음 방문까지\n· ${r.short||(top.length?"①~③ 실천 후 변화를 함께 확인하겠습니다":"현재 상태를 유지해 주세요")}`;
@@ -1286,6 +1291,9 @@ function updateHeader(){
 function exampleBanner(){ return S.example?`<div class="banner"><span><b>예시 데이터</b> 화면 구성을 보여주기 위한 가상 목장입니다.</span><button class="primary" data-act="new">새 점검 시작</button></div>`:"" }
 const barCol=p=>p==null?"var(--line)":p>=85?"var(--good)":p>=70?"var(--warn)":"var(--bad)";
 
+let openDet={};
+function det(id,title,keys,body){const f=S.farm,n=keys.filter(k=>f[k]!=null&&String(f[k]).trim()!=="").length;
+  return `<details class="det" data-det="${id}" ${openDet[id]?"open":""}><summary><b>${title}</b> <span class="small muted">${keys.length?`입력 ${n}/${keys.length} · `:""}눌러서 ${openDet[id]?"접기":"펼치기"}</span></summary><div class="stack" style="margin-top:8px">${body}</div></details>`}
 function vFarm(){
   const f=S.farm, t=thi(), on=id=>S.mods.includes(id);
   const inp=(k,l,ph="",mode="decimal",type="text")=>`<label class="f">${l}<input id="f_${k}" data-farm="${k}" type="${type}" ${mode?`inputmode="${mode}"`:""} placeholder="${ph}" value="${esc(f[k])}"></label>`;
@@ -1308,15 +1316,10 @@ function vFarm(){
     <div class="small muted">착유우 비유단계별 두수 (비유초기 0~100일 · 중기 101~200일 · 말기 201일 이상)</div>
     <div class="grid2">${inp("mE","착유우 초기 (0~100일)","두","numeric")}${inp("mM","착유우 중기 (101~200일)","두","numeric")}${inp("mL","착유우 말기 (201일~)","두","numeric")}${inp("milking","착유두수 (합계)","초기+중기+말기 자동","numeric")}
     ${inp("dry","건유우","두","numeric")}${inp("first","초산우 (착유 중)","두","numeric")}${inp("sick","환축우","두","numeric")}${inp("heifer","육성우 (미경산)","두","numeric")}</div>
-    <div class="grid2">${inp("parity","평균산차 (산)","2.5 이상 · 베스트 2.7")}${inp("ci",f.ciEst?"분만간격 (일) · 예상값":"분만간격 (일)","베스트 435 이하")}${inp("afc","초산분만월령 (개월)","검정평균 27.8")}${inp("ship","납유량 (L/일)","2,000 이상")}
-    ${inp("scc","체세포 (만/mL)","20 이하 (베스트)")}${inp("bac","세균수 (만/mL)","3 미만 1A")}${inp("fat","유지방 (%)","3.7~4.2")}${inp("prot","유단백 (%)","2.8~3.6")}${inp("snf","무지고형분 (%)","8.4~8.7")}${inp("mun","MUN (mg/dL)","12~16")}</div>
-    <div class="small muted">검정성적 (24개월 검정·번식 성적, 선택)</div>
-    <div class="grid2">${inp("y305","305일 유량 (kg/두)","베스트 10,000 이상")}${inp("dim","평균 착유일수 (일)","150 이하 최대 유량")}${inp("open","공태일수 (일)","150 이하 훌륭")}${inp("preg","임신두수 (두)","경산우의 60% 이상","numeric")}${inp("eyield","비유초기 평균 유량 (kg)","35 이상")}${inp("latep","비유말기 두수 비율 (%)","말기 두수로 자동 · 40 이하")}</div>
-    <div class="small muted">비유단계별 유성분 (검정성적 우군 평균, 선택) · 비유초기 0~100일 / 비유중기 101~200일 / 비유말기 201일 이상, 단계별 두수 각 30% 내외가 목표 (검정기록 교육)</div>
-    <div class="grid2">${inp("efat","비유초기 (0~100일) 유지방 (%)","3.4~4.5")}${inp("eprot","비유초기 (0~100일) 유단백 (%)","3.0 초과")}${inp("lprot","비유말기 (201일~) 유단백 (%)","3.6 미만")}</div>
-    <div class="small muted">건물섭취량 (필요건물량 = 유량/3 + 체중×2% + 환경)</div>
-    <div class="grid2">${inp("yield","평균 유량 (kg)","비우면 두당 산유량")}${inp("bw","평균 체중 (kg)","비우면 650")}${inp("env","환경 보정 (kg)","0")}${inp("asfed","두당 TMR 원물 급여 (kg)","예: 45")}${inp("dmp","TMR 건물 비율 (%)","예: 50")}${inp("dmi","두당 급여 건물 (kg)","비우면 원물×건물% 자동")}${inp("tmrp","TMR 원물 단가 (원/kg)","예: 450")}${inp("milkp","원유 단가 (원/L)","예: 1,100")}</div>
-    <div class="small muted">자리표시 값은 교재 기준(2015 검정평균)입니다. 유성분·번식 기준은 검정기록 활용 교육자료, 원유 등급은 체세포 1등급 20만 미만 ~ 5등급 75만 이상, 세균수 1A 3만 미만 ~ 4등급 50만 이상(낙농진흥회 기준, 최신 고시 확인)으로 계산합니다.</div>
+    <div class="grid2">${inp("ship","납유량 (L/일)","2,000 이상")}${inp("scc","체세포 (만/mL)","20 이하 (베스트)")}${inp("bac","세균수 (만/mL)","3 미만 1A")}${inp("fat","유지방 (%)","3.7~4.2")}${inp("prot","유단백 (%)","2.8~3.6")}</div>
+    ${det("dairyRep","번식·검정 상세",["parity", "ci", "afc", "snf", "mun", "y305", "dim", "open", "preg", "eyield", "latep", "efat", "eprot", "lprot"],`<div class="small muted">검정성적 파일을 불러오면 대부분 자동으로 채워집니다. 비유초기 0~100일 · 중기 101~200일 · 말기 201일 이상</div><div class="grid2">${inp("parity","평균산차 (산)","2.5 이상 · 베스트 2.7")}${inp("ci",f.ciEst?"분만간격 (일) · 예상값":"분만간격 (일)","베스트 435 이하")}${inp("afc","초산분만월령 (개월)","검정평균 27.8")}${inp("snf","무지고형분 (%)","8.4~8.7")}${inp("mun","MUN (mg/dL)","12~16")}${inp("y305","305일 유량 (kg/두)","베스트 10,000 이상")}${inp("dim","평균 착유일수 (일)","150 이하 최대 유량")}${inp("open","공태일수 (일)","150 이하 훌륭")}${inp("preg","임신두수 (두)","경산우의 60% 이상","numeric")}${inp("eyield","비유초기 평균 유량 (kg)","35 이상")}${inp("latep","비유말기 두수 비율 (%)","말기 두수로 자동 · 40 이하")}${inp("efat","비유초기 (0~100일) 유지방 (%)","3.4~4.5")}${inp("eprot","비유초기 (0~100일) 유단백 (%)","3.0 초과")}${inp("lprot","비유말기 (201일~) 유단백 (%)","3.6 미만")}</div>`)}
+    ${det("dairyDmi","건물섭취량·사료비",["yield", "bw", "env", "asfed", "dmp", "dmi", "tmrp", "milkp"],`<div class="small muted">필요건물량 = 유량/3 + 체중×2% + 환경. TMR·원유 단가를 넣으면 사료비와 사료비 공제 소득이 계산됩니다.</div><div class="grid2">${inp("yield","평균 유량 (kg)","비우면 두당 산유량")}${inp("bw","평균 체중 (kg)","비우면 650")}${inp("env","환경 보정 (kg)","0")}${inp("asfed","두당 TMR 원물 급여 (kg)","예: 45")}${inp("dmp","TMR 건물 비율 (%)","예: 50")}${inp("dmi","두당 급여 건물 (kg)","비우면 원물×건물% 자동")}${inp("tmrp","TMR 원물 단가 (원/kg)","예: 450")}${inp("milkp","원유 단가 (원/L)","예: 1,100")}</div>`)}
+    <div class="small muted">기준: 교재·검정기록 교육자료, 원유 등급은 낙농진흥회 기준(최신 고시 확인).</div>
   </div><div id="herdOut"></div>`;
   if(on("beef")||on("cow")||on("calf")) h+=`<h2>한우 사육두수</h2>
   <div class="card stack"><div class="grid2">${inp("hcow","번식우","두","numeric")}${inp("hgrow","육성우 (후보축)","두","numeric")}${inp("hfat","비육우","두","numeric")}${inp("hcalf","송아지","두","numeric")}</div>
@@ -1450,7 +1453,7 @@ function vChk(){
         ${obs?`<span class="mono small">${s.flag?`원인 ${s.flag}`:`${s.done}/${s.n}`}</span>`:`<span class="mono small">${s.done?s.got:"—"}/${s.full}</span><span class="meter"><i style="width:${s.pct??0}%;background:${barCol(s.pct)}"></i></span>`}</button>
         ${open?`<div>${sec.items.map(pItemHtml).join("")}</div>`:""}</div>`});
     if(m.id==="bmgmt") h+=recHtml("bmgmt",BMGMT_REC,"기타 확인 (점수 없음)")+opinionHtml("bmgmt",[["owner","농장주 의견"],["cons","컨설턴트 의견"],["plan","개선 계획"]]);
-    if(m.id==="beef") h+=recHtml("feed",FEED_REC,"기초정보 · 사료 단가 (비우면 기본 단가)")+roomsHtml()+recHtml("beef",BEEF_REC,"최근 출하성적 (점수 없음)")+opinionHtml("beef");
+    if(m.id==="beef") h+=`<div class="card sec">${det("feedPrice","사료 단가·출하 목표 월령 (비우면 기본값)",[],recHtml("feed",FEED_REC,"기초정보").replace('<div class="card stack sec"><h3>기초정보</h3>','<div class="stack">'))}</div>`+roomsHtml()+recHtml("beef",BEEF_REC,"최근 출하성적 (점수 없음)")+opinionHtml("beef");
     if(m.id==="hq") h+=recHtml("hq",HQ_REC,"농장 사양 정보 (점수 없음)");
     if(m.id==="cow") h+=recHtml("cow",COW_REC,"번식·출하 성적 (점수 없음)")+opinionHtml("cow");
   }
@@ -1598,7 +1601,7 @@ function vReport(){
   ${(()=>{const b=bestFarm();return b.ok&&S.mods.includes("dairy")?`<div class="card" style="margin-top:10px;border-color:var(--good);background:var(--good-bg)"><b style="color:var(--good);font-size:17px">★ 베스트목장</b><div class="small">${b.items.map(i=>`${i.l} ${i.txt}`).join(" · ")}</div><div class="small muted">기준: ${BEST_STD} (검정기록 활용 교육)</div></div>`:""})()}
   <div class="calc" style="margin-top:10px">${ids.map(id=>{const m=MOD[id],sc=modScore(id);return `<div class="stat"><div class="v">${sc.label}</div><div class="k">${m.grp==="dairy"?"낙농 ":""}${m.name}${m.diag||m.kind==="judge"?"":` · ${grade(sc.pct,m)}`}</div></div>`}).join("")||'<div class="muted small">아직 입력된 점검이 없습니다.</div>'}</div>
   ${(()=>{const c=compareVisits();return c?`<h2>지난 방문 대비 <span class="small muted" style="font-weight:400">${esc(c.date)} 점검과 비교</span></h2><div class="card">${cmpHtml(c)}</div>`:""})()}
-  ${(()=>{const G=gains();return G.length?`<h2>개선하면 얻는 효과</h2><div class="card stack">${G.map(x=>`<div><b>${esc(x.t)}</b> <span class="pill ${x.sens?"na":"good"}">${esc(x.txt)}</span><div class="small muted">${esc(x.how)}</div></div>`).join("")}${G.some(x=>x.est)?'<div class="small muted">추정 항목은 계산 가정에 따른 참고값입니다.</div>':""}</div>`:""})()}
+  ${(()=>{const G=gains();return G.length?`<h2>개선하면 얻는 효과</h2><div class="card stack">${G.slice(0,3).map(x=>`<div><b>${esc(x.t)}</b> <span class="pill ${x.sens?"na":"good"}">${esc(x.txt)}</span><div class="small muted">${esc(x.how)}</div></div>`).join("")}${G.some(x=>x.est)?'<div class="small muted">추정 항목은 계산 가정에 따른 참고값입니다.</div>':""}</div>`:""})()}
   <h2>핵심 권고</h2><div class="card stack">
     ${top.length?top.map((x,i)=>`<div><b>${i+1}. ${esc(x.t)}</b><div class="small">→ ${esc(x.a.split(" (기준:")[0])}</div></div>`).join(""):'<span class="muted">입력된 문제 항목이 없습니다.</span>'}
     ${F.length>top.length?`<div class="small muted">그 밖의 개선 항목 ${F.length-top.length}건 (우선 ${Math.max(0,p1-top.filter(x=>x.p===1).length)}건)은 아래 상세 분석에 있습니다.</div>`:""}</div>
@@ -1776,7 +1779,7 @@ function reportHtml(note,full){
   ${note?`<p ${P}>${esc(note).replace(/\n/g,"<br>")}</p>`:""}
   <table style="border-collapse:collapse;width:100%;margin:8px 0">${entered().filter(id=>!MOD[id].diag).map(id=>{const m=MOD[id],sc=modScore(id);return `<tr><td ${TD}>${m.grp==="dairy"?"낙농 ":""}${esc(m.name)}</td><td ${TD}><b>${esc(sc.label)}</b>${m.diag||m.kind==="judge"?"":` · ${esc(grade(sc.pct,m))}`}</td></tr>`}).join("")}</table>
   <div style="background:#f3f5f4;border-radius:8px;padding:12px 14px;margin-top:12px">${esc(fbText()).replace(/\n/g,"<br>")}</div>`;
-  {const G=gains();if(G.length)o+=`<h3 ${H3}>개선하면 얻는 효과</h3><ul style="padding-left:20px;margin:0">${G.map(x=>`<li style="margin-bottom:4px"><b>${esc(x.t)}</b> — ${esc(x.txt)}<br><span style="color:#5d6b75;font-size:13px">${esc(x.how)}</span></li>`).join("")}</ul>`;}
+  {const G=gains();if(G.length)o+=`<h3 ${H3}>개선하면 얻는 효과</h3><ul style="padding-left:20px;margin:0">${G.slice(0,3).map(x=>`<li style="margin-bottom:4px"><b>${esc(x.t)}</b> — ${esc(x.txt)}<br><span style="color:#5d6b75;font-size:13px">${esc(x.how)}</span></li>`).join("")}</ul>`;}
   {const c=compareVisits();if(c&&c.rows.length)o+=`<h3 ${H3}>지난 방문 대비 (${esc(c.date)})</h3><div>${cmpHtml(c,true)}</div>`;}
   if(S.fb&&S.fb.opinion)o+=`<h3 ${H3}>평가자 소견</h3><div style="border-left:3px solid #2f6f8f;padding:4px 12px">${esc(S.fb.opinion).replace(/\n/g,"<br>")}</div>`;
   if(r.long)o+=`<p style="margin:12px 0 8px"><b>장기 목표</b> ${esc(r.long)}</p>`;
@@ -2231,6 +2234,7 @@ document.addEventListener("change",e=>{
   if(e.target.id==="dcicIn"){const fs=[...e.target.files];e.target.value="";if(fs.length)dcicFile(fs);return}
   if(e.target.id==="fileIn"){const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{try{const dd=JSON.parse(r.result);const V=store.get(KEY_VISITS,[]);let n=0;(dd.visits||[]).forEach(v=>{if(!v||!v.farm)return;const i=V.findIndex(x=>x.id===v.id);if(i>=0)V[i]=v;else V.push(v);n++});if(!n)throw 0;store.set(KEY_VISITS,V);const who=[...new Set((dd.visits||[]).map(v=>v._from).filter(Boolean))];toast(`${who.length?who.join(", ")+"님의 ":""}점검 ${n}건을 불러왔습니다`);tab="hist";render()}catch(err){toast("점검 기록 파일 형식이 아닙니다")}};r.readAsText(f);e.target.value=""}
 });
+document.addEventListener("toggle",e=>{const d=e.target;if(d&&d.dataset&&d.dataset.det){openDet[d.dataset.det]=d.open;const sm=d.querySelector("summary .small");if(sm)sm.textContent=sm.textContent.replace(/눌러서 (펼치기|접기)/,"눌러서 "+(d.open?"접기":"펼치기"))}},true);
 window.addEventListener("hashchange",()=>{const t=location.hash.slice(1);if(t&&t!==tab){tab=t;render()}});
 
 if(S.example){openSec={cccsA:true,dfeedE:true,ddiagA:true,hqA:true,beefA:true,cowA:true,calfA:true}}
