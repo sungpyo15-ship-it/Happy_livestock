@@ -875,12 +875,21 @@ function modScore(id){const m=MOD[id];
   return {...s,label:s.done?`${s.got}/${s.full}`:"—"}}
 function grade(p,m){ if(p==null)return "—"; if(!m||m.kind==="judge")return p>=85?"양호":p>=70?"보통":"미흡"; return p>=m.grade[0]?"우수":p>=m.grade[1]?"양호":"미흡"}
 function indFor(g){return SIGNALS.filter(x=>x.groups.includes(g))}
+/* 지수별 평균 목표 범위 [하한, 상한] · tol: 범위 밖 이만큼까지 주의, 더 벗어나면 불량
+   BCS: 파워북 목표(비유초기 2.75~3.25, 피크기 2.0~3.0, 비유후기 3.0~3.5, 분만 전 3.0~4.0)를 우군에 맞춰 적용, 비유중기는 앱 설정
+   보행: CowSignals 목표 분포(1:50% 2:30% 3:15% 4:4% 5:1%)의 평균 1.76 → 1.8 이하 / 그 밖의 '이하' 기준은 목표 점수(1~2 등)에서 앱이 정한 값 */
+const MR={bcs:{tol:.25,by:{heifer:[2.5,3.25],early:[2.5,3.25],mid:[2.75,3.25],late:[3,3.5],dry:[3,3.75]}},hbcs:{tol:.25,def:[2.5,3.5]},loco:{tol:.3,def:[1,1.8]},leg:{tol:.2,def:[1,1.2]},
+  rumen:{tol:.25,by:{heifer:[3,4],early:[2.75,4],mid:[3,4],late:[3,4],dry:[4,5]},def:[3,5]},clean:{tol:.3,def:[1,2]},dung:{tol:.3,by:{heifer:[1,2.5],early:[1,2.5],mid:[1,2.5],late:[1,2.5]},def:[1,2]},teat:{tol:.3,def:[1,2]}};
+function mRange(ind,g){if(ind.mode==="mean"){const t=ind.tgtBy[g];return t==null?null:{lo:t-.25,hi:t+.25,tol:.25}}const m=MR[ind.id];if(!m)return null;const r=(m.by&&m.by[g])||m.def;return r?{lo:r[0],hi:r[1],tol:m.tol}:null}
+function mFmt(ind,r){const mn=ind.opts[0].v,mx=ind.opts[ind.opts.length-1].v,f=x=>(+x.toFixed(2)).toString();return r.lo<=mn?`${f(r.hi)} 이하`:r.hi>=mx?`${f(r.lo)} 이상`:`${f(r.lo)}~${f(r.hi)}`}
 function sigStat(g,ind){
   const c=(S.signals[g]||{})[ind.id]; if(!c)return null; const n=c.reduce((a,b)=>a+b,0); if(!n)return null;
   let b=0,sum=0; c.forEach((k,i)=>{sum+=k*ind.opts[i].v; if(ind.bad&&ind.bad(ind.opts[i].v,g))b+=k});
   const mean=sum/n;
-  if(ind.mode==="mean"){const t=ind.tgtBy[g], d=Math.abs(mean-t); return {n,mean,pct:null,tgt:t,status:d<=0.25?"good":d<=0.5?"warn":"bad"}}
-  const pct=Math.round(b/n*100); return {n,bad:b,pct,mean,status:pct<=ind.limit?"good":pct<=ind.limit*1.5?"warn":"bad"};
+  const pct=ind.bad?Math.round(b/n*100):null, r=mRange(ind,g);
+  if(r){const d=mean<r.lo?r.lo-mean:mean>r.hi?mean-r.hi:0;let status=d===0?"good":d<=r.tol+1e-9?"warn":"bad";const spread=status==="good"&&pct!=null&&ind.limit&&pct>ind.limit*1.5;if(spread)status="warn";
+    return {n,bad:b,pct,mean,tgt:mFmt(ind,r),dir:mean<r.lo?"low":mean>r.hi?"high":null,spread,status}}
+  return {n,bad:b,pct,mean,tgt:null,status:pct<=ind.limit?"good":pct<=ind.limit*1.5?"warn":"bad"};
 }
 function groupN(g){return Math.max(0,...Object.values(S.signals[g]||{}).map(c=>c.reduce((a,b)=>a+b,0)))}
 function comfortStat(g){
@@ -980,7 +989,7 @@ function findings(){
   visGroups().forEach(g=>{
     const gm=GRP.find(x=>x.id===g.mod).name;
     indFor(g.id).forEach(ind=>{const st=sigStat(g.id,ind); if(!st||st.status==="good")return;
-      const t=ind.mode==="mean"?`${ind.name} 평균 ${st.mean.toFixed(2)} (목표 ${st.tgt})`:`${ind.name} 문제 개체 ${st.pct}% (${st.bad}/${st.n}두, 기준 ${ind.limit}% 이하)`;
+      const t=st.spread?`${ind.name} 평균 ${st.mean.toFixed(2)}은 목표(${st.tgt}) 안이지만 문제 점수 ${st.pct}% (기준 ${ind.limit}% 이하) — 우군 내 편차가 큼 · ${st.n}두`:st.tgt?`${ind.name} 평균 ${st.mean.toFixed(2)} — 목표 ${st.tgt} (${st.dir==="low"?"낮음":"높음"})${st.pct!=null?` · 문제 점수 ${st.pct}%`:""} · ${st.n}두`:`${ind.name} 문제 개체 ${st.pct}% (${st.bad}/${st.n}두, 기준 ${ind.limit}% 이하)`;
       out.push({m:gm,p:st.status==="bad"?1:2,src:`개체관찰 · ${g.name}`,t,a:ind.act})});
     const c=comfortStat(g.id);
     if(c&&c.lieP!=null&&c.lieP<90) out.push({m:gm,p:c.lieP<80?1:2,src:`개체관찰 · ${g.name}`,t:`휴식 중 누운 소 ${c.lieP}% — 목표 90% 이상`,a:"바닥 상태·깔짚·사육밀도·열스트레스 점검"});
@@ -1218,7 +1227,7 @@ function vSig(){
     const c=(S.signals[grp]||{})[ind.id]||ind.opts.map(()=>0), st=sigStat(grp,ind);
     const tgt=ind.targetBy?ind.targetBy[grp]:ind.target;
     const pill=`<span id="sp_${ind.id}">${sigPill(st,ind)}</span>`;
-    h+=`<div class="card"><div class="ind-head"><div style="min-width:0"><h3>${ind.name}</h3><div class="small muted">${esc(ind.how)}</div><div class="small">목표: ${esc(tgt)}${ind.limitRef?' <span class="src l">허용 비율 참고치</span>':""}</div>${whyHtml(SIGWHY[ind.id])}</div>${pill}</div>
+    h+=`<div class="card"><div class="ind-head"><div style="min-width:0"><h3>${ind.name}</h3><div class="small muted">${esc(ind.how)}</div><div class="small">목표: ${esc(tgt)}${mRange(ind,grp)?` · <b>평균 목표 ${mFmt(ind,mRange(ind,grp))}</b>`:""}</div>${whyHtml(SIGWHY[ind.id])}</div>${pill}</div>
       <div class="tally" style="grid-template-columns:repeat(${Math.min(ind.opts.length,5)},1fr)">${ind.opts.map((op,i)=>`<label class="tin ${ind.bad&&ind.bad(op.v,grp)?"isbad":""}"><span class="lb">${op.l}</span><input id="t_${grp}_${ind.id}_${i}" data-sigin="${ind.id}|${i}" inputmode="numeric" placeholder="0" value="${c[i]||""}" aria-label="${ind.name} ${op.l} 두수"></label>`).join("")}</div>
       <div class="small muted" style="margin-top:6px" id="sm_${ind.id}">${sigMean(st,ind)}</div></div>`;
   });
@@ -1238,8 +1247,8 @@ function vSig(){
     <div id="comfortOut" style="margin-top:10px">${comfortHtml(comfortStat(grp))}</div></div>`;
   return h+`</div><div class="row" style="margin-top:14px"><button class="primary" data-go="report">리포트 보기</button></div>`;
 }
-function sigPill(st,ind){return !st?'<span class="pill na">미입력</span>':ind.mode==="mean"?`<span class="pill ${st.status}">평균 ${st.mean.toFixed(2)} · ${st.n}두</span>`:`<span class="pill ${st.status}">${st.pct}% · ${st.n}두</span>`}
-function sigMean(st,ind){return st&&ind.mode!=="mean"&&ind.id!=="hbcs"?`평균 <span class="mono">${st.mean.toFixed(2)}</span> · 합계 ${st.n}두`:st?`합계 ${st.n}두`:""}
+function sigPill(st,ind){return !st?'<span class="pill na">미입력</span>':`<span class="pill ${st.status}">평균 ${st.mean.toFixed(2)} · ${st.n}두</span>`}
+function sigMean(st,ind){return st?`평균 <b class="mono">${st.mean.toFixed(2)}</b>${st.tgt?` (평균 목표 ${st.tgt}${st.spread?", 적정이나 편차 큼":st.status==="good"?", 적정":st.dir==="low"?", 낮음":", 높음"})`:""}${st.pct!=null&&ind.mode!=="mean"?` · 문제 점수 ${st.pct}%`:""} · 합계 ${st.n}두`:""}
 function stageSync(){const f=S.farm,v=["mE","mM","mL"].map(k=>num(f[k]));if(v.every(x=>x==null))return;const sum=v.reduce((a,b)=>a+(b||0),0);
   f.milking=String(sum);const el=$("#f_milking");if(el)el.value=f.milking;
   if(v[2]!=null&&sum){f.latep=String(Math.round(v[2]/sum*100));const l=$("#f_latep");if(l)l.value=f.latep}}
@@ -1368,11 +1377,11 @@ function vReport(){
 }
 function sigTable(){
   const rows=[], pl=s=>`<span class="pill ${s}">${s==="good"?"양호":s==="warn"?"주의":"불량"}</span>`;
-  visGroups().forEach(g=>{indFor(g.id).forEach(ind=>{const st=sigStat(g.id,ind); if(st) rows.push(`<tr><td>${g.name}</td><td>${ind.name}</td><td class="n">${st.n}</td><td class="n">${st.mean.toFixed(2)}</td><td class="n">${st.pct==null?"목표 "+st.tgt:st.pct+"%"}</td><td>${pl(st.status)}</td></tr>`)});
+  visGroups().forEach(g=>{indFor(g.id).forEach(ind=>{const st=sigStat(g.id,ind); if(st) rows.push(`<tr><td>${g.name}</td><td>${ind.name}</td><td class="n">${st.n}</td><td class="n">${st.mean.toFixed(2)}</td><td class="n">${st.tgt?"목표 "+st.tgt:""}${st.pct!=null?` · 문제 ${st.pct}%`:""}</td><td>${pl(st.status)}</td></tr>`)});
     const c=comfortStat(g.id); if(c&&c.total){ if(c.lieP!=null)rows.push(`<tr><td>${g.name}</td><td>누운 소</td><td class="n">${c.total}</td><td class="n">—</td><td class="n">${c.lieP}%</td><td>${pl(c.lieP>=90?"good":c.lieP>=80?"warn":"bad")}</td></tr>`);
       if(c.rumi!=null)rows.push(`<tr><td>${g.name}</td><td>반추 비율</td><td class="n">${S.comfort[g.id].lying}</td><td class="n">—</td><td class="n">${c.rumi}%</td><td>${pl(c.rumi>=80?"good":c.rumi>=60?"warn":"bad")}</td></tr>`);}});
   if(!rows.length)return '<div class="card muted">개체관찰 입력이 없습니다.</div>';
-  return `<div class="card scroll"><table class="t"><thead><tr><th>우군</th><th>지표</th><th>두수</th><th>평균</th><th>문제 비율</th><th>판정</th></tr></thead><tbody>${rows.join("")}</tbody></table></div>`;
+  return `<div class="card scroll"><table class="t"><thead><tr><th>우군</th><th>지표</th><th>두수</th><th>평균</th><th>목표·문제 비율</th><th>판정</th></tr></thead><tbody>${rows.join("")}</tbody></table></div>`;
 }
 function summaryText(){
   const f=S.farm;
@@ -1532,8 +1541,8 @@ function reportHtml(note,full){
     const p1=rest.filter(x=>x.p===1),p2=rest.filter(x=>x.p===2);
     if(p1.length)o+=`<h3 ${H3}>그 밖의 우선 개선</h3><ul style="padding-left:20px;margin:0">${li(p1)}</ul>`;
     if(p2.length)o+=`<h3 ${H3}>개선 권장</h3><ul style="padding-left:20px;margin:0">${li(p2)}</ul>`;
-    const rows=[]; visGroups().forEach(g=>indFor(g.id).forEach(ind=>{const st=sigStat(g.id,ind);if(st)rows.push(`<tr><td ${TD}>${esc(g.name)}</td><td ${TD}>${esc(ind.name)}</td><td ${TD}>${st.n}</td><td ${TD}>${st.pct==null?`평균 ${st.mean.toFixed(2)} (목표 ${st.tgt})`:st.pct+"%"}</td><td ${TD}>${st.status==="good"?"양호":st.status==="warn"?"주의":"불량"}</td></tr>`)}));
-    if(rows.length)o+=`<h3 ${H3}>개체관찰 요약</h3><table style="border-collapse:collapse;width:100%"><tr><th ${TD}>우군</th><th ${TD}>지표</th><th ${TD}>두수</th><th ${TD}>문제 비율</th><th ${TD}>판정</th></tr>${rows.join("")}</table>`;
+    const rows=[]; visGroups().forEach(g=>indFor(g.id).forEach(ind=>{const st=sigStat(g.id,ind);if(st)rows.push(`<tr><td ${TD}>${esc(g.name)}</td><td ${TD}>${esc(ind.name)}</td><td ${TD}>${st.n}</td><td ${TD}>평균 ${st.mean.toFixed(2)}${st.tgt?` (목표 ${st.tgt})`:""}${st.pct!=null?` · 문제 ${st.pct}%`:""}</td><td ${TD}>${st.status==="good"?"양호":st.status==="warn"?"주의":"불량"}</td></tr>`)}));
+    if(rows.length)o+=`<h3 ${H3}>개체관찰 요약</h3><table style="border-collapse:collapse;width:100%"><tr><th ${TD}>우군</th><th ${TD}>지표</th><th ${TD}>두수</th><th ${TD}>평균 (목표)</th><th ${TD}>판정</th></tr>${rows.join("")}</table>`;
   }
   o+=`<p style="margin-top:18px;color:#8a959c;font-size:12px">현장점검 앱으로 작성한 보고서입니다.</p></div>`;
   return o;
@@ -1589,7 +1598,7 @@ function helpManual(){
   <h3>개체관찰</h3>
   <ul><li>우군을 고르고 지수마다 점수별 두수를 숫자로 입력합니다. 입력하면 문제 비율과 평균이 바로 계산됩니다. 잘못 넣은 숫자는 고쳐 쓰면 됩니다.</li>
    <li>우군당 최소 10두, 가능하면 20두 이상 보고, 전체 관찰은 30분 이상 하는 것이 좋습니다(교재).</li>
-   <li>빨간 글씨 점수는 문제 점수입니다. 문제 개체 비율이 기준을 넘으면 리포트에 올라갑니다. 분변지수는 우군 평균을 목표값과 비교합니다.</li>
+   <li>지수마다 <b>평균 점수</b>를 계산해 우군별 <b>평균 목표</b>와 비교합니다(예: 비유초기 BCS 2.5~3.25, 보행지수 1.8 이하). 평균이 목표를 벗어나면 리포트에 "평균 2.05 — 목표 1.8 이하 (높음)"처럼 개선 항목으로 올라가고, 평균은 맞아도 빨간 글씨(문제 점수) 소가 많으면 "우군 내 편차가 큼"으로 표시됩니다. 평균 목표는 파워북·CowSignals 목표 점수를 바탕으로 했고 일부(비유중기 BCS, 발목·청결·미소화분변·유두 평균)는 앱에서 정한 값입니다.</li>
    <li><b>체크포인트</b>: 목 혹, 비절 부종처럼 CowSignals 포스터의 이상 신호가 보이는 소의 두수를 숫자로 입력하면 원인과 함께 리포트에 나옵니다.</li>
    <li><b>우군 두수 연결</b>: 농장 탭에 착유우 초기·중기·말기, 건유우, 초산우 두수를 넣으면 개체관찰 우군마다 두수와 관찰률이 표시되고, 체크포인트 비율은 우군 두수 대비로 계산됩니다.</li>
    <li><b>두수 카운팅</b>: 급여 직후가 아닌 시간(착유 1~2시간 전)에 우방 전체를 한 번에 세어 휴식 중 누운 소 비율과 반추 비율을 구합니다. 이 값은 CCCS의 "누워 있는 개체" 점수에 자동 반영됩니다.</li></ul>
