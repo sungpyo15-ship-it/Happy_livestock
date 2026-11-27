@@ -89,16 +89,19 @@ main.addEventListener("click",async e=>{const b=e.target.closest("[data-s]");if(
 main.addEventListener("input",e=>{if(e.target.id==="s_key"){const k=$("#klen");if(k)k.textContent=cleanKey(e.target.value).length+"자 / 44자"}});
 main.addEventListener("keydown",e=>{if(e.key==="Enter"&&e.target.tagName==="INPUT"){const b=main.querySelector(".primary[data-s]");if(b)b.click()}});
 let pendingInfo=null;
-async function syncId(id,u){/* 아이디 → 이메일 연결 정보 유지 (예전 계정 포함) */
+async function syncId(id,u){/* 아이디 → 이메일 연결 정보 유지 (예전 계정 포함). 실패하면 오류 코드를 돌려줌 */
   try{const x=await idDoc(id), real=isFake(u.email)?null:u.email;
     if(!x)await db.doc("ids/"+id).set({uid:u.uid,email:real});
-    else if(x.uid===u.uid&&(x.email||null)!==real)await db.doc("ids/"+id).set({uid:u.uid,email:real});}catch(e){}
+    else if(x.uid===u.uid&&(x.email||null)!==real)await db.doc("ids/"+id).set({uid:u.uid,email:real});
+    return null}catch(e){return e&&e.code||"error"}
 }
 async function route(u){
   if(!u){view==="signup"?signupView():view==="forgot"?forgotView():loginView();return}
   box("권한 확인 중","잠시만 기다려 주세요.");
   let adm=await idDoc(ADMIN_ID);
-  if(!adm&&u.email===fake(ADMIN_ID)){await syncId(ADMIN_ID,u);adm=await idDoc(ADMIN_ID)}
+  if(!adm&&u.email===fake(ADMIN_ID)){const er=await syncId(ADMIN_ID,u);adm=await idDoc(ADMIN_ID);
+    if(!adm)return box("관리자 연결을 만들지 못했습니다","Firebase 콘솔 → Firestore Database → 규칙 탭에 <b>match /ids/{id}</b> 부분이 있는 최신 규칙이 게시되어 있는지 확인해 주세요. 게시 후 1~2분 뒤 새로고침하면 됩니다. (오류: "+esc(er||"없음")+")",logoutBtn)}
+  if(adm&&adm.uid!==u.uid&&u.email===fake(ADMIN_ID))return box("관리자 연결이 다른 계정에 있습니다","관리자 계정을 지웠다가 다시 만든 경우입니다. Firebase 콘솔 → Firestore Database → 데이터에서 <b>ids</b> 안의 <b>admin</b> 문서를 삭제한 뒤 새로고침해 주세요.",logoutBtn);
   if(adm&&adm.uid===u.uid){syncId(ADMIN_ID,u);return loadKey({uid:u.uid,id:ADMIN_ID,name:"관리자",isAdmin:true,email:isFake(u.email)?null:u.email})}
   if(unsub)unsub();
   unsub=db.doc("users/"+u.uid).onSnapshot(d=>{
