@@ -135,16 +135,26 @@ def serve(app_dir: Path, host: str = "127.0.0.1", port: int = 8765) -> None:
 
 
 NAV_JS = r"""// 알림을 누르면 서비스워커가 '이동할 주소'를 저장 → 이 화면이 열리거나 다시 보일 때 그 주소로 이동(아이폰 대응)
-function smxNav(){
-  if(!("caches" in window)) return;
-  caches.open("smx-nav").then(c => c.match("/__nav").then(r => r && r.json().then(d => {
+// 아이폰은 앱을 앞으로 가져오는 것이 저장보다 빠를 수 있어 몇 초 동안 여러 번 확인
+var __navBusy = false;
+function smxNavOnce(){
+  if(!("caches" in window) || __navBusy) return Promise.resolve(false);
+  return caches.open("smx-nav").then(c => c.match("/__nav").then(r => r ? r.json().then(d => {
+    if(!(d && d.u && Date.now() - d.t < 5*60*1000)) { c.delete("/__nav"); return false; }
     c.delete("/__nav");
-    if(d && d.u && Date.now() - d.t < 5*60*1000 && (location.pathname + location.hash) !== d.u) location.href = d.u;
-  }))).catch(() => {});
+    if((location.pathname + location.hash) !== d.u){ __navBusy = true; location.href = d.u; return true; }
+    return false;
+  }) : false)).catch(() => false);
 }
+function smxNav(){ [0, 300, 800, 1500, 3000, 5000].forEach(ms => setTimeout(smxNavOnce, ms)); }
 smxNav();
 document.addEventListener("visibilitychange", () => { if(document.visibilityState === "visible") smxNav(); });
-if("serviceWorker" in navigator) navigator.serviceWorker.addEventListener("message", e => {
-  if(e.data && e.data.nav){ caches.open("smx-nav").then(c => c.delete("/__nav")).catch(()=>{});
-    if((location.pathname + location.hash) !== e.data.nav) location.href = e.data.nav; } });
+window.addEventListener("focus", smxNav);
+window.addEventListener("pageshow", smxNav);
+if("serviceWorker" in navigator){
+  navigator.serviceWorker.addEventListener("message", e => {
+    if(e.data && e.data.nav && !__navBusy){ caches.open("smx-nav").then(c => c.delete("/__nav")).catch(()=>{});
+      if((location.pathname + location.hash) !== e.data.nav){ __navBusy = true; location.href = e.data.nav; } } });
+  try { navigator.serviceWorker.startMessages(); } catch(e) {}
+}
 """
