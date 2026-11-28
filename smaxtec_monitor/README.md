@@ -108,7 +108,7 @@ powershell -ExecutionPolicy Bypass -File scripts\register_windows_tasks.ps1
 | `방문요약_날짜.xlsx` | 긴급·우선 목장(최대 10곳) **A4 1장씩** — 인쇄해서 방문 |
 | `dashboard_날짜.html` | **모바일 대시보드** (HTML 1개, 외부 연결 없음) |
 
-특정 목장만: `python -m smxmon visit 정진 학운` → `방문요약_정진목장_학운목장_날짜.xlsx`
+특정 목장만: `python -m smxmon visit 가나 다라` → `방문요약_가나목장_다라목장_날짜.xlsx`
 
 ### 휴대폰에서 '앱처럼' 보기
 1. `.env` 에 `SMX_PUBLISH_DIR=C:\Users\내이름\OneDrive\smaXtec` (Google Drive 동기화 폴더도 가능)
