@@ -6,6 +6,7 @@ install -m 755 "$D/backup.sh" /usr/local/bin/smxmon-backup
 install -m 755 "$D/restore.sh" /usr/local/bin/smxmon-restore
 install -m 755 "$D/schedule.sh" /usr/local/bin/smxmon-schedule
 install -m 755 "$D/domain.sh" /usr/local/bin/smxmon-domain
+install -m 755 "$D/token.sh" /usr/local/bin/smxmon-token
 bash "$D/schedule.sh" apply >/dev/null   # 수집 간격(기본 6시간) 적용
 cat > /usr/local/bin/smxmon-validate <<'SH'
 #!/usr/bin/env bash
