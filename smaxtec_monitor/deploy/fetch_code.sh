@@ -9,7 +9,8 @@ TOKEN_FILE=/etc/smxmon/github_token
 if [ -s "$TOKEN_FILE" ]; then
   curl -fsSL -H "Authorization: Bearer $(tr -d ' \r\n' < "$TOKEN_FILE")" -H "Accept: application/vnd.github+json" \
     "https://api.github.com/repos/${REPO}/zipball/${BRANCH}" -o "$TMP/code.zip" \
-    || { echo "코드 받기 실패 — 토큰 만료·권한(Contents: Read) 확인: sudo smxmon-token"; exit 1; }
+    || { echo "  (토큰 거절 → 공개 주소로 받기 시도)"; curl -fsSL "https://github.com/${REPO}/archive/refs/heads/${BRANCH}.zip" -o "$TMP/code.zip"; } \
+    || { echo "코드 받기 실패 — 저장소가 비공개면 토큰 확인: sudo smxmon-token / 공개면: sudo rm /etc/smxmon/github_token"; exit 1; }
 else
   curl -fsSL "https://github.com/${REPO}/archive/refs/heads/${BRANCH}.zip" -o "$TMP/code.zip" \
     || { echo "코드 받기 실패(404) — 저장소가 비공개라면 읽기 전용 토큰 필요: sudo smxmon-token"; exit 1; }
