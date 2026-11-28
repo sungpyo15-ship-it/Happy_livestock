@@ -102,15 +102,12 @@ def flags(h: dict[str, Any]) -> list[str]:
     return f
 
 
-def notice_body(heats: list[dict[str, Any]], max_lines: int = 5) -> str:
-    """알림 본문 — 목장별 한 줄: '가나목장: 118(분만 85일·간격 21일), 090(…)'."""
-    by: dict[str, list[dict]] = {}
-    for h in heats:
-        by.setdefault(h["farm"], []).append(h)
+def notice_body(heats: list[dict[str, Any]], max_lines: int = 6) -> str:
+    """알림 본문 — 한 줄에 한 두: '가나목장 118 · 11/28 08:10 감지 · 분만 86일·간격 21일'."""
     lines = []
-    for farm, hs in list(by.items())[:max_lines]:
-        cows = ", ".join(f"{h['label']}" + (f"({note(h)[:24]})" if note(h) else "") for h in hs[:4])
-        lines.append(f"{farm}: {cows}{' 외 ' + str(len(hs) - 4) + '두' if len(hs) > 4 else ''}"[:110])
-    if len(by) > max_lines:
-        lines.append(f"외 {len(by) - max_lines}개 목장 — 눌러서 전체 보기")
-    return "\n".join(lines)
+    for h in heats[:max_lines]:
+        info = note(h).replace(" · ", "·")
+        lines.append(f"{h['farm']} {h['label']} · {h['t'][5:].replace('-', '/')} 감지" + (f" · {info}" if info else ""))
+    if len(heats) > max_lines:
+        lines.append(f"외 {len(heats) - max_lines}두 — 눌러서 전체 보기")
+    return "\n".join(x[:100] for x in lines)

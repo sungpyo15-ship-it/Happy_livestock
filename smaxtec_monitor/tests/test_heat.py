@@ -59,13 +59,14 @@ def test_heat_dispatch_roles_and_no_resend(tmp_path):
     store.kv_set("heat_enabled", "1")
     sm = run(store, NOW, sender=fp)                         # 시험 모드(기본): 관리자 기기로만
     assert {e for e, _ in fp.sent} == {"https://fcm.googleapis.com/fcm/send/admin"}
-    assert any(d["title"].startswith("[시험] 박수정 님께 갈 · 발정 1두") for _, d in fp.sent)
+    assert any(d["title"] == "[시험] 박수정 님께 갈 · 발정 1두" for _, d in fp.sent)
     assert "김딜러" in sm["no_device"]                       # 딜러는 링크 없음
     fp.sent.clear()
     store.kv_set("heat_test", "0")
     run(store, NOW, sender=fp)
     ai = [d for e, d in fp.sent if e.endswith("/ai")]
-    assert len(ai) == 1 and ai[0]["url"] == f"/c/{r1['token']}/heat" and ai[0]["body"].startswith("가나목장: 118(분만 86일")
+    assert len(ai) == 1 and ai[0]["url"] == f"/c/{r1['token']}/heat"
+    assert ai[0]["body"].startswith("가나목장 118 · 11/28 08:10 감지 · 분만 86일·간격 20일·수정 1회(11/07)") and ai[0]["title"] == "발정 1두"
     fp.sent.clear()
     run(store, NOW + timedelta(hours=6), sender=fp)          # 같은 발정은 다시 안 보냄
     assert not [d for e, d in fp.sent if e.endswith("/ai")]
@@ -102,3 +103,26 @@ def test_heat_pages(tmp_path):
     assert "관리자 — 발정 알림" in acc and "수정사" in acc
     r = c.post("/admin/heat/now", data={"csrf": __import__("re").search(r'name="csrf" value="([^"]+)"', acc).group(1)}).get_data(as_text=True)
     assert "꺼져 있어 시험으로만 실행" in r
+
+
+
+def test_heat_only_chosen_people_and_no_team(tmp_path):
+    """관리자가 고른 담당자(최딜러)만 · 팀원 끔 → 그 담당자 거래 목장 발정만 그 사람에게."""
+    store = CloudStore(tmp_path / "c", Fernet.generate_key(), ADMIN)
+    me, _ = store.upsert_user(ADMIN, "pw")
+    (store.user_dir(me.uid) / "data").mkdir(parents=True)
+    _db(store.user_dir(me.uid) / "data" / "smaxtec.db", ROWS)
+    store.set_contacts("f1", [{"role": "딜러", "name": "최딜러", "phone": "010-7777-8888"},
+                              {"role": "수정사", "name": "박수정", "phone": "010-5555-6666"}], ADMIN, "가나")
+    store.set_contacts("f2", [{"role": "딜러", "name": "김딜러", "phone": "010-1111-2222"}], ADMIN, "다라")
+    fp = FakePush()
+    store.add_sub("u:" + me.uid, fp.sub("admin"))
+    for ph, n in (("01077778888", "lee"), ("01055556666", "park"), ("01011112222", "kim")):
+        r = store.new_receiver(ph, n)
+        store.add_sub("r:" + r["id"], fp.sub(n))
+    for k, v in (("heat_enabled", "1"), ("heat_test", "0"), ("heat_team", "0"), ("heat_people", "01077778888")):
+        store.kv_set(k, v)
+    run(store, NOW, sender=fp)
+    got = {e.rsplit("/", 1)[1]: d for e, d in fp.sent}
+    assert set(got) == {"lee"}                                   # 최딜러만 · 팀원(관리자)도 안 감
+    assert got["lee"]["body"].startswith("가나목장 118 · 11/28 08:10 감지")   # 다라목장(김딜러 거래처)은 없음

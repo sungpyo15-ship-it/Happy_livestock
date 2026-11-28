@@ -84,10 +84,12 @@ def run(store, now: datetime | None = None, sender=None, vapid=None, manual: boo
 
     def title(hs, who=""):
         nf = len({h["farm_id"] for h in hs})
-        return f"{'[시험] ' + who + ' 님께 갈 · ' if test and who else ''}발정 {len(hs)}두 · {nf}개 목장 ({hh})"
+        return f"{'[시험] ' + who + ' 님께 갈 · ' if test and who else ''}발정 {len(hs)}두" + (f" · {nf}개 목장" if nf > 1 else "")
 
-    # 1) 팀원
-    for u in store.users():
+    team_on = store.kv_get("heat_team", "1") == "1"
+    chosen = {x for x in (store.kv_get("heat_people") or "").split(",") if x}   # 비어 있으면 역할 기준
+    # 1) 팀원 (관리자 화면 '팀원에게도 발정 알림')
+    for u in (store.users() if team_on else []):
         hs = [h for h in per_user.get(u.uid, []) if h["key"] not in store.heat_sent("u:" + u.uid)]
         subs = store.subs("u:" + u.uid)
         if not hs or not subs or (test and (adm is None or u.uid != adm.uid)):
@@ -100,9 +102,9 @@ def run(store, now: datetime | None = None, sender=None, vapid=None, manual: boo
     people: dict[str, dict] = {}
     for fid, cs in store.contacts().items():
         for c in cs:
-            if c["role"] not in hr:
-                continue
             ph = re.sub(r"\D", "", c["phone"])
+            if (ph not in chosen) if chosen else (c["role"] not in hr):    # 고른 담당자만 / 없으면 역할 기준
+                continue
             people.setdefault(ph, {"name": c["name"], "role": c["role"], "farms": set()})["farms"].add(fid)
     for ph, e in sorted(people.items(), key=lambda x: x[1]["name"]):
         who = "p:" + ph

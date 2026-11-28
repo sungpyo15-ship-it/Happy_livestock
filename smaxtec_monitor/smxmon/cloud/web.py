@@ -420,6 +420,21 @@ def create_app(store: CloudStore, base: Settings, *, secure_cookie: bool = True,
           <table><tr><th>담당자</th><th>상태</th><th></th></tr>{''.join(rows) or '<tr><td colspan=3 class=sub>먼저 목장 담당자를 등록하세요</td></tr>'}</table>
           <h2>최근 발송</h2><table><tr><th>시각</th><th>담당자</th><th>목장</th><th>전달</th></tr>{recent}</table></div>"""
 
+    def people_checks() -> str:
+        chosen = {x for x in (store.kv_get("heat_people") or "").split(",") if x}
+        ppl: dict[str, dict] = {}
+        for fid, cs in store.contacts().items():
+            for c in cs:
+                d = re.sub(r"\D", "", c["phone"])
+                e = ppl.setdefault(d, {"name": c["name"], "role": c["role"], "n": 0})
+                e["n"] += 1
+        if not ppl:
+            return '<div class="sub">등록된 목장 담당자가 없습니다</div>'
+        return "".join(
+            f'<label style="display:flex;gap:8px;align-items:center"><input type="checkbox" name="people" value="{d}" '
+            f'style="width:20px;height:20px" {"checked" if d in chosen else ""}> {html.escape(e["role"])} {html.escape(e["name"])}'
+            f' <span class="sub">(거래 목장 {e["n"]}곳)</span></label>' for d, e in sorted(ppl.items(), key=lambda x: x[1]["name"]))
+
     def heat_admin_html(csrf: str) -> str:
         from ..heat_dispatch import DEFAULT_HEAT_ROLES, DEFAULT_ORDER_ROLES
         on, test = store.kv_get("heat_enabled", "0") == "1", store.kv_get("heat_test", "1") == "1"
@@ -437,6 +452,9 @@ def create_app(store: CloudStore, base: Settings, *, secure_cookie: bool = True,
           팀원은 자기 담당 목장, 목장 담당자는 아래 역할만. 화면: 팀원 앱 위쪽 '발정', 담당자는 알림 링크 화면의 '발정 모아보기'.</p>
           <form method="post" action="/admin/heat" style="display:grid;gap:8px;margin:8px 0"><input type="hidden" name="csrf" value="{csrf}">
             {cb("enabled", on, "발정 알림 켜기")}{cb("test", test, "시험 모드 (모든 발정 알림을 관리자 기기로만)")}
+            {cb("team", store.kv_get("heat_team", "1") == "1", "팀원에게도 발정 알림 (자기 담당 목장)")}
+            <div class="sub" style="margin-top:4px"><b>발정 알림 받을 담당자</b> — 체크한 분만 받습니다(아무도 체크 안 하면 아래 '발정 받는 역할' 기준)</div>
+            {people_checks()}
             <label class="sub">발정 받는 역할 <input type="text" name="heat_roles" value="{html.escape(store.kv_get('heat_roles') or DEFAULT_HEAT_ROLES)}"></label>
             <label class="sub">업무요청 받는 역할 <input type="text" name="order_roles" value="{html.escape(store.kv_get('order_roles') or DEFAULT_ORDER_ROLES)}"></label>
             <button type="submit">저장</button></form>
@@ -815,6 +833,8 @@ def create_app(store: CloudStore, base: Settings, *, secure_cookie: bool = True,
         need_admin()
         store.kv_set("heat_enabled", "1" if request.form.get("enabled") else "0")
         store.kv_set("heat_test", "1" if request.form.get("test") else "0")
+        store.kv_set("heat_team", "1" if request.form.get("team") else "0")
+        store.kv_set("heat_people", ",".join(re.sub(r"\D", "", x) for x in request.form.getlist("people") if x))
         for k in ("heat_roles", "order_roles"):
             v = ",".join(x.strip() for x in (request.form.get(k) or "").replace("·", ",").split(",") if x.strip())[:200]
             if v:
