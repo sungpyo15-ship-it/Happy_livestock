@@ -378,7 +378,7 @@ function orderSection(){
   const targets = D.farms.filter(f=>f.grade=="긴급"||f.grade=="우선");
   if(!targets.length) return "";
   const by = {}, none = [];
-  targets.forEach(f=>{ const cs=ctOf(f.id); if(!cs.length) none.push(f);
+  targets.forEach(f=>{ const cs=ctOf(f.id).filter(c=>!["수정사","목장주"].includes(c.role)); if(!cs.length) none.push(f);
     cs.forEach(c=>{ const k=c.phone.replace(/\D/g,""); (by[k]=by[k]||{c, farms:[]}).farms.push(f); }); });
   const keys = Object.keys(by);
   return `<h2>업무지시 보내기 — 긴급·우선 ${targets.length}곳</h2>
@@ -390,7 +390,7 @@ function ctSection(f){
   const fid=f.id.replace(/'/g,""), ed=CTE[f.id], cs=ctOf(f.id);
   if(ed) return `<div class="box af"><div class="afl">담당자 (최대 5명)</div>
     ${ed.map((x,i)=>`<div class="row" style="gap:6px;margin-top:4px;justify-content:flex-start">
-      <select class="afi" onchange="CTE['${fid}'][${i}].role=this.value">${["딜러","판매과장","수의사","목장주","기타"].map(r=>`<option${x.role==r?" selected":""}>${r}</option>`).join("")}</select>
+      <select class="afi" onchange="CTE['${fid}'][${i}].role=this.value">${["딜러","판매과장","수정사","목장주","수의사","기타"].map(r=>`<option${x.role==r?" selected":""}>${r}</option>`).join("")}</select>
       <input class="afi" placeholder="이름" value="${esc(x.name)}" oninput="CTE['${fid}'][${i}].name=this.value" style="width:90px">
       <input class="afi" type="tel" placeholder="010-1234-5678" value="${esc(x.phone)}" oninput="CTE['${fid}'][${i}].phone=this.value" style="width:140px">
       <button type="button" class="ch" onclick="CTE['${fid}'].splice(${i},1);keepY(()=>{})">×</button></div>`).join("")}

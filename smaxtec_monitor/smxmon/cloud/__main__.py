@@ -7,6 +7,7 @@
   users             사용자·상태 목록
   dispatch --slot am|pm   자동 업무지시 알림 (서버 타이머가 08:00·14:00 실행)
   push-test         등록된 모든 알림 기기에 점검 알림을 보내고 기기별 결과 표시
+  heat              발정 알림 (서버 타이머가 07:00·13:00·19:00 실행)
   validate [--days N] [--anon]  판정 기준 검증(모든 사용자 DB, 목장 중복 제외) → 관리자 '파일 받기'에 판정검증 엑셀
 
 환경변수 (/etc/smxmon/env)
@@ -55,6 +56,7 @@ def main(argv=None) -> int:
     a.add_argument("note", nargs="?", default="")
     sub.add_parser("users")
     sub.add_parser("push-test")
+    sub.add_parser("heat")
     dp = sub.add_parser("dispatch")
     dp.add_argument("--slot", choices=["am", "pm"], required=True)
     v = sub.add_parser("validate")
@@ -81,6 +83,9 @@ def main(argv=None) -> int:
     elif args.cmd == "allow":
         store.allow(args.username, args.note)
         print("허용:", args.username.lower())
+    elif args.cmd == "heat":
+        from ..heat_dispatch import run as run_heat
+        print(run_heat(store))
     elif args.cmd == "push-test":
         import sqlite3
         from urllib.parse import urlparse

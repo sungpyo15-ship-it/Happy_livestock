@@ -171,7 +171,10 @@ def run(store, slot: str, now: datetime | None = None, sender=None, vapid=None, 
     summary["no_state"] = [u.username for u in users if not paths[u.uid].exists()]
     summary["as_of"] = as_of
     guides = {g["id"]: g for g in _guides()}
-    contacts = store.contacts()
+    from .heat_dispatch import DEFAULT_ORDER_ROLES, roles
+    orl = roles(store, "order_roles", DEFAULT_ORDER_ROLES)       # 업무요청 받는 역할(수정사·목장주 제외가 기본)
+    contacts = {fid: [c for c in cs if c["role"] in orl] for fid, cs in store.contacts().items()}
+    contacts = {k: v for k, v in contacts.items() if v}
     sent = {}
     if slot == "pm":
         for cs in contacts.values():

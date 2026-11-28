@@ -226,7 +226,8 @@ def create_app(store: CloudStore, base: Settings, *, secure_cookie: bool = True,
         user, csrf = need_login()
         f = store.user_dir(user.uid) / "reports" / "smaxtec_app.html"
         if f.exists():
-            nav = ' · <a href="/account" style="color:#fff">계정</a> · <a href="/guide" style="color:#fff">사용법</a>'
+            nav = (' · <a href="/heat" style="color:#fff">발정</a> · <a href="/account" style="color:#fff">계정</a>'
+                   ' · <a href="/guide" style="color:#fff">사용법</a>')
             if user.status in ("running", "pending"):
                 nav += " · 갱신 중"
             elif user.status == "login_failed":
@@ -350,6 +351,7 @@ def create_app(store: CloudStore, base: Settings, *, secure_cookie: bool = True,
           <table><tr><th>시각</th><th>아이디</th><th>결과</th></tr>{events}</table>
           <p class="sub">등록 안 됨 = 허용 목록에 없음(철자 확인) · 비밀번호 거절 = smaXtec 이 거절(웹 로그인 확인, 웹은 되면 리얼팜에 API 조회 권한 문의)</p></div>
         {dispatch_html(csrf)}
+        {heat_admin_html(csrf)}
         {guides_html(csrf)}
         <div class="card"><h2>관리자 — 목장 담당자(딜러·판매과장)</h2>
           <p class="sub">긴급·우선 목장 업무지시 문자에 쓰는 연락처입니다. 엑셀로 한 번에 넣거나, 각 팀원이 목장 상세에서 직접 고칠 수 있습니다.</p>
@@ -417,6 +419,30 @@ def create_app(store: CloudStore, base: Settings, *, secure_cookie: bool = True,
           <h2>담당자 알림 링크</h2>
           <table><tr><th>담당자</th><th>상태</th><th></th></tr>{''.join(rows) or '<tr><td colspan=3 class=sub>먼저 목장 담당자를 등록하세요</td></tr>'}</table>
           <h2>최근 발송</h2><table><tr><th>시각</th><th>담당자</th><th>목장</th><th>전달</th></tr>{recent}</table></div>"""
+
+    def heat_admin_html(csrf: str) -> str:
+        from ..heat_dispatch import DEFAULT_HEAT_ROLES, DEFAULT_ORDER_ROLES
+        on, test = store.kv_get("heat_enabled", "0") == "1", store.kv_get("heat_test", "1") == "1"
+        try:
+            last = json.loads(store.kv_get("heat_last") or "{}")
+        except ValueError:
+            last = {}
+        lst = (f"마지막 {last.get('at', '')} — 새 발정 {last.get('heats', 0)}두 · 팀원 {last.get('team', 0)}명 · 담당자 {last.get('contacts', 0)}명"
+               f"(전달 {last.get('delivered', 0)})" + (f" · 알림 미설정: {', '.join(last.get('no_device', [])[:6])}" if last.get('no_device') else "")
+               + (" (꺼짐)" if last.get("note") == "꺼짐" else "")) if last else "아직 실행 안 함"
+        cb = lambda n, v, t: (f'<label style="display:flex;gap:8px;align-items:center"><input type="checkbox" name="{n}" value="1" '  # noqa: E731
+                              f'style="width:20px;height:20px" {"checked" if v else ""}> {t}</label>')
+        return f"""<div class="card"><h2>관리자 — 발정 알림</h2>
+          <p class="sub">07:00·13:00·19:00(각 수집 직후) 지난 알림 이후 새로 감지된 발정을 받는 사람별로 묶어 보냅니다.
+          팀원은 자기 담당 목장, 목장 담당자는 아래 역할만. 화면: 팀원 앱 위쪽 '발정', 담당자는 알림 링크 화면의 '발정 모아보기'.</p>
+          <form method="post" action="/admin/heat" style="display:grid;gap:8px;margin:8px 0"><input type="hidden" name="csrf" value="{csrf}">
+            {cb("enabled", on, "발정 알림 켜기")}{cb("test", test, "시험 모드 (모든 발정 알림을 관리자 기기로만)")}
+            <label class="sub">발정 받는 역할 <input type="text" name="heat_roles" value="{html.escape(store.kv_get('heat_roles') or DEFAULT_HEAT_ROLES)}"></label>
+            <label class="sub">업무요청 받는 역할 <input type="text" name="order_roles" value="{html.escape(store.kv_get('order_roles') or DEFAULT_ORDER_ROLES)}"></label>
+            <button type="submit">저장</button></form>
+          <p class="sub">지금: <b>{'켜짐' if on else '꺼짐'}</b>{' · 시험 모드' if on and test else ''} · {html.escape(lst)}</p>
+          <form method="post" action="/admin/heat/now"><input type="hidden" name="csrf" value="{csrf}">
+            <button class="ghost" type="submit">지금 발정 알림 실행</button></form></div>"""
 
     def guides_html(csrf: str) -> str:
         from ..actions import guides, is_custom
@@ -784,6 +810,26 @@ def create_app(store: CloudStore, base: Settings, *, secure_cookie: bool = True,
             lines.append("이유: " + reason(sm))
         return account(ok=" / ".join(lines))
 
+    @app.post("/admin/heat")
+    def admin_heat():
+        need_admin()
+        store.kv_set("heat_enabled", "1" if request.form.get("enabled") else "0")
+        store.kv_set("heat_test", "1" if request.form.get("test") else "0")
+        for k in ("heat_roles", "order_roles"):
+            v = ",".join(x.strip() for x in (request.form.get(k) or "").replace("·", ",").split(",") if x.strip())[:200]
+            if v:
+                store.kv_set(k, v)
+        return account(ok="발정 알림 설정을 저장했습니다.")
+
+    @app.post("/admin/heat/now")
+    def admin_heat_now():
+        from ..heat_dispatch import run as run_heat
+        need_admin()
+        sm = run_heat(store, manual=True)
+        return account(ok=f"발정 알림 실행{' (시험 모드: 관리자 기기로만)' if sm['test'] else ''}{' — 꺼져 있어 시험으로만 실행' if not sm['enabled'] else ''} — "
+                          f"최근 20시간 새 발정 {sm['heats']}두 · 팀원 {sm['team']}명 · 담당자 {sm['contacts']}명(전달 {sm['delivered']})"
+                          + (f" · 알림 미설정: {', '.join(sm['no_device'][:6])}" if sm["no_device"] else ""))
+
     @app.post("/admin/receiver")
     def admin_receiver():
         need_admin()
@@ -800,6 +846,51 @@ def create_app(store: CloudStore, base: Settings, *, secure_cookie: bool = True,
         need_admin()
         store.revoke_receiver(re.sub(r"\D", "", request.form.get("phone") or ""))
         return account(ok="링크를 끊었습니다. 그 담당자에게는 더 이상 알림이 가지 않습니다.")
+
+    # ───────── 발정 모아보기 ─────────
+    def heat_html(heats: list[dict], acks: set[str], ack_url: str, hdr_js: str, title: str, back: str) -> str:
+        from ..heat import flags, note
+        by: dict[str, list[dict]] = {}
+        for h in heats:
+            by.setdefault(h["farm"], []).append(h)
+        cards = []
+        for farm, hs in by.items():
+            rows = []
+            for h in hs:
+                done = h["key"] in acks
+                fl = "".join(f"<div class='sub' style='color:#b45309'>⚠ {html.escape(x)}</div>" for x in flags(h))
+                rows.append(f"<tr style='{'opacity:.5' if done else ''}'><td><b>{html.escape(str(h['label']))}</b></td>"
+                            f"<td>{h['t'][5:]}<br><span class='sub'>{h['hours_ago']:.0f}시간 전</span></td>"
+                            f"<td>{html.escape(note(h)) or '-'}{fl}</td>"
+                            f"<td><button class='ghost' style='padding:4px 8px;font-size:13px' "
+                            f"onclick=\"hack(this,{html.escape(json.dumps(h['key']))},{0 if done else 1})\">{'확인 취소' if done else '확인함'}</button></td></tr>")
+            cards.append(f"<div class='card'><h2>{html.escape(farm)} <span class='sub'>{len(hs)}두</span></h2>"
+                         f"<table><tr><th>개체</th><th>감지</th><th>정보</th><th></th></tr>{''.join(rows)}</table></div>")
+        return f"""<div class="card"><h1>{html.escape(title)}</h1>
+          <p class="sub">최근 48시간 smaXtec 발정 감지 · 목장별 · 최신순. 알림은 07:00·13:00·19:00에 새 발정만 옵니다.
+          수정 적기는 smaXtec 앱 표시를 우선하세요. '확인함'은 내 화면에서만 흐리게 표시됩니다.</p>{back}</div>
+          {''.join(cards) or '<div class="card sub">최근 48시간 발정 없음</div>'}
+          <script>function hack(b,k,on){{fetch('{ack_url}',{{method:'POST',credentials:'same-origin',headers:{hdr_js},body:JSON.stringify({{key:k,on:on}})}})
+            .then(r=>{{if(r.ok)location.reload();}});}}</script><script>{NAV_JS}</script>"""
+
+    @app.get("/heat")
+    def heat_page():
+        from ..heat_dispatch import heats_for_farms
+        user, csrf = need_login()
+        hs = heats_for_farms(store, set(user_farms(user.uid)))
+        body = heat_html(hs, store.heat_acks("u:" + user.uid), "/heat/ack",
+                         "{'Content-Type':'application/json','X-CSRF':" + json.dumps(csrf).replace('"', "'") + "}",
+                         f"발정 모아보기 — {len(hs)}두", '<p><a href="/">‹ 앱으로</a></p>')
+        return Response(_page("발정", body), mimetype="text/html")
+
+    @app.post("/heat/ack")
+    def heat_ack():
+        user, csrf = need_login()
+        if request.headers.get("X-CSRF") != csrf:
+            abort(400)
+        d = request.get_json(silent=True) or {}
+        store.heat_ack("u:" + user.uid, str(d.get("key") or ""), bool(d.get("on")))
+        return {"ok": True}
 
     # ───────── 담당자 전용 페이지 (로그인 없이 링크로) ─────────
     def receiver_or_404(token: str) -> dict:
@@ -832,7 +923,8 @@ def create_app(store: CloudStore, base: Settings, *, secure_cookie: bool = True,
                           f"<details><summary>요청 내용 전체</summary><pre style='white-space:pre-wrap;font-size:13px'>{html.escape(d['text'])}</pre></details></div>")
         n = len(store.subs("r:" + r["id"]))
         body = f"""<div class="card"><h1>{html.escape(r['name'] or '')} 님 업무요청</h1>
-          <p class="sub">긴급·우선 목장 업무요청이 매일 08:00·14:00 이 휴대폰 알림으로 옵니다.</p>
+          <p class="sub">긴급·우선 목장 업무요청(08:00·14:00)과 담당 목장 발정(07:00·13:00·19:00)이 이 휴대폰 알림으로 옵니다.
+          <a href="/c/{token}/heat">발정 모아보기 ›</a></p>
           <p>알림 기기: <b>{n}대</b> <span id="pushst" class="sub"></span></p>
           <button type="button" onclick="smxSub('/c/{token}/subscribe')">이 휴대폰에서 알림 받기</button>
           <details style="margin-top:8px"><summary>처음 설정 방법</summary><ol class="sub">
@@ -846,6 +938,26 @@ def create_app(store: CloudStore, base: Settings, *, secure_cookie: bool = True,
             .then(r=>{{if(r.ok)location.reload();else alert('저장 실패');}});}}</script>"""
         page = _page("업무요청", body, nav=False).replace('href="/manifest.webmanifest"', f'href="/c/{token}/manifest.webmanifest"')
         return Response(page, mimetype="text/html")
+
+    @app.get("/c/<token>/heat")
+    def receiver_heat(token: str):
+        from ..heat_dispatch import heats_for_farms
+        r = receiver_or_404(token)
+        farms = {fid for fid, cs in store.contacts().items() if any(re.sub(r"\D", "", c["phone"]) == r["phone"] for c in cs)}
+        hs = heats_for_farms(store, farms)
+        body = heat_html(hs, store.heat_acks("p:" + r["phone"]), f"/c/{token}/heat/ack", "{'Content-Type':'application/json'}",
+                         f"{r['name'] or ''} 님 담당 목장 발정 — {len(hs)}두",
+                         f'<p><a href="/c/{token}">‹ 업무요청</a> · <span id="pushst" class="sub"></span> '
+                         f'<button type="button" onclick="smxSub(\'/c/{token}/subscribe\')">이 휴대폰에서 알림 받기</button></p>' + PUSH_JS)
+        page = _page("발정", body, nav=False).replace('href="/manifest.webmanifest"', f'href="/c/{token}/manifest.webmanifest"')
+        return Response(page, mimetype="text/html")
+
+    @app.post("/c/<token>/heat/ack")
+    def receiver_heat_ack(token: str):
+        r = receiver_or_404(token)
+        d = request.get_json(silent=True) or {}
+        store.heat_ack("p:" + r["phone"], str(d.get("key") or ""), bool(d.get("on")))
+        return {"ok": True}
 
     @app.post("/c/<token>/subscribe")
     def receiver_subscribe(token: str):

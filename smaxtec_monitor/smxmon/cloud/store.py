@@ -74,6 +74,12 @@ CREATE TABLE IF NOT EXISTS dispatch_log (  -- 담당자 × 목장 × 하루 (오
     PRIMARY KEY (day, phone, farm_id, slot)
 );
 CREATE TABLE IF NOT EXISTS kv (key TEXT PRIMARY KEY, value TEXT);
+CREATE TABLE IF NOT EXISTS heat_log (   -- 발정 알림 보낸 기록(같은 발정 두 번 안 보냄). who = u:<uid> / p:<전화>
+    who TEXT NOT NULL, key TEXT NOT NULL, sent TEXT, PRIMARY KEY (who, key)
+);
+CREATE TABLE IF NOT EXISTS heat_ack (   -- 발정 '확인함' 표시
+    who TEXT NOT NULL, key TEXT NOT NULL, at TEXT, PRIMARY KEY (who, key)
+);
 CREATE TABLE IF NOT EXISTS allowed (
     username    TEXT PRIMARY KEY,
     added_at    TEXT NOT NULL,
@@ -375,6 +381,27 @@ class CloudStore:
         with self._conn() as c:
             return {r[0] for r in c.execute("SELECT farm_id FROM dispatch_log WHERE phone IN (?,?) AND dispatch_id=? AND acked IS NOT NULL",
                                              (phone, "t:" + phone, did))}
+
+    # ───────── 발정 알림 기록 ─────────
+    def heat_sent(self, who: str) -> set[str]:
+        with self._conn() as c:
+            return {r[0] for r in c.execute("SELECT key FROM heat_log WHERE who=?", (who,))}
+
+    def heat_mark_sent(self, who: str, keys: list[str]) -> None:
+        with self._lock, self._conn() as c:
+            c.executemany("INSERT OR IGNORE INTO heat_log VALUES (?,?,?)", [(who, k, _now()) for k in keys])
+            c.execute("DELETE FROM heat_log WHERE sent < datetime('now','-10 days')")
+
+    def heat_acks(self, who: str) -> set[str]:
+        with self._conn() as c:
+            return {r[0] for r in c.execute("SELECT key FROM heat_ack WHERE who=?", (who,))}
+
+    def heat_ack(self, who: str, key: str, on: bool = True) -> None:
+        with self._lock, self._conn() as c:
+            if on:
+                c.execute("INSERT OR REPLACE INTO heat_ack VALUES (?,?,?)", (who, key[:120], _now()))
+            else:
+                c.execute("DELETE FROM heat_ack WHERE who=? AND key=?", (who, key))
 
     # ───────── 로그인 기록 (관리자 화면 진단용, 최근 100건만 보관) ─────────
     def log_login(self, username: str, result: str) -> None:

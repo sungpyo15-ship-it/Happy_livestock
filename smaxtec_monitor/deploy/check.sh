@@ -113,6 +113,7 @@ for u in c.execute("SELECT uid, username FROM users"):
     else:
         print(f"  판정 자료 {u['username']}: 없음(업데이트 후 수집 전)")
 PY
+if systemctl is-active --quiet smxmon-heat.timer; then echo "  [정상] 발정 알림 타이머(07·13·19시) 켜짐"; else echo "  [확인] 발정 알림 타이머 없음 → sudo smxmon-update 한 번 더"; fi
 for slot in am pm; do
   echo "  · 발송 작업 로그($slot) 최근:"
   journalctl -u smxmon-dispatch-$slot --since "-2d" --no-pager -o short 2>/dev/null | grep -vE "^-- |Starting|Started|Deactivated|Finished|Consumed" | tail -3 | sed 's/^/      /'
