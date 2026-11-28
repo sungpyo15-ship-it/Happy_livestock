@@ -1253,7 +1253,7 @@ function qDo(q){return q.replace(/하는가$/,"하기").replace(/되는가$/,"�
 /* 낙농 휴식: 누운 소 비율이 낮을 때 현장에서 바로 할 일 */
 function restAct(g,lieP){if(!DG.includes(g))return "깔짚 보충·건조 · 과밀 우방 재편성 · 바닥 미끄럼 점검";
   /* 국내 낙농은 대부분 깔짚(톱밥) 우사 — 교재 CCCS 기준: 휴식장 두당 8㎡, 분만사 두당 14㎡, 사조 두당 60cm */
-  const mo=+((S.farm.date||"").slice(5,7))||(new Date().getMonth()+1),hot=mo>=6&&mo<=9,ar=num((S.pv||{}).s6a),a=[];
+  const mo=+((S.farm.date||"").slice(5,7))||(new Date().getMonth()+1),hot=mo>=6&&mo<=10,ar=num((S.pv||{}).s6a),a=[];
   a.push("깔짚 교반·보충 — 무릎 꿇어 봐서 젖으면 톱밥 추가");
   if(g==="dry")a.push("분만 앞둔 소 넓게 — 분만사 두당 14㎡ 이상");
   else a.push(ar!=null&&ar<8?`과밀 해소 — 휴식장 두당 8㎡ 이상 (현재 ${ar}㎡)`:"과밀 해소 — 휴식장 두당 8㎡ 이상");
