@@ -1086,10 +1086,10 @@ function cmpHtml(c,inline){if(!c)return "";c={...c,rows:c.rows.filter(r=>r.tone!
 const W=v=>v==null?"—":Math.round(v).toLocaleString()+"원";
 /* 비육: 우방별 실제 급여 vs 회사 30개월 표준. 체중 미달 추가 사료비 = 표준 체중까지 부족 kg ÷ 표준 일당증체 × 표준 일 사료비 (추정) */
 function progCost(){let t=0;for(let m=STD.m0;m<STD.m0+STD.wt.length;m++){const s=std(m);t+=s.cost*30.4}return Math.round(t)}
-function beefCost(){let n=0,act=0,stdc=0,lag=0,lagN=0,rows=0;
+function beefCost(){let n=0,act=0,stdc=0,lag=0,lagN=0,lagDays=0,rows=0;
   S.rooms.forEach(r=>{const c=roomCalc(r),h=num(r.n);if(!c||!h||c.cost==null)return;rows++;n+=h;act+=c.cost*h*30.4;stdc+=c.s.cost*h*30.4;
-    const wt=num(r.wt);if(wt!=null&&wt<c.s.wt&&c.s.adg>0){const d=(c.s.wt-wt)/c.s.adg;lag+=d*c.s.cost*h;lagN+=h}});
-  if(!rows)return null;return {n,act:Math.round(act),std:Math.round(stdc),diff:Math.round(act-stdc),lag:Math.round(lag),lagN,prog:progCost()}}
+    const wt=num(r.wt);if(wt!=null&&wt<c.s.wt&&c.s.adg>0){const d=(c.s.wt-wt)/c.s.adg;lag+=d*c.s.cost*h;lagN+=h;lagDays+=d*h}});
+  if(!rows)return null;return {n,act:Math.round(act),std:Math.round(stdc),diff:Math.round(act-stdc),lag:Math.round(lag),lagN,lagDays,prog:progCost()}}
 function beefCostHtml(){const b=beefCost(),pc=progCost();
   if(!b)return `<div class="small muted">우방에 두수와 실제 배합·조사료 급여량을 넣으면 월 사료비와 표준 대비 차이가 계산됩니다. 회사 30개월 표준 출하두당 사료비: <b>${W(pc)}</b></div>`;
   const d=b.diff,pct=b.std?Math.round(d/b.std*100):0;
@@ -1097,7 +1097,7 @@ function beefCostHtml(){const b=beefCost(),pc=progCost();
    <div class="stat"><div class="v">${W(b.act)}</div><div class="k">실제 월 사료비 (${b.n}두)</div></div>
    <div class="stat"><div class="v">${W(b.std)}</div><div class="k">표준 월 사료비</div></div>
    <div class="stat"><div class="v" style="color:${d>0?"var(--bad)":"var(--good)"}">${d>0?"+":""}${W(d)}</div><div class="k">표준 대비 월 차이 (${pct>0?"+":""}${pct}%)<br>연 ${d>0?"+":""}${W(d*12)}</div></div>
-   ${b.lagN?`<div class="stat"><div class="v" style="color:var(--warn)">${W(b.lag)}</div><div class="k">체중 미달 추가 사료비 (추정)<br>${b.lagN}두가 표준 체중까지 더 먹어야 할 사료비</div></div>`:""}
+   ${b.lagN?`<div class="stat"><div class="v" style="color:var(--warn)">${W(b.lag/b.lagN)}</div><div class="k">체중 미달 두당 추가 사료비 (추정)<br>${b.lagN}두 · 출하 약 ${Math.round(b.lagDays/b.lagN)}일 지연분 · 전체 ${W(b.lag)}</div></div>`:""}
    <div class="stat"><div class="v">${W(b.prog)}</div><div class="k">표준 출하두당 사료비<br>(6~30개월, 현재 단가)</div></div></div>
    <div class="small muted" style="margin-top:6px">${d>0?"표준보다 많이 먹이는 만큼은 절감 가능한 비용입니다. 과다 우방부터 정량으로 조정하세요.":d<0?"표준보다 적게 먹이고 있습니다. 비용은 적지만 증체가 늦어지면 출하가 늦어져 오히려 사료비가 늘 수 있습니다.":""} 체중 미달 추가 사료비는 표준 일당증체로 따라잡는다고 가정한 추정입니다.</div>`}
 /* 낙농: TMR 원물 단가·원유 단가 → 두당 사료비, 유사비, 사료비 공제 소득(IOFC) */
@@ -1114,12 +1114,14 @@ const MAN=v=>`${Math.round(v/10000).toLocaleString()}만 원`;
 function gains(){const out=[],f=S.farm,h=herd();
   if(S.mods.includes("beef")){const b=beefCost();
     if(b&&b.diff>0)out.push({t:"비육 사료 표준 정량 조정",v:b.diff*12,txt:`월 ${MAN(b.diff)} · 연 ${MAN(b.diff*12)} 절감`,how:"표준보다 많이 먹이는 우방을 회사 30개월 표준 정량으로 조정"});
-    if(b&&b.lag>0)out.push({t:"체중 미달 소 따라잡기",v:b.lag,txt:`추가 사료비 약 ${MAN(b.lag)} 절감 (추정)`,how:`${b.lagN}두가 표준 체중에 늦게 도달하는 만큼 드는 사료비`,est:1})}
+    if(b&&b.lag>0&&b.lagN){const per=b.lag/b.lagN,days=Math.round(b.lagDays/b.lagN);
+      out.push({t:"체중 미달 소 따라잡기",v:per,txt:`두당 약 ${MAN(per)} (출하 약 ${days}일 지연분, 추정)`,how:`표준 체중보다 가벼운 ${b.lagN}두가 표준 일당증체로 따라잡는 데 드는 사료비. 목장 전체로는 약 ${MAN(b.lag)}`,est:1})}}
   if(S.mods.includes("dairy")){const mp=num(f.milkp),scc=num(f.scc),A=h.adult||num(f.milking);
-    if(mp&&scc!=null&&scc>=20&&h.sccLoss&&A)out.push({t:"체세포 1등급(20만 미만) 달성",v:h.sccLoss*A*mp,txt:`월 약 ${MAN(h.sccLoss*A*mp/12)} · 연 약 ${MAN(h.sccLoss*A*mp)} (추정)`,how:`현재 체세포 구간의 경산우 두당 연 ${h.sccLoss.toLocaleString()} kg 유량 손실(교재 표) × ${A}두 × 원유 단가`,est:1});
+    if(mp&&scc!=null&&scc>=20&&h.sccLoss&&A){const per=h.sccLoss*mp;
+      out.push({t:"체세포 1등급(20만 미만) 달성",v:per,txt:`경산우 두당 연 약 ${MAN(per)} (추정)`,how:`현재 체세포 구간의 두당 유량 손실 약 ${h.sccLoss.toLocaleString()} kg(교재 표) × 원유 단가. 경산우 ${A}두 전체로는 최대 약 ${MAN(per*A)}`,est:1})}
     const d=dmi(),tp=num(f.tmrp),dp=num(f.dmp),M=num(f.milking);
-    if(d&&d.gap!=null&&d.gap<0&&mp&&M){const g=-d.gap,milk=g*2,inc=milk*mp,cost=tp&&dp?g/(dp/100)*tp:0,net=(inc-cost)*M*30.4;
-      if(net>0)out.push({t:"건물섭취량 부족분 채우기",v:net*12,txt:`월 약 ${MAN(net)} · 연 약 ${MAN(net*12)} (추정)`,how:`부족 ${g.toFixed(1)} kg × 건물 1 kg당 우유 약 2 kg(현장 환산) × 착유 ${M}두, 늘어난 사료비 차감`,est:1})}
+    if(d&&d.gap!=null&&d.gap<0&&mp&&M){const g=-d.gap,milk=g*1.5,cost=tp&&dp?g/(dp/100)*tp:0,net=milk*mp-cost;
+      if(net>0)out.push({t:"건물섭취량 부족분 채우기",v:net*30.4,txt:`두당 하루 약 ${Math.round(net).toLocaleString()}원 · 착유우 전체 월 약 ${MAN(net*M*30.4)} (추정)`,how:`부족 ${g.toFixed(1)} kg × 건물 1 kg당 우유 약 1.5 kg(보수적 환산) × 원유 단가 − 늘어난 사료비`,est:1})}
     const c=dairyCost();if(c&&c.iofc!=null&&M)out.push({t:"사료비 공제 소득(IOFC) 두당 1,000원 개선",v:1000*M*30.4*12,txt:`월 ${MAN(1000*M*30.4)} · 연 ${MAN(1000*M*30.4*12)}`,how:`현재 IOFC ${c.iofc.toLocaleString()}원/두/일 기준, 착유 ${M}두`,sens:1})}
   return out.sort((a,b)=>(a.sens||0)-(b.sens||0)||b.v-a.v)}
 function roomCalc(r){
@@ -1175,7 +1177,7 @@ function findings(){
     out.push({m:m.name,p:p<=mx*0.2?1:2,src:sec.name,t:`${it.q} ${p}/${mx}점`+(it.bench?` (우수농장 평균 ${it.bench})`:"")+(fv?" — "+fv:""),a:it.act||it.hint||`${sec.name} 점검표 기준에 맞게 개선`});
   })));
   if(on("beef")){const b=beefCost();if(b&&b.std&&b.diff>b.std*0.05)out.push({m:"한우비육",p:2,src:"사료비",t:`월 사료비 표준 대비 +${Math.round(b.diff/10000).toLocaleString()}만 원 (연 약 ${Math.round(b.diff*12/10000).toLocaleString()}만 원)`,a:"과다 급여 우방 정량 조정 · 잔량 확인 · 월 1회 급여량 재점검"});
-    if(b&&b.lag>0&&b.lagN)out.push({m:"한우비육",p:2,src:"사료비",t:`체중 미달 ${b.lagN}두 — 표준 체중까지 추가 사료비 약 ${Math.round(b.lag/10000).toLocaleString()}만 원 (추정)`,a:"섭취량·질병·편차 확인, 육성기 조사료 품질 점검"})}
+    if(b&&b.lag>0&&b.lagN)out.push({m:"한우비육",p:2,src:"사료비",t:`체중 미달 ${b.lagN}두 — 표준 체중까지 두당 추가 사료비 약 ${Math.round(b.lag/b.lagN/10000).toLocaleString()}만 원 (추정)`,a:"섭취량·질병·편차 확인, 육성기 조사료 품질 점검"})}
   if(on("beef")&&activeMods().includes("beef")||on("beef")){
     S.rooms.forEach(r=>{const c=roomCalc(r); if(!c)return; const tag=`${r.name||"우방"} (${Math.round(c.m)}개월, ${c.s.stage})`;
       if(false) out.push({m:"한우비육",p:2,src:"우방별 급여량",t:`${tag} 두당 일 사료비 ${c.cost.toLocaleString()}원 — 프로그램 ${c.s.cost.toLocaleString()}원`,a:"과다 급여 여부 확인 (가격표 기준)"});
@@ -1232,11 +1234,23 @@ const KW=[
  ["우군 구성",/산차|초산|육성우|갱신|비유말기 두수|분만 두수/,"도태 원인 기록·분석 · 초산우 별도 관리 · 육성우 두수 조정"],
  ["사료 섭취",/사료비|건물|섭취|사조|급여|밀어주기|TMR|입자도|잔량|배합|조사료|건초|볏짚|급이조|스트로우|소금|미네랄|블록/,"사조 밀어주기 하루 6회 · 잔량 3~5% 유지 · 우방별 섭취량 기록"],
  ["기록 관리",/기록|현황판|체중 측정|초음파|매뉴얼|편차/,"월 1회 체중·섭취량 기록 · 현황판으로 급여량 조절"]];
+/* 한우(번식·비육)와 송아지에 맞는 실행 문구 */
+const KW_ALT={
+ "더위·환기":{calf:"송아지 위 외풍 차단 · 암모니아 냄새 없게 환기 · 송아지방 깔짚 건조",hanwoo:"측창·환기구 개방 · 우사 안 암모니아 냄새 제거 · 여름 송풍·차광"},
+ "파행·발굽":{hanwoo:"발굽 과장 소 삭제 · 바닥 미끄럼·요철 점검 · 절름거리는 소 즉시 치료"},
+ "사료 섭취":{hanwoo:"프로그램 정량 급여 · 하루 3회 이상 나눠 급여 · 우방별 섭취량 기록",calf:"입붙임 사료 매일 신선하게 · 양질 건초 소량 · 섭취량 확인"},
+ "휴식":{hanwoo:"비육우 두당 7 ㎡·번식우 10 ㎡ 확보 · 깔짚 보충 · 과밀 우방 재편성",calf:"송아지 두당 2.5 ㎡ 이상 · 깔짚 깊게 · 외풍 차단"},
+ "음수":{hanwoo:"급수조 매일 청소 · 우방마다 급수기 1개 이상 · 겨울 보온 급수",calf:"깨끗한 물 항상 · 물통 매일 청소 · 겨울 미지근한 물"},
+ "청결·바닥":{calf:"송아지방 깔짚 매일 보충·교체 · 분뇨 제거 · 바닥 건조"},
+ "질병 예방":{calf:"설사 송아지 즉시 격리·전해질 투여 · 초유 6시간 안 · 수의사 진단"}};
+function kwAct(x,k){const alt=KW_ALT[k[0]];if(!alt)return k[2];const m=x.m||"",src=x.src||"";
+  if(/송아지/.test(m)||/송아지|분만/.test(src))return alt.calf||alt.hanwoo||k[2];
+  if(/번식우|비육|관리표|한우/.test(m))return alt.hanwoo||k[2];return k[2]}
 function kwOf(x){const k=KW.find(k=>k[1].test(x.t))||KW.find(k=>k[1].test(x.src||""));return k||[(x.src||"개선").replace(/ · .*/,"").replace(/\s*\(\d+\)$/,"").replace(/^개체관찰$/,"개체 관리"),null,null]}
 const SRCX=/\s*\([^)]*(교육|파워북|교재|CowSignals|Walkthrough|문헌|미국 자료|미네소타대|Texas|UC|자료)[^)]*\)/g;
 function qBare(t){return t.replace(/\s*\(우수농장 평균[^)]*\)/,"").replace(/^\((흡혈|일반|공통)\)\s*/,"")}
 function qDo(q){return q.replace(/하는가$/,"하기").replace(/되는가$/,"되게 하기").replace(/주는가$/,"주기").replace(/지키는가$/,"지키기").replace(/유지하는가$/,"유지하기").replace(/제공하는가$/,"제공하기")}
-function actOf(x){const k=kwOf(x);let a=(x.a||"").split(" (기준:")[0].replace(SRCX,"").trim();
+function actOf(x){const k0=kwOf(x),k=[k0[0],k0[1],kwAct(x,k0)];let a=(x.a||"").split(" (기준:")[0].replace(SRCX,"").trim();
   const scored=/\d+\/\d+점/.test(x.t);
   if(/^원인 추정/.test(a))a="";
   if(a.includes(". "))a=a.split(/\.\s+/).filter(z=>!/=|이면|이하면|이상이면|구간|기준/.test(z)).join(", ")||a;
@@ -1252,13 +1266,28 @@ function topRec(F){const pr=x=>{const i=PRIO.indexOf(kwOf(x)[0]);return i<0?PRIO
   const out=[],seen=new Set();for(const x of S2){const k=kwOf(x)[0];if(seen.has(k))continue;seen.add(k);out.push(x);if(out.length===3)break}return out}
 /* ---------- 농가 피드백 (자동 작성) · 평가자 소견 ---------- */
 function strengths(){
-  const out=[];
+  const out=[],f=S.farm,h=herd(),n=k=>num(f[k]);
+  /* 검정성적·생산성: 기준을 충족한 수치를 구체적으로 */
+  if(S.mods.includes("dairy")){
+    const K=[[n("y305")!=null&&n("y305")>=10000,`305일 유량 ${n("y305")?.toLocaleString()} kg — 베스트목장 기준(1만 kg) 충족`,98],
+      [n("scc")!=null&&n("scc")<20,`체세포 ${n("scc")}만 — 원유 1등급 유지`,97],[h.perHead!=null&&h.perHead>=33,`두당 산유량 ${h.perHead} L — 교재 목표(33 L) 이상`,96],
+      [n("open")!=null&&n("open")<=150,`공태일수 ${n("open")}일 — 번식 회전 훌륭(150일 이하)`,96],[h.pregPct!=null&&h.pregPct>=60,`임신우 비율 ${h.pregPct}% — 번식 안정(60% 이상)`,95],
+      [n("ci")!=null&&n("ci")<=435,`분만간격 ${n("ci")}일 — 베스트목장 기준 충족`,95],[n("parity")!=null&&n("parity")>=2.7,`평균산차 ${n("parity")}산 — 연산성 훌륭`,94],
+      [n("dim")!=null&&n("dim")<=150,`평균 착유일수 ${n("dim")}일 — 최대 유량 구간`,93],[n("bac")!=null&&n("bac")<3,`세균수 ${n("bac")}만 — 1A 등급`,92]];
+    K.forEach(([ok,t,p])=>{if(ok)out.push({pct:p,t})});
+    const dc=dairyCost();if(dc&&dc.ratio!=null&&dc.ratio<=50)out.push({pct:91,t:`유사비가 유대의 ${dc.ratio}% — 사료비 관리 양호`})}
+  if(S.mods.includes("beef")){S.rooms.forEach(r=>{const c=roomCalc(r);if(c&&c.wtDev!=null&&c.wtDev>=0)out.push({pct:93,t:`${r.name||"우방"} 체중 ${num(r.wt)} kg — 표준(${c.s.wt} kg) 이상으로 잘 크고 있음`})});
+    const b=beefCost();if(b&&b.std&&Math.abs(b.diff)<=b.std*0.05)out.push({pct:92,t:"우방별 급여량이 회사 표준 정량과 잘 맞음"});
+    const sh=S.rec.beef||{};if(num(sh.q1p)!=null&&num(sh.q1p)>=60)out.push({pct:97,t:`최근 출하 1+ 등급 이상 ${num(sh.q1p)}% — 고급육 성적 우수`})}
+  if(S.mods.includes("cow")){const cv=calving();if(cv!=null&&cv>=80)out.push({pct:95,t:`분만율 ${cv}% — 번식 성적 양호`})}
+  /* 점검표: 만점(또는 85% 이상) 섹션은 잘 지키는 항목 이름으로 */
   activeMods().forEach(id=>{const m=MOD[id]; if(m.diag)return;
     m.secs.forEach(sec=>{if(sec.items.every(i=>i.obs))return; const sc=m.kind==="judge"?dScore(sec):pScore(m,sec);
-      if(sc.pct!=null&&sc.pct>=85&&sc.done>=Math.min(2,sc.n))out.push({pct:sc.pct,t:`${m.grp==="dairy"?"낙농 ":""}${m.name} · ${sec.name.replace(/ \(.*\)$/,"")} ${m.kind==="pts"?`(${sc.got}/${sc.max}점)`:`(${sc.pct}%)`}`})})});
-  visGroups().forEach(g=>indFor(g.id).forEach(ind=>{const st=sigStat(g.id,ind);if(st&&st.status==="good"&&st.n>=10)out.push({pct:90,t:`${g.name} ${ind.name}`})}));
-  const c=[]; visGroups().forEach(g=>{const x=comfortStat(g.id);if(x&&x.lieP!=null&&x.lieP>=90)c.push(`${g.name} 휴식(누운 소 ${x.lieP}%)`)});
-  c.forEach(t=>out.push({pct:95,t}));
+      if(sc.pct!=null&&sc.pct>=85&&sc.done>=Math.min(2,sc.n)){
+        const goodItems=sec.items.filter(it=>!it.obs&&(m.kind==="judge"?status(it)===2:(()=>{const p=ptsOf(PITEM[it.id]);return p!=null&&p>=maxOf(it)})())).map(it=>it.q.replace(/\s*\(.*\)$/,"").replace(/\?$/,"").replace(/\s*있는가$/,"").replace(/는가$/,"기").trim());
+        if(goodItems.length)out.push({pct:sc.pct-1,t:`${sec.name.replace(/\s*\(.*\)$/,"")}: ${goodItems.slice(0,2).join(", ")}${goodItems.length>2?` 등 ${goodItems.length}개 항목`:""} 잘 지키고 있음`})}})});
+  visGroups().forEach(g=>indFor(g.id).forEach(ind=>{const st=sigStat(g.id,ind);if(st&&st.status==="good"&&st.n>=10)out.push({pct:90,t:`${g.name} ${ind.name.replace(/\s*\(.*\)$/,"")} 평균 ${st.mean.toFixed(2)} — 목표(${st.tgt||"적정"}) 안`})}));
+  visGroups().forEach(g=>{const x=comfortStat(g.id);if(x&&x.lieP!=null&&x.lieP>=90)out.push({pct:95,t:`${g.name} 휴식 중 누운 소 ${x.lieP}% — 편하게 쉬는 우사`})});
   return out.sort((a,b)=>b.pct-a.pct).slice(0,3).map(x=>x.t);
 }
 function autoFeedback(){
@@ -1858,7 +1887,7 @@ function helpManual(){
    <li><b>한우비육 (회사 Beef Walk-through)</b>: ① <b>관리표(종합)</b> 100점으로 농장 전반을 보고 ② <b>비육우군 점검표</b> 120점으로 입식우·육성·큰소·마무리 단계를 봅니다. 관리표에서 매긴 구충·사육밀도·급수기 청결·환기·섭취량 점수는 비육우군 점검표에 자동 선택됩니다. ③ 비육우군 점검표 아래 <b>기초정보(사료 단가)</b>와 <b>우방별 급여량 점검</b>에서 생년월일만 넣으면 월령·출하예정일·표준 대비 체중·급여량·사료비가 계산됩니다(회사 30개월 표준).</li>
    <li><b>한우 번식</b>: 번식우 점검표(회사 원본 100점)와 한우송아지 체크리스트를 함께 봅니다. 번식우 점검표의 송아지 항목(입붙임·급수·건초·폐사율)은 송아지 체크리스트를 입력하면 자동 선택됩니다.</li>
    <li><b>사료비 분석</b>: 비육은 우방별 두수·실제 급여량으로 월 사료비와 회사 30개월 표준 대비 차이(월·연), 체중 미달 소의 추가 사료비(추정), 표준 출하두당 사료비를 계산합니다(기초정보 단가). 낙농은 TMR 원물 단가와 원유 단가를 넣으면 두당 사료비, 유사비(우유 1 kg당 사료비), 사료비 공제 소득(IOFC)을 계산합니다.</li>
-   <li><b>개선하면 얻는 효과</b>: 리포트·보고서·농가 피드백에 금액으로 표시합니다. 비육 표준 정량 조정 절감액, 체중 미달 소의 추가 사료비(추정), 체세포 1등급 달성 시 유량 손실 회복액(교재 유량 손실 표 × 원유 단가, 추정), 건물섭취량 부족분을 채울 때의 소득 증가(건물 1 kg당 우유 약 2 kg 현장 환산, 추정), IOFC 두당 1,000원 개선 시 월·연 금액입니다. 원유 단가·TMR 단가·사료 단가를 넣어야 계산됩니다.</li>
+   <li><b>개선하면 얻는 효과</b>: 리포트·보고서·농가 피드백에 금액으로 표시합니다. 비육 표준 정량 조정 절감액, 체중 미달 소의 추가 사료비(추정), 체세포 1등급 달성 시 경산우 두당 유량 손실 회복액(교재 유량 손실 표 × 원유 단가, 추정), 건물섭취량 부족분을 채울 때의 소득 증가(건물 1 kg당 우유 약 1.5 kg 보수적 환산, 추정), IOFC 두당 1,000원 개선 시 월·연 금액입니다. 원유 단가·TMR 단가·사료 단가를 넣어야 계산됩니다.</li>
    <li><b>지난 방문 대비</b>: 같은 목장명으로 저장한 이전 점검 기록이 이 기기에 있으면, 리포트·보고서·농가 피드백에 점수·검정성적·개체관찰 평균의 변화(▲ 좋아짐 / ▼ 나빠짐)가 자동으로 나옵니다. 점검이 끝나면 꼭 "점검 기록 저장"을 눌러 두세요.</li>
    <li><b>해당없음</b>: 그늘막, 환기처럼 해당 시설이 없는 항목은 해당없음을 누르면 만점으로 처리되어 총점이 유지됩니다.</li>
    <li><b>판정형</b> (사양·환경): 측정값을 넣으면 양호·주의·불량이 자동으로 정해지고, 버튼을 누르면 직접 판정이 우선합니다. 메모 칸에 위치나 수치를 적어 두면 리포트에 함께 나옵니다.</li>
