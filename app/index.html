@@ -1177,7 +1177,7 @@ function findings(){
   if(on("beef")){const b=beefCost();if(b&&b.std&&b.diff>b.std*0.05)out.push({m:"한우비육",p:2,src:"사료비",t:`월 사료비 표준 대비 +${Math.round(b.diff/10000).toLocaleString()}만 원 (연 약 ${Math.round(b.diff*12/10000).toLocaleString()}만 원)`,a:"과다 급여 우방 정량 조정 · 잔량 확인 · 월 1회 급여량 재점검"});
     if(b&&b.lag>0&&b.lagN)out.push({m:"한우비육",p:2,src:"사료비",t:`체중 미달 ${b.lagN}두 — 표준 체중까지 추가 사료비 약 ${Math.round(b.lag/10000).toLocaleString()}만 원 (추정)`,a:"섭취량·질병·편차 확인, 육성기 조사료 품질 점검"})}
   if(on("beef")&&activeMods().includes("beef")||on("beef")){
-    S.rooms.forEach(r=>{const c=roomCalc(r); if(!c)return; const tag=`${r.name||"우방"} (${r.m}개월, ${c.s.stage})`;
+    S.rooms.forEach(r=>{const c=roomCalc(r); if(!c)return; const tag=`${r.name||"우방"} (${Math.round(c.m)}개월, ${c.s.stage})`;
       if(false) out.push({m:"한우비육",p:2,src:"우방별 급여량",t:`${tag} 두당 일 사료비 ${c.cost.toLocaleString()}원 — 프로그램 ${c.s.cost.toLocaleString()}원`,a:"과다 급여 여부 확인 (가격표 기준)"});
       if(c.wtDev!=null&&c.wtDev<-5) out.push({m:"한우비육",p:c.wtDev<-10?1:2,src:"우방별 급여량",t:`${tag} 체중 ${r.wt} kg — 표준 ${c.s.wt} kg 대비 ${c.wtDev}%`,a:"섭취량·질병·편차 확인, 육성기 조사료 품질 점검"});
       if(c.concPct!=null&&(c.concPct<90||c.concPct>110)) out.push({m:"한우비육",p:2,src:"우방별 급여량",t:`${tag} 배합사료 ${r.conc} kg — 권장 ${c.s.conc} kg의 ${c.concPct}%`,a:"맥스 24개월 프로그램의 90~110% 범위로 조정 (10 kg 초과 급여 금지)"});
@@ -1226,12 +1226,13 @@ const KW=[
  ["청결·바닥",/청결|오염|체모|바닥|깔짚|미끄럼|무릎|찰과상|혹/,"깔짚 교체 주기 단축 · 통로 분뇨 하루 2회 이상 제거 · 바닥 건조 유지"],
  ["음수",/급수|음수|배뇨|물통|물은/,"급수조 매일 청소 · 두당 10cm 급수 공간 · 겨울 보온·여름 수압 점검"],
  ["더위·환기",/(^|[^전])환기|THI|암모니아|열스트레스|팬 |호흡|그늘|조도|빛/,"팬 25℃부터 가동 · 소 위치 풍속 2~3 m/s · 측창 개방·암모니아 제거"],
+ ["입식우 관리",/수송스트레스|입식|거세/,"입식 전용 사료 적용 · 입식 시 구충·백신 · 6개월령 이하 거세"],
  ["송아지",/송아지|초유|이유|대용유|입붙임|분만사|배꼽/,"초유 6시간 안 4 L · 송아지방 건조·외풍 차단 · 입붙임 사료 3일령 시작"],
  ["질병 예방",/백신|구충|호흡기|설사|질병|폐사|요결석|비타민|크리닝/,"백신·구충 연간 일정표 · 조기 발견 즉시 처치 · 수의사와 처치 기준 작성"],
  ["우군 구성",/산차|초산|육성우|갱신|비유말기 두수|분만 두수/,"도태 원인 기록·분석 · 초산우 별도 관리 · 육성우 두수 조정"],
  ["사료 섭취",/사료비|건물|섭취|사조|급여|밀어주기|TMR|입자도|잔량|배합|조사료|건초|볏짚|급이조|스트로우|소금|미네랄|블록/,"사조 밀어주기 하루 6회 · 잔량 3~5% 유지 · 우방별 섭취량 기록"],
  ["기록 관리",/기록|현황판|체중 측정|초음파|매뉴얼|편차/,"월 1회 체중·섭취량 기록 · 현황판으로 급여량 조절"]];
-function kwOf(x){const k=KW.find(k=>k[1].test(x.t))||KW.find(k=>k[1].test(x.src||""));return k||[(x.src||"개선").replace(/ · .*/,"").replace(/^개체관찰$/,"개체 관리"),null,null]}
+function kwOf(x){const k=KW.find(k=>k[1].test(x.t))||KW.find(k=>k[1].test(x.src||""));return k||[(x.src||"개선").replace(/ · .*/,"").replace(/\s*\(\d+\)$/,"").replace(/^개체관찰$/,"개체 관리"),null,null]}
 const SRCX=/\s*\([^)]*(교육|파워북|교재|CowSignals|Walkthrough|문헌|미국 자료|미네소타대|Texas|UC|자료)[^)]*\)/g;
 function qBare(t){return t.replace(/\s*\(우수농장 평균[^)]*\)/,"").replace(/^\((흡혈|일반|공통)\)\s*/,"")}
 function qDo(q){return q.replace(/하는가$/,"하기").replace(/되는가$/,"되게 하기").replace(/주는가$/,"주기").replace(/지키는가$/,"지키기").replace(/유지하는가$/,"유지하기").replace(/제공하는가$/,"제공하기")}
@@ -1246,8 +1247,8 @@ function actOf(x){const k=kwOf(x);let a=(x.a||"").split(" (기준:")[0].replace(
 function causeOf(x){const m=(x.a||"").match(/^원인 추정:\s*(.*)$/);return m?m[1]:""}
 function stdOf(x){const m=(x.a||"").match(/\(기준:\s*([^)]*)\)/);return m?m[1]:""}
 /* 핵심 과제 우선순위: 시급도(p) → 생산성 영향이 큰 분야 순 */
-const PRIO=["사료 섭취","번식 회전","파행·발굽","유방 건강","건유·전환기","휴식","체형(BCS)","산유량","반추","분변·소화","더위·환기","음수","질병 예방","송아지","청결·바닥","파리·방역","우군 구성","유성분","기록 관리"];
-function topRec(F){const pr=x=>{const i=PRIO.indexOf(kwOf(x)[0]);return i<0?PRIO.length:i};const S2=[...F].sort((a,b)=>a.p-b.p||pr(a)-pr(b));
+const PRIO=["사료 섭취","번식 회전","입식우 관리","파행·발굽","유방 건강","건유·전환기","휴식","체형(BCS)","산유량","반추","분변·소화","더위·환기","음수","질병 예방","송아지","청결·바닥","파리·방역","우군 구성","유성분","기록 관리"];
+function topRec(F){const pr=x=>{const i=PRIO.indexOf(kwOf(x)[0]);return i<0?PRIO.length:i};const ms=x=>/ — /.test(x.t)&&!/\d+\/\d+점/.test(x.t)?0:1;const S2=[...F].sort((a,b)=>a.p-b.p||ms(a)-ms(b)||pr(a)-pr(b));
   const out=[],seen=new Set();for(const x of S2){const k=kwOf(x)[0];if(seen.has(k))continue;seen.add(k);out.push(x);if(out.length===3)break}return out}
 /* ---------- 농가 피드백 (자동 작성) · 평가자 소견 ---------- */
 function strengths(){
@@ -1646,7 +1647,6 @@ function summaryText(){
   let s=`[현장점검] ${f.name||""} ${f.date}\n`;
   if(bestFarm().ok&&S.mods.includes("dairy"))s+=`★ 베스트목장 (${bestFarm().items.map(i=>`${i.l} ${i.txt}`).join(", ")})\n`;
   entered().filter(id=>!MOD[id].diag).forEach(id=>{const m=MOD[id],sc=modScore(id);s+=`· ${m.grp==="dairy"?"낙농 ":""}${m.name} ${sc.label}${m.diag||m.kind==="judge"?"":"점"}${m.diag||m.kind==="judge"?"":` (${grade(sc.pct,m)})`}\n`});
-  {const G=gains().filter(x=>!x.sens);if(G.length)s+=`\n[개선하면 얻는 효과]\n`+G.slice(0,2).map(x=>`· ${x.t}: ${x.txt}`).join("\n")+"\n"}
   {const c=compareVisits();if(c&&c.rows.length){const g=cmpPick(c,1,3),b=cmpPick(c,-1,2);if(g.length||b.length)s+=`\n[지난 방문(${c.date}) 대비]\n`+[...g.map(r=>"▲ "+cmpLine(r)),...b.map(r=>"▼ "+cmpLine(r))].join("\n")+"\n"}}
   s+=`\n${fbText()}`;
   if(S.fb&&S.fb.opinion)s+=`\n\n[평가자 소견]\n${S.fb.opinion}`;
@@ -1659,7 +1659,7 @@ function csv(){
   if(activeMods().includes("dfeed"))DITEMS.forEach(it=>{const v=status(it);L.push(["낙농",it.sec.code+" "+it.sec.name,it.q,S.val[it.id]||"",v==null?"":STL[v],(S.memo[it.id]?S.memo[it.id]+" / ":"")+it.std])});
   MODS.filter(m=>m.kind==="pts"&&activeMods().includes(m.id)).forEach(m=>m.secs.forEach(sec=>sec.items.forEach(it=>{const p=ptsOf(it);
     L.push([m.name,sec.name,it.q,(it.f||[]).map(([k,l,u])=>S.pv[k]?`${l} ${S.pv[k]}${u}`:"").filter(Boolean).join(" / "),it.obs?(obsIdx(it)==null?"":it.opts[obsIdx(it)][0]):p==null?"":`${p}/${maxOf(it)}`,it.hint||""])})));
-  S.rooms.forEach(r=>{const c=roomCalc(r);L.push(["우방별 급여량",r.name,`${r.m}개월 ${r.n}두`,`체중 ${r.wt} / 배합 ${r.conc} / 조사료 ${r.rough}`,c?`체중 ${c.wtDev}% / 배합 ${c.concPct}%`:"",c?`표준 ${c.s.wt}kg, ${c.s.conc}kg`:""])});
+  S.rooms.forEach(r=>{const c=roomCalc(r);L.push(["우방별 급여량",r.name,`${c?Math.round(c.m):r.m}개월 ${r.n}두`,`체중 ${r.wt} / 배합 ${r.conc} / 조사료 ${r.rough}`,c?`체중 ${c.wtDev}% / 배합 ${c.concPct}%`:"",c?`표준 ${c.s.wt}kg, ${c.s.conc}kg`:""])});
   Object.entries(S.rec).forEach(([k,o])=>Object.entries(o).forEach(([kk,v])=>v&&L.push(["성적",k,kk,v,"",""])));
   visGroups().forEach(g=>{indFor(g.id).forEach(ind=>{const c=(S.signals[g.id]||{})[ind.id];const st=sigStat(g.id,ind);if(!st)return;
     L.push(["개체관찰",g.name,ind.name,ind.mode==="mean"?st.mean.toFixed(2):st.pct+"%",st.status,ind.opts.map((op,i)=>`${op.l}:${c[i]}`).join(" ")])});
