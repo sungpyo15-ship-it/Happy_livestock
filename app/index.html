@@ -1199,7 +1199,7 @@ function findings(){
       const t=st.spread?`${ind.name} 평균 ${st.mean.toFixed(2)}은 목표(${st.tgt}) 안이지만 문제 점수 ${st.pct}% (기준 ${ind.limit}% 이하) — 우군 내 편차가 큼 · ${st.n}두`:st.tgt?`${ind.name} 평균 ${st.mean.toFixed(2)} — 목표 ${st.tgt} (${st.dir==="low"?"낮음":"높음"})${st.pct!=null?` · 문제 점수 ${st.pct}%`:""} · ${st.n}두`:`${ind.name} 문제 개체 ${st.pct}% (${st.bad}/${st.n}두, 기준 ${ind.limit}% 이하)`;
       out.push({m:gm,p:st.status==="bad"?1:2,src:`개체관찰 · ${g.name}`,t,a:ind.act})});
     const c=comfortStat(g.id);
-    if(c&&c.lieP!=null&&c.lieP<90) out.push({m:gm,p:c.lieP<80?1:2,src:`개체관찰 · ${g.name}`,t:`휴식 중 누운 소 ${c.lieP}% — 목표 90% 이상`,a:"바닥 상태·깔짚·사육밀도·열스트레스 점검"});
+    if(c&&c.lieP!=null&&c.lieP<90) out.push({m:gm,p:c.lieP<80?1:2,src:`개체관찰 · ${g.name}`,t:`휴식 중 누운 소 ${c.lieP}% — 목표 90% 이상`,a:restAct(g.id,c.lieP)});
     if(c&&c.rumi!=null&&c.rumi<70) out.push({m:gm,p:c.rumi<60?1:2,src:`개체관찰 · ${g.name}`,t:`누운 소 중 반추 ${c.rumi}% — 목표 70% 이상 (교재 80%)`,a:"물리적 섬유 부족·선별채식 가능성"});
     const x=S.sx[g.id]||{};
     if(num(x.resp)!=null&&num(x.resp)>30) out.push({m:gm,p:num(x.resp)>60?1:2,src:`개체관찰 · ${g.name}`,t:`호흡수 ${x.resp}회/분 — 기준 18~30회`,a:"열스트레스 또는 호흡기 질환 확인"});
@@ -1224,7 +1224,7 @@ const KW=[
  ["체형(BCS)",/BCS|체형|신체충실/,"단계별 BCS 목표로 우군 분리 급여 · 비유말기 과비 방지 · 비유초기 에너지 보강"],
  ["반추",/반추/,"유효 섬유 보강 · TMR 입자도 상단 10% 이상 · 선별채식 방지"],
  ["분변·소화",/분변|미소화|연변|산독|과산|고창/,"조농비·입자도 재점검 · 물리적 섬유(R-NDF) 보강 · 조사료 먼저 급여"],
- ["휴식",/누운|휴식|그늘막|대기장/,"휴식 공간 두당 8㎡ · 깔짚 15cm 유지 · 과밀 우방 재편성"],
+ ["휴식",/누운|휴식|그늘막|대기장/,"깔짚 매일 보충·건조 · 과밀 해소(1두 1스톨) · 우사 밖 하루 3시간 이내"],
  ["청결·바닥",/청결|오염|체모|바닥|깔짚|미끄럼|무릎|찰과상|혹/,"깔짚 교체 주기 단축 · 통로 분뇨 하루 2회 이상 제거 · 바닥 건조 유지"],
  ["음수",/급수|음수|배뇨|물통|물은/,"급수조 매일 청소 · 두당 10cm 급수 공간 · 겨울 보온·여름 수압 점검"],
  ["더위·환기",/(^|[^전])환기|THI|암모니아|열스트레스|팬 |호흡|그늘|조도|빛/,"팬 25℃부터 가동 · 소 위치 풍속 2~3 m/s · 측창 개방·암모니아 제거"],
@@ -1250,6 +1250,15 @@ function kwOf(x){const k=KW.find(k=>k[1].test(x.t))||KW.find(k=>k[1].test(x.src|
 const SRCX=/\s*\([^)]*(교육|파워북|교재|CowSignals|Walkthrough|문헌|미국 자료|미네소타대|Texas|UC|자료)[^)]*\)/g;
 function qBare(t){return t.replace(/\s*\(우수농장 평균[^)]*\)/,"").replace(/^\((흡혈|일반|공통)\)\s*/,"")}
 function qDo(q){return q.replace(/하는가$/,"하기").replace(/되는가$/,"되게 하기").replace(/주는가$/,"주기").replace(/지키는가$/,"지키기").replace(/유지하는가$/,"유지하기").replace(/제공하는가$/,"제공하기")}
+/* 낙농 휴식: 누운 소 비율이 낮을 때 현장에서 바로 할 일 */
+function restAct(g,lieP){if(!DG.includes(g))return "깔짚 보충·건조 · 과밀 우방 재편성 · 바닥 미끄럼 점검";
+  const mo=+((S.farm.date||"").slice(5,7))||(new Date().getMonth()+1),hot=mo>=6&&mo<=9,a=[];
+  a.push("깔짚 매일 보충 — 무릎 꿇어 봐서 젖으면 교체");
+  a.push(g==="dry"||g==="early"?"과밀 해소 — 분만 전후 우군은 스톨·사조 85% 이하":"과밀 해소 — 소 1두당 스톨 1칸(사조 폭 두당 60cm 이상)");
+  if(lieP<80)a.push("스톨에 서 있는 소·무릎 상처 확인 → 목봉·칸막이 높이 점검");
+  if(hot)a.push("휴식 구역 송풍·차광");
+  a.push("착유 대기 포함 우사 밖 하루 3시간 이내");
+  return a.join(" · ")}
 function actOf(x){const k0=kwOf(x),k=[k0[0],k0[1],kwAct(x,k0)];let a=(x.a||"").split(" (기준:")[0].replace(SRCX,"").trim();
   const scored=/\d+\/\d+점/.test(x.t);
   if(/^원인 추정/.test(a))a="";
