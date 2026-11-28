@@ -1,0 +1,16 @@
+{
+  "name": "산타 선물 대작전",
+  "short_name": "산타선물",
+  "description": "루돌프 썰매를 타고 하늘의 선물을 받아서 굴뚝으로 배달하는 크리스마스 게임",
+  "lang": "ko",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "background_color": "#0E1A45",
+  "theme_color": "#0E1A45",
+  "icons": [
+    {"src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable"},
+    {"src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable"}
+  ]
+}
